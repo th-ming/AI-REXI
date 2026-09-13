@@ -3,6 +3,8 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const { stripAnsi } = require('../utils/stripAnsi');
 const { generateEdgeTTSNode } = require('./edgeTTS');
+const { assertPublicUrlAsync } = require('../utils/urlSafety');
+const { safeExec } = require('../utils/safeExec');
 
 // ========== TOOL REGISTRY ==========
 // Thêm tool mới chỉ cần thêm 1 object vào đây, AI tự hiểu và dùng!
@@ -48,6 +50,18 @@ const TOOL_REGISTRY = [
     parameters: { type: 'object', properties: { command: { type: 'string', description: 'Câu lệnh cần chạy' } }, required: ['command'] }
   },
   {
+    name: 'run_code',
+    description: 'Chạy code Python / JavaScript / Bash và trả về kết quả stdout. Dùng khi người dùng yêu cầu tính toán, xử lý dữ liệu, tạo script.',
+    parameters: {
+      type: 'object',
+      properties: {
+        language: { type: 'string', enum: ['python', 'javascript', 'bash'], description: 'Ngôn ngữ code' },
+        code: { type: 'string', description: 'Code cần chạy' }
+      },
+      required: ['language', 'code']
+    }
+  },
+  {
     name: 'search_web',
     description: 'Tìm kiếm thông tin trên internet',
     parameters: { type: 'object', properties: { query: { type: 'string', description: 'Từ khóa tìm kiếm' } }, required: ['query'] }
@@ -76,9 +90,13 @@ const { Document, Packer, Paragraph } = require('docx');
 async function executeTool(toolName, args) {
   console.log('[Agent] Tool: ' + toolName, JSON.stringify(args));
   switch (toolName) {
-    case 'browser_navigate':
+    case 'browser_navigate': {
+      // FIX SECURITY: chặn URL nội bộ (SSRF) trước khi mở browser (P2-18: bản async có resolve DNS)
+      const checkNav = await assertPublicUrlAsync(args.url);
+      if (!checkNav.ok) return { error: checkNav.reason };
       if (!browserStream.browser) await browserStream.launch();
       return await browserStream.navigate(args.url);
+    }
     case 'browser_click':
       return await browserStream.click(args.x, args.y);
     case 'browser_type':
@@ -107,17 +125,24 @@ async function executeTool(toolName, args) {
       fs.writeFileSync(args.outputPath, buffer);
       return { success: true, path: args.outputPath, size: buffer.length };
     }
-    case 'execute_command':
-      return new Promise(r => exec(args.command, { timeout: 30000, env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0', TERM: 'dumb' } }, (e, o, e2) => r({ success: !e, stdout: stripAnsi((o||'')).trim(), stderr: stripAnsi((e2||'')).trim() })));
+    case 'execute_command': {
+      // FIX PROD: dùng safeExec — timeout + cắt output + chặn lệnh hủy diệt
+      const r = await safeExec(args.command, { timeout: 30000, strict: true });
+      return { success: r.success, stdout: stripAnsi(r.stdout).trim(), stderr: stripAnsi(r.stderr).trim(), timedOut: r.timedOut };
+    }
+    case 'run_code': {
+      const { runCode } = require('./codeRunner');
+      return await runCode(args.language, args.code);
+    }
     case 'search_web': {
-      const resp = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(args.query), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-      const html = await resp.text();
-      const matches = [...html.matchAll(/class="result__snippet[^"]*">([\s\S]*?)<\/a>/g)];
-      return { results: matches.slice(0, 5).map(m => m[1].replace(/<[^>]+>/g, '').trim()) };
+      return await searchWebTool(args.query);
     }
     case 'web_analyze': {
       const url = args.url;
       if (!url) return { error: 'Thiếu URL' };
+      // FIX SECURITY: chặn URL nội bộ (SSRF) trước khi phân tích website (P2-18: bản async có resolve DNS)
+      const checkUrl = await assertPublicUrlAsync(url);
+      if (!checkUrl.ok) return { error: checkUrl.reason };
       if (!browserStream.browser) await browserStream.launch();
       const page = browserStream.page || (await browserStream.browser.newPage());
       const startTime = Date.now();
@@ -179,17 +204,78 @@ async function executeTool(toolName, args) {
   }
 }
 
+// ========== SEARCH WEB TOOL ==========
+// Tìm kiếm web không cần API key:
+//  1. DuckDuckGo Instant Answer API (api.duckduckgo.com — JSON, free, no key)
+//  2. Fallback: scrape kết quả html.duckduckgo.com (đỡ rủi ro IA trả rỗng)
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+async function searchWebTool(query) {
+  if (!query || !String(query).trim()) return { results: [] };
+  const q = String(query).trim();
+  try {
+    // 1) DDG Instant Answer — trả abstract + related topics (JSON sạch)
+    const iaUrl = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_html=1&skip_disambig=1';
+    const iaRes = await fetch(iaUrl, { headers: { 'User-Agent': UA } });
+    if (iaRes.ok) {
+      const ia = await iaRes.json();
+      const results = [];
+      if (ia.AbstractText) results.push({ type: 'abstract', title: ia.Heading || q, snippet: ia.AbstractText, url: ia.AbstractURL || '' });
+      if (ia.Answer && ia.AnswerType !== '') results.push({ type: 'answer', title: 'Câu trả lời', snippet: String(ia.Answer), url: '' });
+      if (Array.isArray(ia.RelatedTopics)) {
+        for (const t of ia.RelatedTopics) {
+          if (!t || typeof t !== 'object') continue;
+          if (t.Topics && Array.isArray(t.Topics)) {
+            for (const sub of t.Topics) {
+              if (sub && sub.Text) results.push({ type: 'related', title: sub.FirstURL || '', snippet: sub.Text, url: sub.FirstURL || '' });
+            }
+          } else if (t.Text) {
+            results.push({ type: 'related', title: t.FirstURL || '', snippet: t.Text, url: t.FirstURL || '' });
+          }
+        }
+      }
+      if (results.length) return { results: results.slice(0, 8), source: 'duckduckgo-ia' };
+    }
+  } catch (e) {
+    console.warn('[Agent][search] DDG IA fail:', e.message);
+  }
+
+  try {
+    // 2) Fallback: HTML scrape html.duckduckgo.com
+    const htmlRes = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: { 'User-Agent': UA } });
+    if (!htmlRes.ok) return { results: [] };
+    const html = await htmlRes.text();
+    const out = [];
+    const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    let m;
+    while ((m = re.exec(html)) !== null && out.length < 8) {
+      out.push({
+        type: 'result',
+        title: m[2].replace(/<[^>]+>/g, '').trim(),
+        snippet: m[3].replace(/<[^>]+>/g, '').trim(),
+        url: m[1]
+      });
+    }
+    return { results: out, source: 'duckduckgo-html' };
+  } catch (e) {
+    console.warn('[Agent][search] DDG HTML fail:', e.message);
+    return { results: [] };
+  }
+}
+
 // ========== CALL AI ==========
 async function callAI(prompt, m) {
   const { spawn } = require('child_process');
   const OPENCODE_BIN = process.env.OPENCODE_BIN_PATH || path.join(process.env.USERPROFILE || '', '.opencode', 'bin', 'opencode.exe');
-  const model = m || 'opencode/deepseek-v4-flash-free';
+  // Model mặc định: nvidia gemma-4-31b-it — key có sẵn trong auth.json opencode, chạy được, context 200k
+  const model = m || 'nvidia/google/gemma-4-31b-it';
 
-  // Thử OpenCode binary trước (miễn phí)
+  // Thử OpenCode binary trước (miễn phí) — --pure bỏ plugins nặng (project 71k file → build chậm)
   if (fs.existsSync(OPENCODE_BIN)) {
     return new Promise((resolve) => {
-      const proc = spawn(OPENCODE_BIN, ['run', prompt, '--auto', '--model', model], {
-        timeout: 30000,
+      const proc = spawn(OPENCODE_BIN, ['run', prompt, '--auto', '--model', model, '--pure', '--title', 'agent-task'], {
+        timeout: 300000,
+        stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, LANG: 'en_US.UTF-8', NO_COLOR: '1', FORCE_COLOR: '0', TERM: 'dumb', CLICOLOR: '0', CLICOLOR_FORCE: '0' }
       });
       let stdout = '';
@@ -201,8 +287,34 @@ async function callAI(prompt, m) {
     });
   }
 
-  return 'Lỗi AI: Chưa cài đặt OpenCode. Vui lòng cài đặt để sử dụng tính năng AI.';
+  // FALLBACK: OmniRoute Free AI Gateway (đã cài trong skills/omniroute) — không cần API key
+  // endpoint: http://localhost:20128/v1/chat/completions (có thể override bằng OMNIROUTE_BASE_URL)
+  const omniBase = (process.env.OMNIROUTE_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, '');
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 30000);
+    const omniRes = await fetch(omniBase + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: ctrl.signal,
+      body: JSON.stringify({
+        model: (process.env.OMNIROUTE_MODEL || 'pollinations/gpt-5') + '',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2048
+      })
+    });
+    clearTimeout(timer);
+    if (omniRes.ok) {
+      const data = await omniRes.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return text.trim();
+    }
+  } catch (e) {
+    console.warn('[Agent][callAI] OmniRoute fallback fail:', e.message);
+  }
+
+  return 'Lỗi AI: Không có nguồn AI khả dụng (OpenCode chưa cài / OmniRoute chưa chạy).';
 }
 
-module.exports = { executeTool, TOOL_REGISTRY, callAI };
+module.exports = { executeTool, TOOL_REGISTRY, callAI, searchWebTool };
 

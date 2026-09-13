@@ -22,13 +22,29 @@ const IPTV_CATEGORIES = [
 
 const POPULAR_COUNTRIES = ['VN', 'US', 'GB', 'KR', 'JP', 'CN', 'TH', 'FR', 'DE', 'IN', 'RU', 'BR', 'AU', 'CA', 'HK', 'TW'];
 
+// Trích YouTube video ID từ mọi dạng URL: watch?v=, youtu.be/, /shorts/, /live/, /embed/, /v/
+function extractYouTubeId(rawUrl) {
+  const u = String(rawUrl || '').trim();
+  if (!u) return '';
+  let m = u.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  m = u.match(/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:shorts|live|embed|v)\/|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (m) return m[1];
+  return '';
+}
+
+function isYouTubeUrl(rawUrl) {
+  const u = String(rawUrl || '').toLowerCase();
+  return u.includes('youtube.com') || u.includes('youtu.be') || u.includes('youtube-nocookie.com');
+}
+
 
 const codeToTwemojiUrl = (code) => {
   if (!code || code.length !== 2) return null;
   const c = code.toUpperCase();
   const cp1 = (0x1F1E6 + c.charCodeAt(0) - 65).toString(16);
   const cp2 = (0x1F1E6 + c.charCodeAt(1) - 65).toString(16);
-  return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/${cp1}-${cp2}.svg`;
+  return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.3/assets/svg/${cp1}-${cp2}.svg`;
 };
 
 const FlagImg = ({ code, size = 18, className = '' }) => {
@@ -52,6 +68,8 @@ export default function IPTVTab({
   iptvSearch, setIptvSearch,
   iptvChannels, selectedChannel, setSelectedChannel,
   iptvSubtitleOn, setIptvSubtitleOn,
+  iptvEmbeddedSubs,
+  hlsRef,
   fetchIPTV, iptvVideoRef,
 }) {
   const safeChannels = iptvChannels || [];
@@ -67,6 +85,7 @@ export default function IPTVTab({
   const [subtitleInterim, setSubtitleInterim] = useState('');
   const [subtitleStatus, setSubtitleStatus] = useState('idle'); // idle | listening | error | unsupported
   const [subtitleError, setSubtitleError] = useState(''); // Lỗi backend (CHƯA_CÓ_KEY/401/500...) hiện rõ cho user
+  const [embeddedSubOn, setEmbeddedSubOn] = useState(false); // track phụ đề nhúng của kênh (đồng bộ 100%)
   const mediaRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
   const sendingRef = useRef(false);
@@ -119,25 +138,50 @@ export default function IPTVTab({
       setSubtitleError('Kênh YouTube không hỗ trợ phụ đề AI (video không cho lấy audio).');
       return;
     }
+    if (typeof MediaRecorder === 'undefined') {
+      // HTTP thường / trình duyệt cũ không có MediaRecorder
+      setSubtitleStatus('unsupported');
+      setSubtitleError('Trình duyệt này không hỗ trợ ghi âm (cần HTTPS hoặc trình duyệt mới hơn).');
+      return;
+    }
 
     let cancelled = false;
     let stream = null;
     let recorder = null;
+    let retryTimer = null;
+    let retryAttempts = 0;
 
     const startRecorder = () => {
+      if (cancelled || (recorder && recorder.state !== 'inactive')) return;
       try {
-        stream = video.captureStream();
-        const audioTracks = stream.getAudioTracks();
-        if (!audioTracks.length) {
-          setSubtitleStatus('unsupported');
+        if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+          if (retryAttempts++ < 30) retryTimer = setTimeout(startRecorder, 1000);
           return;
         }
-        audioStreamRef.current = stream;
+
+        const capturedStream = video.captureStream();
+        const audioTracks = capturedStream.getAudioTracks();
+        if (!audioTracks.length) {
+          if (retryAttempts++ < 30) {
+            capturedStream.getTracks().forEach(track => track.stop());
+            retryTimer = setTimeout(startRecorder, 1000);
+          } else {
+            setSubtitleStatus('unsupported');
+            setSubtitleError('Kênh này chưa phát audio hoặc trình duyệt không lấy được audio từ stream.');
+          }
+          return;
+        }
+        retryAttempts = 0;
+        stream = capturedStream;
+        // Whisper chỉ cần audio. Dùng audio-only stream để MediaRecorder không
+        // cố mã hoá cả track hình ảnh thành audio/webm.
+        const audioStream = new MediaStream(audioTracks);
+        audioStreamRef.current = audioStream;
 
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
-        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        recorder = new MediaRecorder(audioStream, mimeType ? { mimeType } : undefined);
         mediaRecorderRef.current = recorder;
         setSubtitleStatus('listening');
 
@@ -208,11 +252,16 @@ export default function IPTVTab({
       }
     };
 
+    const retryEvents = ['loadedmetadata', 'canplay', 'playing', 'timeupdate'];
+    retryEvents.forEach(eventName => video.addEventListener(eventName, startRecorder));
     startRecorder();
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryEvents.forEach(eventName => video.removeEventListener(eventName, startRecorder));
       if (recorder) { try { recorder.stop(); } catch {} }
+      if (audioStreamRef.current) { try { audioStreamRef.current.getTracks().forEach(t => t.stop()); } catch {} }
       if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch {} }
       mediaRecorderRef.current = null;
       audioStreamRef.current = null;
@@ -235,6 +284,7 @@ export default function IPTVTab({
   };
 
   useEffect(() => {
+    setEmbeddedSubOn(false);
     if (!selectedChannel && iptvVideoRef?.current) {
       iptvVideoRef.current.pause();
       iptvVideoRef.current.removeAttribute('src');
@@ -392,21 +442,51 @@ export default function IPTVTab({
           <div className="px-3 py-2 bg-[#181920] border-b border-white/5 flex items-center gap-2">
             <Radio size={13} className="text-rose-400 animate-pulse shrink-0" />
             <span className="text-xs font-medium text-white truncate">{selectedChannel.name}</span>
-            <button
-              onClick={() => setIptvSubtitleOn?.(!iptvSubtitleOn)}
-              className={`ml-auto px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1.5 transition-all shrink-0 min-w-[80px] justify-center ${
-                iptvSubtitleOn ? 'bg-rose-500/80 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
-              }`}
-              title={iptvSubtitleOn ? 'Tắt phụ đề AI' : 'Bật phụ đề AI'}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${iptvSubtitleOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
-              <span className="truncate">Phụ Đề</span>
-            </button>
+            <div className="ml-auto flex items-center gap-1.5 shrink-0">
+              {/* Phụ đề NHÚNG của kênh — đồng bộ 100%, 0 đồng, 0 trễ */}
+              {(iptvEmbeddedSubs?.length > 0) && (
+                <button
+                  onClick={() => {
+                    const next = !embeddedSubOn;
+                    setEmbeddedSubOn(next);
+                    const hls = hlsRef?.current;
+                    if (hls) {
+                      hls.subtitleTrack = next ? (iptvEmbeddedSubs[0]?.id ?? 0) : -1;
+                    }
+                  }}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1.5 transition-all min-w-[86px] justify-center ${
+                    embeddedSubOn ? 'bg-emerald-500/80 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
+                  }`}
+                  title={embeddedSubOn ? 'Tắt phụ đề kênh (đồng bộ)' : `Bật phụ đề kênh: ${iptvEmbeddedSubs.map(s => s.name).join(', ')} (đồng bộ 100%, miễn phí)`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${embeddedSubOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
+                  <span className="truncate">Phụ Đề Kênh</span>
+                </button>
+              )}
+              {/* Phụ đề AI — nghe rồi dịch: TRỄ ~7-10s + tốn quota, chỉ nên dùng cho kênh ngoại ngữ */}
+              <button
+                onClick={() => {
+                  if (!iptvSubtitleOn) {
+                    // Cảnh báo trễ trước khi bật lần đầu
+                    setIptvSubtitleOn?.(true);
+                  } else {
+                    setIptvSubtitleOn?.(false);
+                  }
+                }}
+                className={`px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1.5 transition-all min-w-[80px] justify-center ${
+                  iptvSubtitleOn ? 'bg-rose-500/80 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
+                }`}
+                title="Phụ đề AI (nghe + dịch): TRỄ ~7-10s so với hình, mỗi giờ xem tốn ~720 request Whisper. Chỉ nên bật cho kênh ngoại ngữ cần dịch sang tiếng Việt."
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${iptvSubtitleOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
+                <span className="truncate">Phụ Đề AI</span>
+              </button>
+            </div>
           </div>
         )}
 
         <div className="flex-1 relative bg-black flex items-center justify-center">
-          {selectedChannel && !selectedChannel.url?.includes('youtube') ? (
+          {selectedChannel && !isYouTubeUrl(selectedChannel.url) ? (
             <video
               ref={iptvVideoRef}
               className="w-full h-full object-contain bg-black"
@@ -414,9 +494,9 @@ export default function IPTVTab({
               autoPlay
               playsInline
             />
-          ) : selectedChannel?.url?.includes('youtube') ? (
+          ) : selectedChannel && isYouTubeUrl(selectedChannel.url) && extractYouTubeId(selectedChannel.url) ? (
             <iframe
-              src={`https://www.youtube.com/embed/${selectedChannel.url.split('v=')[1]?.split('&')[0] || ''}?autoplay=1`}
+              src={`https://www.youtube.com/embed/${extractYouTubeId(selectedChannel.url)}?autoplay=1`}
               className="w-full h-full border-none"
               allowFullScreen
               allow="autoplay"

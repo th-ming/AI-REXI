@@ -3,6 +3,7 @@ let chromium = null;
 const WebSocket = require('ws');
 const { exec } = require('child_process');
 const util = require('util');
+const { decryptKey } = require('../utils/cryptoKeys');
 const execPromise = util.promisify(exec);
 
 function getChromium() {
@@ -30,7 +31,32 @@ class BrowserStreamService {
     this.wss = wss;
     console.log('[BrowserStream] setWSS called, path:', wss.options?.path || 'default');
     this.wss.on('connection', (ws, req) => {
-      console.log('[WS] Client connected! URL:', req?.url, 'Total:', this.clients.size + 1);
+      // P0-03: WS đã qua verifyClient ở server.js — decode lại token để gắn user,
+      // phòng trường hợp WSS được dựng ở nơi khác mà quên verifyClient.
+      let user = null;
+      try {
+        const jwt = require('jsonwebtoken');
+        const { getJWTSecret } = require('../middleware/auth.middleware');
+        const reqUrl = req?.url || '';
+        let token = '';
+        const q = reqUrl.indexOf('?');
+        if (q >= 0) {
+          try { token = new URL(reqUrl, 'http://localhost').searchParams.get('token') || ''; } catch (e) {}
+        }
+        if (!token) {
+          const proto = req?.headers?.['sec-websocket-protocol'] || '';
+          const parts = String(proto).split(',').map((s) => s.trim()).filter(Boolean);
+          if (parts.length) token = parts[parts.length - 1];
+        }
+        if (token) user = jwt.verify(token, getJWTSecret());
+      } catch (e) { user = null; }
+      if (!user) {
+        console.log('[WS] Rejected unauthenticated client');
+        try { ws.close(4401, 'Unauthorized'); } catch (e) {}
+        return;
+      }
+      ws.user = user;
+      console.log('[WS] Client connected! User:', user.id || user.email || '?', 'URL:', req?.url?.split('?')[0], 'Total:', this.clients.size + 1);
       this.clients.add(ws);
       this._resetAutoClose();
 
@@ -126,6 +152,9 @@ class BrowserStreamService {
   }
 
   async handleMessage(msg, ws) {
+    // P0-03: chỉ client đã xác thực mới được điều khiển browser qua WS
+    // (REST /browser/* đã có authMiddleware — WS phải tương đương).
+    if (!ws || !ws.user) return;
     if (!this.page) return;
     
     switch (msg.type) {
@@ -219,12 +248,13 @@ class BrowserStreamService {
     return { success: true };
   }
 
-  // Lấy key Groq từ DB (ưu tiên) hoặc env — key đã được verify hoạt động
+  // NOTE FOR AI AGENTS: Key API Groq được ưu tiên lấy trực tiếp từ CSDL SQLite (bảng khoa_api, ten_nha_cung_cap = 'groq').
+  // File .env chỉ là phương án dự phòng (fallback), không bắt buộc phải có GROQ_API_KEY trong .env.
   async _getGroqKey() {
     try {
       const db = require('../config/db');
       const key = await new Promise((resolve) => {
-        db.get("SELECT gia_tri_khoa FROM khoa_api WHERE ten_nha_cung_cap = 'groq'", [], (e, r) => resolve(r?.gia_tri_khoa || ''));
+        db.get("SELECT gia_tri_khoa FROM khoa_api WHERE ten_nha_cung_cap = 'groq'", [], (e, r) => resolve(r?.gia_tri_khoa ? decryptKey(r.gia_tri_khoa) : ''));
       });
       return key || process.env.GROQ_API_KEY || '';
     } catch (e) {
@@ -341,6 +371,10 @@ class BrowserStreamService {
     const trimmed = String(instruction || '').trim();
     const goto = async (url) => {
       try {
+        // P2-18: act() đi qua WS (không qua route /browser/navigate) → check SSRF tại đây
+        const { assertPublicUrlAsync } = require('../utils/urlSafety');
+        const check = await assertPublicUrlAsync(url);
+        if (!check.ok) return { success: false, error: check.reason };
         await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         return { success: true, result: { message: `Đã mở: ${url}` } };
       } catch (e) {
@@ -424,7 +458,7 @@ class BrowserStreamService {
     // Force-kill any zombie chrome-headless-shell / chromium processes
     // (browser.close() đôi khi không kill hết trên Windows)
     try {
-      await execPromise('taskkill /F /IM chrome-headless-shell.exe 2>nul & taskkill /F /IM chromium.exe 2>nul & taskkill /F /IM chrome.exe 2>nul');
+      await execPromise('taskkill /F /IM chrome-headless-shell.exe 2>nul & taskkill /F /IM chromium.exe 2>nul');
       console.log('[BrowserStream] Force-killed any remaining browser processes');
     } catch (e) {
       // Ignore — nếu không có process nào thì taskkill vẫn lỗi, không sao

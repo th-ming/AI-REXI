@@ -48,14 +48,18 @@ export default function SettingsModal({
     setProvider(newProv);
     localStorage.setItem('rexi_provider', newProv);
 
-    // Auto-fill Base URL theo provider
+    // Auto-fill Base URL theo provider — LUÔN set (kể cả rỗng) để không dính URL cũ của provider trước
     const provInfo = FALLBACK_PROVIDERS[newProv];
-    if (provInfo?.defaultBaseUrl) {
-      setBaseUrl(provInfo.defaultBaseUrl);
-      localStorage.setItem('rexi_base_url', provInfo.defaultBaseUrl);
-    }
+    const nextBase = provInfo?.defaultBaseUrl || '';
+    setBaseUrl(nextBase);
+    localStorage.setItem('rexi_base_url', nextBase);
 
     // KHÔNG gợi ý model mẫu — để hệ thống tự chọn model working đầu tiên của provider
+  };
+
+  const handleClearKey = () => {
+    setApiKey('');
+    try { localStorage.removeItem('rexi_api_key'); } catch {}
   };
 
   if (!settingsOpen) return null;
@@ -64,7 +68,11 @@ export default function SettingsModal({
     ? dynamicProviders.map(p => ({ key: p.ma_nha_cung_cap, name: p.ten_hien_thi, placeholder: p.placeholder, canKey: p.can_api_key }))
     : Object.entries(FALLBACK_PROVIDERS).map(([k, v]) => ({ key: k, name: v.name, placeholder: v.placeholder, canKey: v.placeholder !== 'Internal Engine' }));
 
-  const currentInfo = FALLBACK_PROVIDERS[provider] || {};
+  // Ưu tiên placeholder của provider ĐỘNG từ server, fallback mới tới static
+  const dynInfo = dynamicProviders.find(p => p.ma_nha_cung_cap === provider);
+  const currentInfo = {
+    placeholder: dynInfo?.placeholder || FALLBACK_PROVIDERS[provider]?.placeholder || '',
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSettingsOpen(false)}>
@@ -127,6 +135,12 @@ export default function SettingsModal({
                   {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {apiKey ? (
+                <button type="button" onClick={handleClearKey}
+                  className="mt-1 text-[10px] text-rose-400/80 hover:text-rose-300">
+                  Xóa key đã lưu khỏi máy này
+                </button>
+              ) : null}
             </div>
           )}
 

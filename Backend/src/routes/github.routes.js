@@ -1,4 +1,4 @@
-/**
+﻿/**
  * GitHub Trending Routes
  * 
  * GET    /api/admin/github/trending          - Lấy danh sách trending repos
@@ -12,6 +12,8 @@ const express = require('express');
 const router = express.Router();
 const path = require('path');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware');
+const { rateLimit } = require('../middleware/rateLimit');
+const { decryptKey } = require('../utils/cryptoKeys');
 
 router.use(authMiddleware);
 router.use(adminMiddleware);
@@ -42,7 +44,7 @@ function ensureGithubToken() {
   if (GITHUB_TOKEN) return Promise.resolve(GITHUB_TOKEN);
   if (!tokenLoadPromise) {
     tokenLoadPromise = getQ("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'github'")
-      .then(row => { if (row && row.gia_tri_khoa) GITHUB_TOKEN = row.gia_tri_khoa.trim(); return GITHUB_TOKEN; })
+      .then(row => { if (row && row.gia_tri_khoa) GITHUB_TOKEN = decryptKey(row.gia_tri_khoa).trim(); return GITHUB_TOKEN; })
       .catch(() => GITHUB_TOKEN);
   }
   return tokenLoadPromise;
@@ -391,7 +393,16 @@ router.get('/stars/:owner/:name/history', async (req, res) => {
 });
 
 // ─── Export saved repos ────────────────────────────────────
-router.get('/export/saved', async (req, res) => {
+// P2-20(11): resolve GitHub token — ưu tiên token user gửi kèm (header
+// x-github-token hoặc ?github_token=), không thì mới dùng server token.
+// (Authorization header là JWT Rexi, KHÔNG phải GitHub token nên không dùng.)
+async function resolveGithubToken(req) {
+  const userToken = String(req.headers['x-github-token'] || req.query.github_token || '').trim();
+  if (userToken) return userToken;
+  return ensureGithubToken();
+}
+
+router.get('/export/saved', rateLimit({ windowMs: 60000, max: 10 }), async (req, res) => {
   const { format = 'json' } = req.query;
   try {
     const rows = await allQ('SELECT * FROM saved_repos ORDER BY saved_at DESC');
@@ -413,12 +424,13 @@ router.get('/export/saved', async (req, res) => {
 });
 
 // ─── Export starred repos ──────────────────────────────────
-router.get('/export/starred', async (req, res) => {
+router.get('/export/starred', rateLimit({ windowMs: 60000, max: 10 }), async (req, res) => {
   try {
     const { format = 'json' } = req.query;
+    const ghToken = await resolveGithubToken(req);
     const response = await fetch('https://api.github.com/user/starred?per_page=100&sort=created&direction=desc', {
       headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
+        'Authorization': `token ${ghToken}`,
         'Accept': 'application/vnd.github.v3+json',
         'User-Agent': 'AI-REXI-Admin',
       },

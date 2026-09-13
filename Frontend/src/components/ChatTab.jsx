@@ -1,28 +1,20 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square } from 'lucide-react';
-
-function sanitizeHtml(html) {
-  if (!html) return '';
-  let s = html;
-  s = s.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-  s = s.replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '');
-  s = s.replace(/<(\w+)\s+[^>]*on\w+\s*=\s*["'][^"']*["'][^>]*>/gi, '<$1>');
-  s = s.replace(/<(\w+)\s+[^>]*on\w+\s*=\s*[^>]*>/gi, '<$1>');
-  s = s.replace(/javascript\s*:/gi, '');
-  s = s.replace(/<meta[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*>/gi, '');
-  return s;
-}
+import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2 } from 'lucide-react';
+import { sanitizeMarkdown } from '../utils/sanitize';
 
 export default function ChatTab({
   messages, inputText, setInputText, loading, attachedFiles,
-  executionMode, setExecutionMode, chatModeOpen, setChatModeOpen,
+  executionMode, setExecutionMode, agentEngine, setAgentEngine, chatModeOpen, setChatModeOpen,
   listening, voiceTranscript, copiedId, speakingMsgId,
+  reasoning, setReasoning,
   handleSendMessage, startVoice, speakText, copyToClipboard,
   fileInputRef, handleFileSelect, chatScrollRef, handleChatScroll,
   showScrollTop, showScrollBottom, scrollToTopSmooth, scrollToBottomSmooth,
-  currentUser, onOpenFeature
+  currentUser, onOpenFeature, lang
 }) {
   const dropdownRef = useRef(null);
+  const pdfInputRef = useRef(null);
+  const [pdfLoading, setPdfLoading] = React.useState(false);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -37,6 +29,49 @@ export default function ChatTab({
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [chatModeOpen, setChatModeOpen]);
+
+  const handlePdfSelect = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      alert('Vui lòng chọn file PDF.');
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      alert('File PDF quá lớn (tối đa 20MB).');
+      return;
+    }
+    setPdfLoading(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(new Error('Không đọc được file'));
+        reader.readAsDataURL(file);
+      });
+      const token = localStorage.getItem('rexi_token') || '';
+      const res = await fetch('/api/services/office/process-pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        credentials: 'include',
+        body: JSON.stringify({ action: 'extract', base64_pdf: base64 })
+      });
+      const data = await res.json();
+      if (!data.success || !data.text) {
+        throw new Error(data.error || 'Không trích được chữ từ PDF này (có thể là file scan ảnh).');
+      }
+      const preview = data.text.length > 15000 ? data.text.substring(0, 15000) + '\n...[đã cắt, toàn bộ dài ' + data.text.length + ' ký tự]' : data.text;
+      handleSendMessage(`📄 **File PDF: ${file.name}** (${data.pages} trang, ${data.chars} ký tự)\n\nNội dung:\n\n${preview}\n\n---\nHãy phân tích / tóm tắt nội dung file này.`);
+    } catch (err) {
+      alert('Lỗi xử lý PDF: ' + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto px-4 py-3">
@@ -79,6 +114,22 @@ export default function ChatTab({
                   <div className="text-xs font-bold text-slate-100 group-hover:text-rose-300">Xem TV</div>
                   <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Xem kênh truyền hình trực tuyến từ khắp nơi trên thế giới.</div>
                 </button>
+                <button
+                  onClick={() => onOpenFeature?.('image')}
+                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all text-left"
+                >
+                  <div className="text-2xl mb-2">🖼️</div>
+                  <div className="text-xs font-bold text-slate-100 group-hover:text-indigo-300">Tạo Ảnh AI</div>
+                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Mô tả bằng chữ → ảnh AI (Gemini). Tạo ảnh minh họa, avatar, poster...</div>
+                </button>
+                <button
+                  onClick={() => onOpenFeature?.('documents')}
+                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left"
+                >
+                  <div className="text-2xl mb-2">📄</div>
+                  <div className="text-xs font-bold text-slate-100 group-hover:text-emerald-300">Đọc & Hiểu File</div>
+                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Đưa PDF/Word/TXT vào — AI tự đọc, hiểu theo nghĩa và trả lời dựa trên nội dung file.</div>
+                </button>
               </div>
 
               <p className="text-[10px] text-slate-500 max-w-md leading-relaxed">
@@ -107,10 +158,10 @@ export default function ChatTab({
                         <span className="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
                         Phản hồi từ Admin
                       </div>
-                      <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.noi_dung || '') }} />
+                      <div dangerouslySetInnerHTML={{ __html: sanitizeMarkdown(msg.noi_dung || '') }} />
                     </div>
                   ) : (
-                    <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.noi_dung || '') }} />
+                    <div dangerouslySetInnerHTML={{ __html: sanitizeMarkdown(msg.noi_dung || '') }} />
                   )}
                   {msg.vai_tro !== 'user' && (
                     <div className="flex items-center justify-end gap-3 mt-3 pt-2 border-t border-white/5 text-xs text-slate-400">
@@ -246,6 +297,54 @@ export default function ChatTab({
                       <div className="text-[10px] text-purple-300/80 mt-0.5 leading-tight">Tự động thực thi code & tác vụ</div>
                     </div>
                   </button>
+
+                  {executionMode === 'agent' && (
+                    <div className="mt-1 pt-1 border-t border-white/10">
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1">Engine xử lý</div>
+                      <button
+                        type="button"
+                        onClick={() => { setAgentEngine('auto'); setChatModeOpen(false); }}
+                        className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left cursor-pointer transition-colors ${
+                          agentEngine === 'auto' ? 'bg-[#1b1c2e] border border-emerald-500/40' : 'hover:bg-white/5 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-xs shrink-0 mt-0.5">🤖</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold text-emerald-200">Auto (tự chọn engine)</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Task ngắn → DSH nhanh, task dài → OpenCode</div>
+                        </div>
+                        {agentEngine === 'auto' && <span className="text-emerald-400 text-[10px] mt-0.5">✓</span>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAgentEngine('opencode'); setChatModeOpen(false); }}
+                        className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left cursor-pointer transition-colors ${
+                          agentEngine === 'opencode' ? 'bg-[#1b1c2e] border border-cyan-500/30' : 'hover:bg-white/5 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-xs shrink-0 mt-0.5">🚀</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold text-cyan-200">OpenCode</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhiều model, ổn định (mặc định)</div>
+                        </div>
+                        {agentEngine === 'opencode' && <span className="text-cyan-400 text-[10px] mt-0.5">✓</span>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAgentEngine('dsh'); setChatModeOpen(false); }}
+                        className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left mt-1 cursor-pointer transition-colors ${
+                          agentEngine === 'dsh' ? 'bg-[#1b1c2e] border border-purple-500/40' : 'hover:bg-white/5 border border-transparent'
+                        }`}
+                      >
+                        <span className="text-xs shrink-0 mt-0.5">⚡</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] font-bold text-purple-200">DeepSeek Harness</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm)</div>
+                        </div>
+                        {agentEngine === 'dsh' && <span className="text-purple-400 text-[10px] mt-0.5">✓</span>}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -253,6 +352,22 @@ export default function ChatTab({
 
           <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-cyan-400 transition-colors" title="Đính kèm file">
             <Paperclip size={16} />
+          </button>
+          <input type="file" ref={pdfInputRef} onChange={handlePdfSelect} accept=".pdf,application/pdf" className="hidden" />
+          <button
+            onClick={() => pdfInputRef.current?.click()}
+            disabled={pdfLoading}
+            className={`p-2 rounded-lg transition-all ${pdfLoading ? 'text-amber-400 animate-pulse' : 'text-slate-400 hover:text-amber-400 hover:bg-amber-500/10'}`}
+            title="Gửi PDF cho AI phân tích (trích chữ + tóm tắt)"
+          >
+            {pdfLoading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+          </button>
+          <button
+            onClick={() => setReasoning?.(!reasoning)}
+            className={`relative p-2 rounded-lg transition-all ${reasoning ? "text-purple-300 bg-purple-500/15 border border-purple-500/40" : "text-slate-400 hover:text-purple-400 hover:bg-white/5"}`}
+            title="Suy luận sâu: bật để câu hỏi khó được xử lý bằng model reasoning (DeepSeek) — chậm hơn nhưng thông minh hơn"
+          >
+            <span className="text-base leading-none">🧠</span>
           </button>
           <button
             onClick={startVoice}
@@ -266,7 +381,7 @@ export default function ChatTab({
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
-            placeholder="Gõ câu hỏi ở đây rồi bấm Enter — VD: 'Soạn giúp tôi kịch bản video...'"
+            placeholder={lang === 'en' ? "Type your question here and press Enter — e.g. 'Write me a video script...'" : "Gõ câu hỏi ở đây rồi bấm Enter — VD: 'Soạn giúp tôi kịch bản video...'"}
             rows={1}
             className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 outline-none resize-none max-h-32 px-2"
           />

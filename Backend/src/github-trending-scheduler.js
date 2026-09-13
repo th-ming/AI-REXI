@@ -1,4 +1,4 @@
-/**
+﻿/**
  * GitHub Trending Daily Scheduler
  *
  * Chạy mỗi 24h để scrape github.com/trending và cache vào CSDL.
@@ -8,6 +8,7 @@
  */
 const Groq = require('groq-sdk');
 const db = require('./config/db');
+const { decryptKey } = require('./utils/cryptoKeys');
 
 const FETCH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 giờ
 
@@ -295,7 +296,7 @@ async function getGroqClient() {
     if (!key || key === 'YOUR_GROQ_API_KEY_HERE') {
       try {
         const row = await getQ("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'groq'");
-        if (row && row.gia_tri_khoa) key = row.gia_tri_khoa;
+        if (row && row.gia_tri_khoa) key = decryptKey(row.gia_tri_khoa).trim();
       } catch (e) { /* ignore */ }
     }
     if (!key) return null;
@@ -417,7 +418,7 @@ async function getTelegramConfig() {
     const bot = await getQ("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'telegram_bot'");
     const chat = await getQ("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'telegram_chat'");
     if (bot && bot.gia_tri_khoa && chat && chat.gia_tri_khoa) {
-      return { botToken: bot.gia_tri_khoa.trim(), chatId: chat.gia_tri_khoa.trim() };
+      return { botToken: decryptKey(bot.gia_tri_khoa).trim(), chatId: decryptKey(chat.gia_tri_khoa).trim() };
     }
   } catch (e) { /* ignore */ }
   return null;
@@ -432,11 +433,11 @@ async function getEmailConfig() {
     const to = await getQ("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'smtp_to'");
     if (host && user && pass && to) {
       return {
-        host: host.gia_tri_khoa.trim(),
-        user: user.gia_tri_khoa.trim(),
-        pass: pass.gia_tri_khoa.trim(),
-        from: from ? from.gia_tri_khoa.trim() : user.gia_tri_khoa.trim(),
-        to: to.gia_tri_khoa.trim(),
+        host: decryptKey(host.gia_tri_khoa).trim(),
+        user: decryptKey(user.gia_tri_khoa).trim(),
+        pass: decryptKey(pass.gia_tri_khoa).trim(),
+        from: from ? decryptKey(from.gia_tri_khoa).trim() : decryptKey(user.gia_tri_khoa).trim(),
+        to: decryptKey(to.gia_tri_khoa).trim(),
       };
     }
   } catch (e) { /* ignore */ }

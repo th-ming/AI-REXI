@@ -153,6 +153,6 @@ module.exports = {
   extractKeywords,
   tokenBag,
   isStopword,
-  STOPWORDS_VI: STOPWORDS_VI,
+  STOPWORDS_VN: STOPWORDS_VI,
   DIACRITIC_MAP
 };

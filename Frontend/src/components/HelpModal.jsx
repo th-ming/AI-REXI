@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, BookOpen, ChevronDown, Mic, Video, Tv, Monitor, FolderOpen, Zap, MessageSquare, Sparkles } from 'lucide-react';
+import { X, BookOpen, ChevronDown, Mic, Video, Tv, Monitor, FolderOpen, Zap, MessageSquare, Sparkles, Clapperboard, MonitorPlay } from 'lucide-react';
 
 const SECTIONS = [
   {
@@ -43,6 +43,28 @@ const SECTIONS = [
       'Dùng chế độ "⚡ Tạo Nhanh" (mặc định): ① Chọn mẫu có sẵn → ② Điền chữ vào các ô → ③ Bấm nút "Render MP4" → ④ Chờ 30-60 giây → ⑤ Bấm "Tải MP4" để lưu về máy.',
       'Muốn chỉnh sâu hơn: chuyển sang "🛠️ HTML Nâng Cao" để tự viết HTML (dành cho người biết code).',
       'Video render cần Backend đang chạy (node server.js).'
+    ]
+  },
+  {
+    id: 'opencut',
+    icon: <Clapperboard size={16} className="text-sky-400" />,
+    title: '🎬 OpenCut Editor (dựng video chuyên sâu)',
+    steps: [
+      'Vào tab "OpenCut Editor" trong menu tròn góc phải màn hình (nhóm 🎨 Sáng Tạo).',
+      'Bấm nút ✚ (FAB) góc phải → chọn "OpenCut Editor" để mở editor dựng video chuyên sâu.',
+      'OpenCut chạy như một app riêng (iframe): mặc định trỏ http://localhost:3000 — cần chạy server OpenCut trước (cd D:/repos/OpenCut/apps/web && bun dev).',
+      'Có thể đổi URL server trong thanh nhập trên đầu tab, hoặc bấm ⧉ để mở tab mới của trình duyệt.'
+    ]
+  },
+  {
+    id: 'youtube',
+    icon: <MonitorPlay size={16} className="text-red-400" />,
+    title: '🎥 YouTube Free (không quảng cáo)',
+    steps: [
+      'Vào tab "YouTube Free" trong menu tròn góc phải (nhóm 🎨 Sáng Tạo).',
+      'Gõ từ khóa (tên bài hát, phim, bài giảng...) rồi bấm "Tìm" hoặc chọn gợi ý có sẵn.',
+      'Bấm vào video bất kỳ để xem — không quảng cáo, không cần đăng nhập Google.',
+      'Dùng backend yt-dlp lấy luồng trực tiếp từ YouTube. Cần Backend đang chạy.'
     ]
   },
   {

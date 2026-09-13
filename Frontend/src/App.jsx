@@ -31,11 +31,14 @@ import {
   GitBranch,
   EyeOff,
   Video,
-  BookOpen
+  BookOpen,
+  Clapperboard,
+  MonitorPlay,
+  Gamepad2,
+  FileText,
+  Languages
 } from 'lucide-react';
-import { marked } from 'marked';
-import hljs from 'highlight.js';
-import 'highlight.js/styles/tokyo-night-dark.css';
+import { getLang, setLang, t } from './i18n';
 import Hls from 'hls.js';
 
 // Components
@@ -49,17 +52,16 @@ import SkillsModal from './components/SkillsModal';
 import AdminPanel from './AdminPanel';
 import StudioTab from './components/StudioTab';
 import VideoCreatorTab from './components/VideoCreatorTab';
+import OpenCutTab from './components/OpenCutTab';
+import ImageGenTab from './components/ImageGenTab';
+import DocumentsTab from './components/DocumentsTab';
+import YouTubeTab from './components/YouTubeTab';
+import GameTab from './components/GameTab';
 import BrowserView from './components/BrowserView';
 import HelpModal from './components/HelpModal';
 
 
-marked.setOptions({
-  highlight: (code, lang) => {
-    const language = hljs.getLanguage(lang) ? lang : 'plaintext';
-    return hljs.highlight(code, { language }).value;
-  },
-  langPrefix: 'hljs language-'
-});
+// (marked/highlight render markdown nằm trong Frontend/src/utils/sanitize.js — ChatTab dùng sanitizeMarkdown)
 
 // Popover UI Chẩn Trận & Chọn Model Đẳng Cấp Chuyên Nghiệp (Glassmorphism & Grouped)
 const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setProvider }) => {
@@ -78,6 +80,8 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
   }, []);
 
   const activeModelObj = useMemo(() => {
+    // 🤖 Auto: hiển thị chế độ tự chọn model thông minh
+    if (modelName === 'auto') return { id: 'auto', name: 'Auto (tự chọn thông minh)', provider: 'xkiro', type: 'free' };
     // 🔄 Ưu tiên model thật đang được chọn; nếu model cũ đã bị xóa (không còn trong danh sách mới)
     // → KHÔNG hiển thị model giả/cũ — tự chọn model thật đầu tiên (hoặc trạng thái 'đang tải')
     const found = availableModels.find(m => m.id === modelName);
@@ -135,6 +139,9 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
         <span className="flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-[240px]">
           <span className="text-cyan-400 text-sm">⚡</span>
           <span className="font-bold text-cyan-100 truncate">{activeModelObj.name || activeModelObj.id}</span>
+          {(activeModelObj.status === 'needs_balance' || activeModelObj.type === 'paid') && (
+            <span className="text-[9px] font-extrabold rounded-md bg-amber-500/20 text-amber-300 uppercase border border-amber-500/30 shrink-0" title="Model tồn tại nhưng key hiện tại thiếu tiền/quyền">🔒</span>
+          )}
           <span className="px-1.5 py-0.5 text-[9px] font-extrabold rounded-md bg-cyan-500/20 text-cyan-300 uppercase border border-cyan-500/30 shrink-0">
             {(activeModelObj.provider || 'AI').toUpperCase()}
           </span>
@@ -168,6 +175,22 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-3 custom-scrollbar">
+            {/* 🤖 AUTO — tự chọn model thông minh theo độ khó câu hỏi */}
+            <button
+              type="button"
+              onClick={() => selectModel({ id: 'auto', provider: 'xkiro' })}
+              className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-all mb-1 ${
+                modelName === 'auto'
+                  ? 'bg-gradient-to-r from-indigo-500/30 to-cyan-500/20 border border-indigo-500/50 text-indigo-200 font-semibold'
+                  : 'bg-gradient-to-r from-indigo-500/10 to-cyan-500/5 border border-indigo-500/20 text-slate-300 hover:text-white hover:border-indigo-500/40'
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <span>🤖</span>
+                <span>Auto — Tự chọn model thông minh</span>
+              </span>
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 uppercase shrink-0">VIP</span>
+            </button>
             {Object.keys(groupedModels).length > 0 ? (
               Object.entries(groupedModels).map(([providerGroup, models]) => {
                 const badge = getProviderBadge(providerGroup);
@@ -196,6 +219,9 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
                             <div className="flex flex-col min-w-0 pr-2">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs truncate">{m.name || m.id}</span>
+                                {(m.status === 'needs_balance' || m.type === 'paid') && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold shrink-0" title="Model tồn tại nhưng key hiện tại thiếu tiền/quyền — nạp tiền là dùng được">🔒 trả phí</span>
+                                )}
                               </div>
                               <span className="text-[10px] text-slate-500 font-mono truncate">{m.id}</span>
                             </div>
@@ -267,6 +293,7 @@ const AI_SPECIALTIES = [
 
 
 export default function App() {
+  const [lang, setLangState] = useState(getLang());
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -291,8 +318,9 @@ export default function App() {
   const [fabOpen, setFabOpen] = useState(false);
 
   // AI Configuration State
-  const [provider, setProvider] = useState(() => localStorage.getItem('rexi_provider') || 'gemini');
-  const [modelName, setModelName] = useState(() => localStorage.getItem('rexi_model') || '');
+  const [provider, setProvider] = useState(() => localStorage.getItem('rexi_provider') || 'xkiro');
+  const [reasoning, setReasoning] = useState(false); // 🧠 Suy luận sâu
+  const [modelName, setModelName] = useState(() => localStorage.getItem('rexi_model') || 'mistralai/mistral-small-2603');
   const lastAutoSwapRef = useRef(''); // chống toast đúp khi nhiều nguồn refresh model cùng lúc
   const [apiKey, setApiKey] = useState(() => {
     const saved = localStorage.getItem('rexi_api_key') || '';
@@ -305,9 +333,11 @@ export default function App() {
     return saved;
   });
   const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('rexi_base_url') || '');
-  const [availableModels, setAvailableModels] = useState([]); // load động từ /api/models
+  const [availableModels, setAvailableModels] = useState([]); // load động từ /api/models — chỉ model chat
+  const [allModels, setAllModels] = useState([]); // mọi modality (chat/image/tts/stt/embed)
   const [aiSpecialty, setAiSpecialty] = useState('general');
   const [executionMode, setExecutionMode] = useState('chat'); // 'chat' | 'agent'
+  const [agentEngine, setAgentEngine] = useState('auto'); // 'auto' | 'opencode' | 'dsh'
   const [chatModeOpen, setChatModeOpen] = useState(false);
   const [thinkingLevel, setThinkingLevel] = useState('standard'); // 'standard' | 'deep'
   const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('rexi_theme') || 'tokyo-night');
@@ -347,6 +377,7 @@ export default function App() {
   const [iptvTab, setIptvTab] = useState('category'); // 'category' | 'country'
   const [iptvCountry, setIptvCountry] = useState('VN');
   const [iptvSubtitleOn, setIptvSubtitleOn] = useState(false);
+  const [iptvEmbeddedSubs, setIptvEmbeddedSubs] = useState([]); // track phụ đề nhúng của kênh (đồng bộ 100%)
   const iptvVideoRef = useRef(null);
   const hlsRef = useRef(null);
 
@@ -416,9 +447,11 @@ export default function App() {
             });
           }
         });
-        setAvailableModels(allArr);
-        if (allArr.length > 0) {
-          const currentExist = allArr.find(m => m.id === modelName);
+        setAllModels(allArr);
+        const chatArr = allArr.filter(m => (m.modality || 'chat') === 'chat');
+        setAvailableModels(chatArr);
+        if (chatArr.length > 0) {
+          const currentExist = chatArr.find(m => m.id === modelName);
           if (!currentExist) {
             // 🔄 THUẬT TOÁN BẢO TOÀN PHIÊN (Safe Swap): model đang chọn vừa bị lượt quét mới
             // xóa/thay thế → KHÔNG đổi model âm thầm. Chọn model thay thế gần nhất:
@@ -427,8 +460,8 @@ export default function App() {
             // Rồi báo rõ cho người dùng bằng toast (bỏ qua nếu chưa từng chọn model = lần đầu mở).
             const oldSelected = availableModels.find(m => m.id === modelName);
             const oldProviderName = (oldSelected ? oldSelected.provider : '') || (modelName.split('/')[0] || '');
-            const sameProvider = allArr.find(m => String(m.provider || '').toLowerCase() === String(oldProviderName).toLowerCase());
-            const replacement = sameProvider || allArr[0];
+            const sameProvider = chatArr.find(m => String(m.provider || '').toLowerCase() === String(oldProviderName).toLowerCase());
+            const replacement = sameProvider || chatArr[0];
             setModelName(replacement.id);
             if (replacement.provider) setProvider(replacement.provider);
             localStorage.setItem('rexi_model', replacement.id);
@@ -539,6 +572,22 @@ export default function App() {
     window.addEventListener('rexi_session_expired', onSessionExpired);
     return () => window.removeEventListener('rexi_session_expired', onSessionExpired);
   }, []);
+
+  // Đổi identity (login/logout/chuyển tài khoản) → bỏ conv đang mở + xóa list cũ.
+  // Conv cũ thuộc identity cũ (guest conv gắn session cũ, user conv của tài khoản cũ)
+  // → giữ lại sẽ gửi tin vào conv không còn quyền (403) hoặc hiện nhầm lịch sử người khác.
+  const authIdRef = useRef(undefined);
+  useEffect(() => {
+    const id = currentUser
+      ? (currentUser.ma_nguoi_dung || currentUser.id || currentUser.email || 'user')
+      : null;
+    if (authIdRef.current === undefined) { authIdRef.current = id; return; }
+    if (authIdRef.current !== id) {
+      authIdRef.current = id;
+      setActiveConvId(null);
+      setConversations([]);
+    }
+  }, [currentUser]);
 
   // Listen for token changes from Google OAuth popup
   useEffect(() => {
@@ -709,13 +758,28 @@ useEffect(() => {
     const video = iptvVideoRef.current;
     if (!video) return;
     if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null; }
+    setIptvEmbeddedSubs([]);
+    // Hàm đọc track phụ đề với delay (hls.js populate subtitleTracks chậm hơn MANIFEST_PARSED)
+    const readEmbeddedSubs = (hls) => {
+      setTimeout(() => {
+        try {
+          // Chỉ áp dụng nếu hls này vẫn là instance đang phát (tránh race khi đổi kênh nhanh)
+          if (hlsRef.current !== hls) return;
+          const subs = (hls.subtitleTracks || []).map(s => ({ id: s.id, name: s.name || s.lang || 'Phụ đề' }));
+          if (subs.length) setIptvEmbeddedSubs(subs);
+        } catch { /* ignore */ }
+      }, 1200);
+    };
     if (url.includes('youtube') || url.includes('youtu.be')) {
       // youtube: fallback handled in JSX
       return;
     }
     // Chơi qua proxy same-origin (đã có sẵn /api/services/iptv/proxy) để
     // video.captureStream() lấy được audio track → Phụ Đề AI hoạt động được
-    const streamUrl = `${API_BASE}/services/iptv/proxy?url=${encodeURIComponent(url)}`;
+    // P2-19d: proxy giờ yêu cầu auth — <video>/hls.js không gửi được Authorization
+    // header nên kèm token qua ?token= (backend bridge sang header).
+    const _proxyToken = localStorage.getItem('rexi_token') || '';
+    const streamUrl = `${API_BASE}/services/iptv/proxy?url=${encodeURIComponent(url)}${_proxyToken ? `&token=${encodeURIComponent(_proxyToken)}` : ''}`;
     let fallbackTried = false;
     const attachFallback = () => {
       // Fallback: proxy lỗi → thử phát trực tiếp URL gốc (giữ kênh chạy như trước)
@@ -726,7 +790,11 @@ useEffect(() => {
         const fb = new Hls({ enableWorker: false });
         fb.loadSource(url);
         fb.attachMedia(video);
-        fb.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        fb.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+          readEmbeddedSubs(fb);
+        });
+        fb.on(Hls.Events.SUBTITLE_TRACKS_LOADED, () => readEmbeddedSubs(fb));
         hlsRef.current = fb;
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = url;
@@ -737,7 +805,11 @@ useEffect(() => {
       const hls = new Hls({ enableWorker: false });
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+        readEmbeddedSubs(hls);
+      });
+      hls.on(Hls.Events.SUBTITLE_TRACKS_LOADED, () => readEmbeddedSubs(hls));
       hls.on(Hls.Events.ERROR, (evt, data) => {
         if (data.fatal && !fallbackTried) attachFallback();
       });
@@ -817,16 +889,58 @@ useEffect(() => {
     } catch (e) { console.error(e); }
   };
 
+  // Đính kèm file: ảnh → downscale (giữ vision, chặn base64 khổng lồ phình prompt/DB);
+  // file text → đọc text cắt 15k ký tự; binary khác → từ chối (PDF dùng nút PDF riêng).
+  const MAX_IMAGE_DIM = 1568;
+  const MAX_IMAGE_OUT = 4 * 1024 * 1024; // base64 ảnh sau xử lý
+  const MAX_TEXT_IN = 100 * 1024; // text đầu vào
+  const MAX_TEXT_SEND = 15000; // text gửi vào prompt
+
+  const downscaleImage = (dataUrl) => new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          let q = 0.85, out = cv.toDataURL('image/jpeg', q);
+          while (out.length > MAX_IMAGE_OUT && q > 0.4) { q -= 0.15; out = cv.toDataURL('image/jpeg', q); }
+          resolve(out.length <= MAX_IMAGE_OUT ? out : null);
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = dataUrl;
+    } catch { resolve(null); }
+  });
+
   const handleFileSelect = (e) => {
-    Array.from(e.target.files).forEach(file => {
+    Array.from(e.target.files || []).forEach((file) => {
       const reader = new FileReader();
-      const isImage = file.type.startsWith('image/');
+      const isImage = (file.type || '').startsWith('image/');
+      const isText = /^(text\/|application\/(json|xml|javascript|x-www-form-urlencoded))/.test(file.type || '')
+        || /\.(txt|md|csv|json|js|ts|py|java|html?|css|xml|log|ini|cfg)$/i.test(file.name || '');
       if (isImage) {
+        if (file.size > 15 * 1024 * 1024) { showToast?.(`Ảnh ${file.name} quá lớn (>15MB), bỏ qua.`, 'error'); return; }
         reader.readAsDataURL(file);
-        reader.onload = () => setAttachedFiles(p => [...p, { name: file.name, isImage: true, dataUrl: reader.result }]);
+        reader.onload = async () => {
+          const small = await downscaleImage(String(reader.result || ''));
+          if (!small) { showToast?.(`Không xử lý được ảnh ${file.name}.`, 'error'); return; }
+          setAttachedFiles(p => [...p, { name: file.name, isImage: true, dataUrl: small }]);
+        };
+      } else if (isText) {
+        if (file.size > MAX_TEXT_IN) { showToast?.(`File ${file.name} quá lớn (>100KB), bỏ qua.`, 'error'); return; }
+        reader.readAsText(file);
+        reader.onload = () => {
+          const t = String(reader.result || '');
+          const cut = t.length > MAX_TEXT_SEND ? t.slice(0, MAX_TEXT_SEND) + `\n...[đã cắt, file dài ${t.length} ký tự]` : t;
+          setAttachedFiles(p => [...p, { name: file.name, isImage: false, isBinary: false, textContent: cut }]);
+        };
       } else {
-        reader.readAsDataURL(file);
-        reader.onload = () => setAttachedFiles(p => [...p, { name: file.name, isImage: false, isBinary: true, dataUrl: reader.result }]);
+        showToast?.(`Không hỗ trợ file ${file.name} ở đây (PDF dùng nút 📄, ảnh/text mới đính kèm được).`, 'error');
       }
     });
     e.target.value = '';
@@ -836,6 +950,23 @@ useEffect(() => {
     let text = textToSend || inputText;
     if (!text.trim() && attachedFiles.length === 0) return;
     if (loading) return;
+
+    // ─── INTENT ROUTER: nhận diện ý định câu chat → tự mở tab phù hợp ───
+    // Chỉ auto-chuyển tab khi chưa bật Agent Mode và câu có ý định rõ ràng (high confidence)
+    if (executionMode !== 'agent' && attachedFiles.length === 0) {
+      try {
+        const intentRes = await apiFetch('/chat/intent', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ noi_dung: text })
+        });
+        if (intentRes && intentRes.success && intentRes.confidence === 'high' && intentRes.tab && intentRes.tab !== 'chat') {
+          handleSetActiveTab(intentRes.tab);
+          showToast(`Đã chuyển sang: ${intentRes.label}`, 'info');
+          return;
+        }
+      } catch (e) { /* intent lỗi không chặn chat */ }
+    }
 
     if (attachedFiles.length > 0) {
       attachedFiles.forEach(f => {
@@ -895,7 +1026,9 @@ useEffect(() => {
           model_name: modelName,
           base_url: baseUrl,
           mode: aiSpecialty,
-          execution_mode: executionMode
+          execution_mode: executionMode,
+          agent_engine: agentEngine,
+          thinking_level: reasoning ? 'deep' : 'normal'
         })
       });
 
@@ -968,9 +1101,16 @@ useEffect(() => {
           if (!line.startsWith('data: ')) continue;
           let payload;
           try { payload = JSON.parse(line.slice(6)); } catch { continue; }
-          if (payload.type === 'token') { aiText += payload.text; updateAI(aiText); }
+          if (payload.type === 'route') {
+            // Định tuyến: hiển thị provider/model hệ thống tự chọn
+            const cat = payload.category || 'auto';
+            const routeBadge = `📡 **Định tuyến (Auto):** ${(payload.provider || '').toUpperCase()} → \`${payload.model || ''}\` (loại: ${cat})`;
+            aiText += '\n\n<small>' + routeBadge + '</small>\n\n';
+            updateAI(aiText);
+          }
+          else if (payload.type === 'token') { aiText += payload.text; updateAI(aiText); }
           else if (payload.type === 'status') { if (!aiText) updateAI(payload.message); }
-          else if (payload.type === 'error') { aiText = payload.message; updateAI(aiText); }
+          else if (payload.type === 'error') { aiText = aiText ? aiText + '\n\n⚠️ ' + payload.message : payload.message; updateAI(aiText); }
           else if (payload.type === 'done') { finalMaTinNhan = payload.ma_tin_nhan || finalMaTinNhan; if (payload.noi_dung) { aiText = payload.noi_dung; updateAI(aiText); } }
         }
       }
@@ -1164,11 +1304,15 @@ useEffect(() => {
   const exportMd = () => {
     const title = conversations.find(c => c.ma_hoi_thoai === activeConvId)?.tieu_de || 'rexi_chat';
     const md = messages.map(m => `### ${m.vai_tro === 'user' ? '👤 Bạn' : '🤖 Rexi'}\n${m.noi_dung}`).join('\n\n---\n\n');
+    // Giữ chữ Unicode (kể cả tiếng Việt) trong tên file, chỉ bỏ ký tự cấm của Windows
+    const safeName = (title.replace(/[\\/:*?"<>|]/g, '').trim().replace(/\s+/g, '_') || 'rexi_chat').slice(0, 80);
+    const blobUrl = URL.createObjectURL(new Blob([`# ${title}\n\n${md}`], { type: 'text/markdown' }));
     const a = Object.assign(document.createElement('a'), {
-      href: URL.createObjectURL(new Blob([`# ${title}\n\n${md}`], { type: 'text/markdown' })),
-      download: title.replace(/[^a-zA-Z0-9_\-\s]/g, '').replace(/\s+/g, '_') + '.md'
+      href: blobUrl,
+      download: safeName + '.md'
     });
     a.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
   };
 
   const handleOpenFile = async (fileRelPath) => {
@@ -1289,7 +1433,7 @@ useEffect(() => {
     window.open(
       googleAuthUrl,
       'google_oauth',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,noopener,noreferrer`
     );
   };
 
@@ -1422,9 +1566,18 @@ useEffect(() => {
             <button
               onClick={exportMd}
               className="px-2.5 py-1.5 rounded-xl bg-[#131417] border border-white/10 text-xs text-slate-300 hover:text-white flex items-center gap-1"
-              title="Xuất lịch sử chat Markdown"
+              title={t(lang, 'exportMd')}
             >
-              <Download size={13} /> Markdown
+              <Download size={13} /> {lang === 'vi' ? 'Markdown' : 'Markdown'}
+            </button>
+
+            {/* Language Toggle — Đổi ngôn ngữ Việt/English */}
+            <button
+              onClick={() => { const next = lang === 'vi' ? 'en' : 'vi'; setLang(next); setLangState(next); }}
+              title={lang === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt'}
+              className="px-2.5 py-1.5 rounded-xl bg-[#131417] border border-white/10 text-xs text-slate-300 hover:text-cyan-400 hover:border-cyan-500/40 flex items-center gap-1 transition-all"
+            >
+              <Languages size={13} /> {lang === 'vi' ? 'EN' : 'VI'}
             </button>
 
             {/* TTS Voice Selector */}
@@ -1487,16 +1640,18 @@ useEffect(() => {
               messages={messages} inputText={inputText} setInputText={setInputText}
               loading={loading} attachedFiles={attachedFiles}
               executionMode={executionMode} setExecutionMode={setExecutionMode}
+              agentEngine={agentEngine} setAgentEngine={setAgentEngine}
               chatModeOpen={chatModeOpen} setChatModeOpen={setChatModeOpen}
               listening={listening} voiceTranscript={voiceTranscript} copiedId={copiedId} speakingMsgId={speakingMsgId}
                handleSendMessage={handleSendMessage} startVoice={startVoice}
-               speakText={speakText} copyToClipboard={copyToClipboard}
+               speakText={speakText} copyToClipboard={copyToClipboard} lang={lang}
                ttsUsingServer={ttsUsingServer}
               fileInputRef={fileInputRef} handleFileSelect={handleFileSelect}
               chatScrollRef={chatScrollRef} handleChatScroll={handleChatScroll}
               showScrollTop={showScrollTop} showScrollBottom={showScrollBottom}
               scrollToTopSmooth={scrollToTopSmooth} scrollToBottomSmooth={scrollToBottomSmooth}
               currentUser={currentUser}
+              reasoning={reasoning} setReasoning={setReasoning}
               onOpenFeature={handleSetActiveTab}
             />
           )}
@@ -1522,6 +1677,8 @@ useEffect(() => {
               setSelectedChannel={setSelectedChannel} fetchIPTV={fetchIPTV}
               iptvVideoRef={iptvVideoRef}
               iptvSubtitleOn={iptvSubtitleOn} setIptvSubtitleOn={setIptvSubtitleOn}
+              iptvEmbeddedSubs={iptvEmbeddedSubs}
+              hlsRef={hlsRef}
             />
           )}
 
@@ -1541,6 +1698,45 @@ useEffect(() => {
               authToken={authToken}
               showToast={showToast}
             />
+          )}
+
+          {/* TAB 5d: TẠO ẢNH AI (Gemini Image) */}
+          {activeTab === 'image' && (
+            <ImageGenTab
+              API_BASE={API_BASE}
+              authToken={authToken}
+              showToast={showToast}
+              imageModels={allModels.filter(m => m.modality === 'image')}
+            />
+          )}
+
+          {/* TAB: ĐỌC & HIỂU FILE (RAG) */}
+          {activeTab === 'documents' && (
+            <DocumentsTab
+              API_BASE={API_BASE}
+              authToken={authToken}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB 5c: OPENCUT EDITOR */}
+          {activeTab === 'opencut' && (
+            <OpenCutTab
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB 5d: YOUTUBE FREE (không quảng cáo) */}
+          {activeTab === 'youtube' && (
+            <YouTubeTab
+              authToken={authToken}
+              showToast={showToast}
+            />
+          )}
+
+          {/* TAB 5e: GAME ZONE (HTML5 games) */}
+          {activeTab === 'games' && (
+            <GameTab showToast={showToast} />
           )}
 
           {/* TAB 6: REMOTE DESKTOP CONTROL */}
@@ -1744,7 +1940,8 @@ useEffect(() => {
                       body: JSON.stringify({ account: authEmail })
                     });
                     if (data.success) {
-                      setForgotMessage(data.otp_debug ? `Mã OTP local: ${data.otp_debug}` : data.message);
+                      // Không bao giờ hiện OTP ra UI (kể cả otp_debug dev) — tránh lộ + tập thói quen xấu
+                      setForgotMessage(data.message || 'Đã gửi mã OTP. Kiểm tra email/tin nhắn của bạn.');
                       setForgotStep('reset');
                     } else {
                       setForgotMessage(data.error || 'Không thể tạo mã OTP.');
@@ -1909,7 +2106,11 @@ useEffect(() => {
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600 px-3 pt-2 pb-1">🎨 Sáng Tạo</p>
               {[
                 { tab: 'tts', icon: <Mic size={17} />, label: 'TTS Studio', color: 'text-cyan-400', desc: 'Chữ → giọng nói MP3' },
+                { tab: 'documents', icon: <FileText size={17} />, label: 'Đọc & Hiểu File', color: 'text-emerald-400', desc: 'AI hiểu nội dung PDF/Word/TXT' },
                 { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: 'Tạo video từ mẫu' },
+                { tab: 'opencut', icon: <Clapperboard size={17} />, label: 'OpenCut Editor', color: 'text-sky-400', desc: 'Edit video chuyên sâu' },
+                { tab: 'youtube', icon: <MonitorPlay size={17} />, label: 'YouTube Free', color: 'text-red-400', desc: 'Xem video không quảng cáo' },
+                { tab: 'games', icon: <Gamepad2 size={17} />, label: 'Game Zone', color: 'text-fuchsia-400', desc: 'Chơi game HTML5 miễn phí' },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}

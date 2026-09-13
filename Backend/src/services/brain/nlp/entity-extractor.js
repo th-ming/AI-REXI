@@ -212,12 +212,15 @@ function extractEntities(text) {
   const nerOrgs = nerNamed.filter(e => e.type === 'ORG').map(e => e.value);
 
   // Lọc thực thể "nhiễu" (NER có thể gán nhầm cho từ thường, thú cưng...)
-  const noiseWords = /(?:chó|mèo|con|một|tên|là|cái|mấy|còn|ngôi|nhà|xe|đồng|đây|đó)/i;
-  const companyLike = /(?:software|inc|corp|jsc|company|group|bank|học viện|trường|đại học|viện)/i;
+  const noiseWords = /(?:chó|ch[oó]|mèo|cún|chó con|con|một|tên|là|cái|mấy|còn|ngôi|nhà|xe|em đi|đây|thằng|năm\s|vừa rồi)/i;
+  const companyLike = /(?:software|inc|corp|jsc|company|group|bank|trường|đại học|viện|học viện)/i;
+  const SHORT_ENG = /^(hi|hello|ok|no|yes|hi there|i am|thank|sir|madam)\s*$/i;
   const pickNER = (arr, type) => {
     for (const v of arr) {
       if (noiseWords.test(v)) continue;
-      if (type === 'LOC' && companyLike.test(v)) continue; // công ty không phải địa điểm
+      if (v.length < 3) continue; // tên thực sự phải >= 3 ký tự
+      if (type === 'LOC' && companyLike.test(v)) continue;
+      if (SHORT_ENG.test(v)) continue;
       return v;
     }
     return null;
@@ -233,13 +236,14 @@ function extractEntities(text) {
 // ── 3. Tên bổ sung qua patterns thường gặp (khớp bản có dấu) ──
   if (!entities.name) {
     const namePatterns = [
-      /(?:tôi|mình|em|anh|chị)\s+tên\s+là\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
-      /(?:tôi\s+)?tên\s+(?:tôi\s+)?là\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
-      /(?:tôi|mình|em|anh|chị)\s+được\s+gọi\s+là\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
-      /gọi\s+tôi\s+là\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
-      /call\s+me\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
+      /(?:tôi|mình|em)\s+tên\s+là\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
+      /(?:tôi|mình|em)\s+được\s+gọi\s+là\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
+      /(?:hi|chào|hello|xin chào)\s*,?\s*(?:tôi|mình|em|i)\s+(?:tên\s+)?(?:là|am|is)\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
+      /(?:i am|i'm|i am|toi la|tôi là|anh là|chị là)\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i,
+      /call\s+me\s+([A-ZÀ-Ỹ][a-zà-ỹ]+(?:\s+[A-ZÀ-Ỹ][a-zà-ỹ]+){0,2})/i
     ];
-    const banned = ['a', 'an', 'cái', 'đó', 'này', 'khi', 'xin', 'nhưng', 'làm', 'đi', 'về', 'được', 'mình', 'bạn', 'em', 'anh', 'chị', 'chó', 'mèo'];
+    const banned = ['a', 'an', 'cái', 'đó', 'này', 'khi', 'xin', 'nhưng', 'làm', 'đi', 'về', 'được', 'mình', 'bạn', 'em', 'anh', 'chị', 'chó', 'mèo',
+      'giáo viên', 'bác sĩ', 'kỹ sư', 'sinh viên', 'lập trình viên', 'developer', 'manager', 'giáo viên toán'];
     for (const pat of namePatterns) {
       const m = normalized.match(pat);
       if (m && m[1] && m.index < 80) {
@@ -252,15 +256,13 @@ function extractEntities(text) {
     }
   }
 
-  // ── 4. Nghề nghiệp (khớp bản không dấu) ──
+  // ── 4. Nghề nghiệp (chặt nối flat, key dict chuẩn hoá không dấu) ──
   if (!entities.job) {
     for (const [key, val] of Object.entries(JOB_DICT)) {
-      const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(^|[\\s.,;!?])${esc}([\\s$.,;!?])`, 'i');
-      if (re.test(flat)) {
-        entities.job = val;
-        break;
-      }
+      const flatKey = removeDiacritics(key).toLowerCase();
+      const esc = flatKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(^|[\\s.,;!?])${esc}(?=[\\s.,;!?]|$)`, 'i');
+      if (re.test(flat)) { entities.job = val; break; }
     }
   }
   if (!entities.job) {
@@ -280,8 +282,9 @@ function extractEntities(text) {
   // ── 5. Company (khớp bản không dấu) ──
   if (!entities.company) {
     for (const [key, val] of Object.entries(COMPANY_DICT)) {
-      const esc = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(^|[\\s.,;!?])${esc}([\\s$.,;!?])`, 'i');
+      const flatKey = removeDiacritics(key).toLowerCase();
+      const esc = flatKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const re = new RegExp(`(^|[\\s.,;!?])${esc}(?=[\\s.,;!?]|$)`, 'i');
       if (re.test(flat)) { entities.company = val; break; }
     }
   }
@@ -290,7 +293,7 @@ function extractEntities(text) {
   if (!entities.location) {
     for (const p of VIETNAM_PROVINCES) {
       const esc = p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(^|[\\s.,;!?])${esc}([\\s$.,;!?])`, 'i');
+      const re = new RegExp(`(^|[\\s.,;!?])${esc}(?=[\\s.,;!?]|$)`, 'i');
       if (re.test(flat)) {
         const pretty = p.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         entities.location = pretty;

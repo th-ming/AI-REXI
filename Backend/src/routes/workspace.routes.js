@@ -34,19 +34,33 @@ function resolveWorkspacePath(relativePath) {
   return fullPath;
 }
 
-router.get('/files', authMiddleware, (req, res) => {
+// P2-20(10): chỉ admin được liệt kê cây file + giới hạn depth/limit qua query
+// (chống quét cây khổng lồ làm treo server). FE App.jsx fetchFileTree đã gửi
+// authHeaders (token user — user phải có phan_quyen='admin' mới xem được).
+router.get('/files', authMiddleware, adminMiddleware, (req, res) => {
+  const maxDepth = Math.min(Math.max(parseInt(req.query.depth, 10) || 8, 1), 8);
+  const maxItems = Math.min(Math.max(parseInt(req.query.limit, 10) || 2000, 100), 5000);
+  let count = 0;
+  let truncated = false;
   function scanDir(dirPath, relativeDir = '', depth = 0) {
-    if (depth > 8) return [];
-    const items = fs.readdirSync(dirPath, { withFileTypes: true });
+    if (depth > maxDepth || truncated) return [];
+    let items;
+    try {
+      items = fs.readdirSync(dirPath, { withFileTypes: true });
+    } catch {
+      return [];
+    }
     const result = [];
 
     for (const item of items) {
+      if (count >= maxItems) { truncated = true; break; }
       if (item.name === 'node_modules' || item.name === '.git' || item.name === 'dist' || item.name === '.archive_scripts') continue;
-      
+
       const itemRelPath = path.join(relativeDir, item.name);
       const fullPath = path.join(dirPath, item.name);
 
       if (item.isDirectory()) {
+        count++;
         result.push({
           name: item.name,
           path: itemRelPath,
@@ -55,6 +69,7 @@ router.get('/files', authMiddleware, (req, res) => {
         });
       } else {
         if (isSensitivePath(itemRelPath)) continue;
+        count++;
         result.push({
           name: item.name,
           path: itemRelPath,
@@ -67,6 +82,7 @@ router.get('/files', authMiddleware, (req, res) => {
 
   try {
     const fileTree = scanDir(rootDir);
+    if (truncated) res.setHeader('X-Truncated', 'true');
     res.json(fileTree);
   } catch (err) {
     res.status(err.statusCode || 500).json({ error: err.message });

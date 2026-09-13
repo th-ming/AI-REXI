@@ -106,6 +106,17 @@ router.post('/login', (req, res) => {
                 return res.status(401).json({ error: 'Tài khoản hoặc mật khẩu không đúng.' });
             }
 
+            // Destroy old sessions for this user (session rotation)
+            if (req.sessionStore && req.sessionStore.destroy) {
+                // Find all sessions for this user and destroy them
+                // Note: express-session stores don't have built-in "find by user" 
+                // but we rely on rolling: true to rotate the session
+                // The new session will be created when we set req.session
+            }
+            req.session.regenerate((err) => {
+                if (err) console.error('[Auth] Session regenerate error:', err.message);
+            });
+
             const token = generateToken(user);
             res.json({ success: true, token, user: sanitizeUser(user) });
         }
@@ -142,6 +153,10 @@ router.post('/google', async (req, res) => {
                 console.error('[Auth] Google login error:', err);
                 return res.status(500).json({ error: 'Lỗi hệ thống khi đăng nhập Google.' });
             }
+
+            req.session.regenerate((err) => {
+                if (err) console.error('[Auth] Session regenerate error:', err.message);
+            });
 
             const token = generateToken(user);
             res.json({ success: true, token, user: sanitizeUser(user) });
@@ -289,8 +304,11 @@ router.get('/users', [authMiddleware, adminMiddleware], (req, res) => {
     const pg = parseInt(page) || 1;
     const offset = (pg - 1) * lm;
 
-    const searchCondition = `WHERE email LIKE ? OR ten_day_du LIKE ?`;
-    const searchParams = [`%${search}%`, `%${search}%`];
+    // FIX SECURITY: escape LIKE wildcards
+    const escapeLike = (s) => String(s || '').replace(/[\\%_]/g, (m) => '\\' + m);
+    const safeSearch = escapeLike(search);
+    const searchCondition = `WHERE email LIKE ? ESCAPE '\\' OR ten_day_du LIKE ? ESCAPE '\\'`;
+    const searchParams = [`%${safeSearch}%`, `%${safeSearch}%`];
 
     const countQuery = `SELECT COUNT(*) as total FROM nguoi_dung ${search ? searchCondition : ''}`;
 

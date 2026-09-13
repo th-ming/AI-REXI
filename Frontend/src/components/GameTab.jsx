@@ -1,0 +1,110 @@
+import React, { useState } from 'react';
+import { Gamepad2, RefreshCw, ExternalLink, Monitor } from 'lucide-react';
+
+const GAMES = [
+  { id: 'pacman', name: 'Pac-Man', desc: 'Cổ điển nhất mọi thời đại', emoji: '👻', color: 'from-yellow-500 to-amber-600', url: '/games/pacman/index.html' },
+  { id: 'snake', name: 'Snake', desc: 'Rắn săn mồi, điểm càng cao càng nghiện', emoji: '🐍', color: 'from-emerald-500 to-green-600', url: '/games/snake/index.html' },
+  { id: 'pong', name: 'Pong Wars', desc: 'Ngày vs Đêm — trận chiến bóng bàn', emoji: '🏓', color: 'from-sky-500 to-indigo-600', url: '/games/pong/index.html' },
+];
+
+export default function GameTab({ showToast }) {
+  const [activeGame, setActiveGame] = useState('pacman');
+  const [loading, setLoading] = useState(true);
+  const [key, setKey] = useState(0);
+
+  const current = GAMES.find(g => g.id === activeGame) || GAMES[0];
+
+  const handlePick = (id) => {
+    setActiveGame(id);
+    setLoading(true);
+    setKey(k => k + 1);
+  };
+
+  const handleReload = () => {
+    setLoading(true);
+    setKey(k => k + 1);
+  };
+
+  const handleOpenNewTab = () => {
+    window.open(current.url, '_blank', 'noopener');
+    showToast?.(`Đã mở ${current.name} trong tab mới`, 'success');
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full bg-[#0d0e11]">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-3 py-2 bg-[#181920] border-b border-white/5 shrink-0">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <span className="w-7 h-7 rounded-lg bg-gradient-to-tr from-fuchsia-500 to-purple-600 flex items-center justify-center shrink-0">
+            <Gamepad2 size={14} className="text-white" />
+          </span>
+          <span className="text-xs font-bold text-white whitespace-nowrap">Game Zone</span>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto">
+            {GAMES.map(g => (
+              <button
+                key={g.id}
+                onClick={() => handlePick(g.id)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 border ${
+                  activeGame === g.id
+                    ? 'bg-white/15 text-white border-white/20 shadow-lg'
+                    : 'bg-transparent text-slate-400 border-transparent hover:bg-white/5 hover:text-white'
+                }`}
+                title={g.desc}
+              >
+                <span>{g.emoji}</span>
+                <span>{g.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={handleReload}
+            className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+            title="Tải lại"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button
+            onClick={handleOpenNewTab}
+            className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+            title="Mở tab mới"
+          >
+            <ExternalLink size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Game info strip */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#14151c] border-b border-white/5 shrink-0">
+        <span className={`w-5 h-5 rounded-md bg-gradient-to-tr ${current.color} flex items-center justify-center`}>
+          <Monitor size={11} className="text-white" />
+        </span>
+        <span className="text-[11px] font-semibold text-slate-200">{current.name}</span>
+        <span className="text-[10px] text-slate-500">{current.desc}</span>
+        <span className="ml-auto text-[10px] text-slate-600">Chơi ngay trong trình duyệt — không cần cài đặt</span>
+      </div>
+
+      {/* Iframe */}
+      <div className="flex-1 relative bg-black">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d0e11]">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs text-slate-500">Đang tải {current.name}...</span>
+            </div>
+          </div>
+        )}
+        <iframe
+          key={key}
+          src={current.url}
+          title={current.name}
+          className="w-full h-full border-0"
+          allow="autoplay; fullscreen"
+          onLoad={() => setLoading(false)}
+          sandbox="allow-scripts allow-same-origin allow-forms"
+        />
+      </div>
+    </div>
+  );
+}

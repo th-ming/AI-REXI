@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE, apiFetch } from '../config';
+import { mdToHtml, sanitizeHtml } from '../utils/sanitize';
 import {
   TrendingUp, Star, GitFork, ExternalLink, RefreshCw,
   Search, Clock, ChevronDown, Users, Flame,
@@ -233,47 +234,8 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
 }
 
 // ══════════════════════════════════════════════════════════
-// Lightweight markdown → HTML (for README rendering)
-function mdToHtml(md) {
-  if (!md) return '';
-  let html = String(md)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // code blocks
-  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (m, lang, code) =>
-    `<pre class="bg-black/40 rounded-lg p-3 my-2 overflow-x-auto text-[11px] leading-relaxed"><code>${code.trim()}</code></pre>`);
-  // headings
-  html = html.replace(/^###### (.*)$/gm, '<h6>$1</h6>')
-    .replace(/^##### (.*)$/gm, '<h5>$1</h5>')
-    .replace(/^#### (.*)$/gm, '<h4>$1</h4>')
-    .replace(/^### (.*)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.*)$/gm, '<h1>$1</h1>');
-  // blockquote
-  html = html.replace(/^&gt; (.*)$/gm, '<blockquote>$1</blockquote>');
-  // images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full rounded-lg my-2" />');
-  // links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline">$1</a>');
-  // bold + italic + inline code
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>')
-    .replace(/`([^`]+)`/g, '<code class="bg-white/10 rounded px-1 py-0.5 text-[10px]">$1</code>');
-  // lists
-  html = html.replace(/^(\s*)[-*] (.*)$/gm, '$1<li>$2</li>')
-    .replace(/(<li>.*<\/li>)/gs, '<ul class="list-disc pl-4 my-2 space-y-0.5">$1</ul>');
-  html = html.replace(/^(\s*)\d+\. (.*)$/gm, '$1<li>$2</li>')
-    .replace(/(<li>.*<\/li>)/gs, '<ol class="list-decimal pl-4 my-2 space-y-0.5">$1</ol>');
-  // horizontal rules
-  html = html.replace(/^---$/gm, '<hr class="my-3 border-white/10" />');
-  // paragraphs (lines not consumed by blocks)
-  html = html.split(/\n\n+/).map(block => {
-    const trimmed = block.trim();
-    if (!trimmed) return '';
-    if (/^<(h[1-6]|ul|ol|pre|blockquote|hr|img)/.test(trimmed)) return trimmed;
-    return `<p class="my-1.5 text-[12px] leading-relaxed">${trimmed}</p>`;
-  }).join('\n');
-  return html;
-}
+// mdToHtml + sanitizeHtml: dùng chung từ ../utils/sanitize (P2-15 harden:
+// escape `"`, validate URL http/https/relative, DOMPurify trước render).
 
 function StarChart({ points }) {
   const [w, h, pad] = [360, 140, 8];
@@ -359,7 +321,7 @@ function RepoDetailModal({ repo, token, onClose }) {
       const raw = detail.readme_base64
         ? decodeURIComponent(escape(atob(detail.readme)))
         : detail.readme || '';
-      readmeHtml = mdToHtml(raw);
+      readmeHtml = sanitizeHtml(mdToHtml(raw));
     } catch { readmeHtml = ''; }
   }
 
@@ -466,7 +428,7 @@ function RepoDetailModal({ repo, token, onClose }) {
                     </div>
                     {detail.latest_release.name && <p className="text-xs text-slate-300 font-medium">{detail.latest_release.name}</p>}
                     {detail.latest_release.body
-                      ? <div className="text-slate-300 [&_h1]:text-sm [&_h2]:text-sm [&_h1]:font-bold [&_h2]:font-bold [&_h1]:mt-2 [&_h2]:mt-2 [&_h1]:mb-1 [&_h2]:mb-1 [&_a]:text-cyan-400 [&_a:hover]:underline" dangerouslySetInnerHTML={{ __html: mdToHtml(detail.latest_release.body) }} />
+                      ? <div className="text-slate-300 [&_h1]:text-sm [&_h2]:text-sm [&_h1]:font-bold [&_h2]:font-bold [&_h1]:mt-2 [&_h2]:mt-2 [&_h1]:mb-1 [&_h2]:mb-1 [&_a]:text-cyan-400 [&_a:hover]:underline" dangerouslySetInnerHTML={{ __html: sanitizeHtml(mdToHtml(detail.latest_release.body)) }} />
                       : <div className="text-center py-6 text-slate-500 text-xs">Release không có mô tả.</div>}
                   </div>
                 )

@@ -4,11 +4,112 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { exec, execSync, spawn } = require('child_process');
+const { safeExec, safeExecSync } = require('../utils/safeExec');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const db = require('../config/db');
 const { stripAnsi, AnsiStreamCleaner } = require('../utils/stripAnsi');
 const { authMiddleware, adminMiddleware, guestMiddleware, guestAgentMiddleware, getGuestLimits } = require('../middleware/auth.middleware');
 const { GUEST_USER_ID } = require('../ensure-admin');
+const { encryptKey, decryptKey } = require('../utils/cryptoKeys');
+const { searchDocuments } = require('../services/ragService');
+const { rateLimit } = require('../middleware/rateLimit');
+const { logActivity } = require('../utils/activityLog');
+const agentEngine = require('../services/agentEngine');
+const modelRouter = require('../services/modelRouter');
+const healthCheck = require('../services/healthCheck');
+const chatExecutor = require('../services/chatExecutor');
+const quotaManager = require('../services/quotaManager');
+const telemetry = require('../services/telemetry');
+// ─── Helper: lấy API key xKiro từ DB qua adapter (SQLite local / PG trên Render) ───
+function getXkiroApiKey() {
+  return new Promise((resolve) => {
+    if (process.env.XKIRO_API_KEY) return resolve(process.env.XKIRO_API_KEY.trim());
+    db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'xkiro'", [], (err, row) => {
+      if (err || !row || !row.gia_tri_khoa) return resolve('');
+      try { resolve(decryptKey(row.gia_tri_khoa).trim()); }
+      catch (de) { resolve(String(row.gia_tri_khoa).trim()); }
+    });
+  });
+}
+
+
+// ─── P1-09: kiểm tra chủ sở hữu cuộc hội thoại (admin bypass) ───
+// Trả null nếu được phép; trả { status, error } nếu bị chặn (404/403/500).
+// Mẫu theo DELETE /conversations/:id (WHERE ma_hoi_thoai + ma_nguoi_dung).
+function assertConvOwner(maHoiThoai, req) {
+  return new Promise((resolve) => {
+    if (req.user && (req.user.role === 'admin' || req.user.phan_quyen === 'admin')) return resolve(null);
+    // P0-privacy: guest chỉ được chạm conv gắn đúng session mình (ma_phien).
+    // Conv guest cũ (ma_phien NULL, tạo trước fix) → từ chối để không rò rỉ chéo.
+    if (!req.user) {
+      if (!req.sessionID) return resolve({ status: 403, error: 'Không có quyền truy cập cuộc hội thoại này.' });
+      db.get("SELECT ma_nguoi_dung FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ? AND ngay_xoa IS NULL AND ma_nguoi_dung = ? AND ma_phien = ?", [maHoiThoai, GUEST_USER_ID, req.sessionID], (err, row) => {
+        if (err) return resolve({ status: 500, error: err.message });
+        if (!row) return resolve({ status: 403, error: 'Không có quyền truy cập cuộc hội thoại này.' });
+        resolve(null);
+      });
+      return;
+    }
+    const expectedOwner = req.user.id;
+    db.get("SELECT ma_nguoi_dung FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ? AND ngay_xoa IS NULL", [maHoiThoai], (err, row) => {
+      if (err) return resolve({ status: 500, error: err.message });
+      if (!row) return resolve({ status: 404, error: 'Không tìm thấy cuộc hội thoại.' });
+      if (row.ma_nguoi_dung !== expectedOwner) return resolve({ status: 403, error: 'Không có quyền truy cập cuộc hội thoại này.' });
+      resolve(null);
+    });
+  });
+}
+
+// ─── Xử lý lỗi AgentRouter → thông báo tiếng Việt thân thiện cho người dùng ───
+function agentRouterFriendlyError(rawMsg) {
+  const m = String(rawMsg || '').toLowerCase();
+  if (m.includes('content-blocked')) {
+    return '⚠️ Model GPT-5.6 Sol (AgentRouter) đang CHẶN nội dung tiếng Việt (giới hạn phía nhà cung cấp). Vui lòng chuyển sang model xKiro để chat tiếng Việt hoặc dùng tiếng Anh cho model này.';
+  }
+  if (m.includes('budget pool') || m.includes('quota has been exhausted') || m.includes('insufficient')) {
+    return '⚠️ Model này trên AgentRouter đang tạm ngừng do hết hạn mức phía nhà cung cấp. Vui lòng chọn model khác.';
+  }
+  return null;
+}
+
+// ─── SMART MODEL ROUTER: tự chọn model theo độ khó câu hỏi ──────────
+function smartModelOverride(provider, model, text, thinkingLevel) {
+  const m = String(model || '').trim();
+  const t = String(text || '');
+  // Chế độ suy luận sâu → model reasoning (verify live 9/2026 trên key xkiro free)
+  if (thinkingLevel === 'deep') {
+    if (provider === 'xkiro') return 'mistralai/mistral-large-2512';
+    return m;
+  }
+  // Auto router: câu đơn giản → model nhanh; câu phức tạp → model mạnh
+  if (m === 'auto' || m === 'auto/' + provider) {
+    if (provider === 'xkiro') {
+      const complex = /tại sao|vì sao|giải thích|phân tích|so sánh|viết|code|lập trình|thuật toán|debug|sửa lỗi|đánh giá|tổng hợp|bài văn|bài toán|logic|chi tiết|hướng dẫn/i.test(t) || t.length > 150;
+      return complex ? 'mistralai/mistral-large-2512' : 'mistralai/ministral-8b';
+    }
+    return m;
+  }
+  return m;
+}
+
+// ─── VISION: tách ảnh markdown trong tin nhắn → OpenAI content parts ───
+function buildOpenAIContent(noiDung) {
+  const text = String(noiDung || '');
+  const parts = [];
+  const imgRe = /!\[[^\]]*\]\((data:image\/[^)\s]+)\)/g;
+  let last = 0;
+  let m;
+  let buf = '';
+  while ((m = imgRe.exec(text)) !== null) {
+    buf += text.slice(last, m.index);
+    if (buf.trim()) { parts.push({ type: 'text', text: buf.trim() }); buf = ''; }
+    parts.push({ type: 'image_url', image_url: { url: m[1] } });
+    last = m.index + m[0].length;
+  }
+  buf += text.slice(last);
+  if (buf.trim() || parts.length === 0) parts.push({ type: 'text', text: buf.trim() || '...' });
+  return parts;
+}
 
 // ─── AI REXI BRAIN INTEGRATION ────────────────────────────────
 const brain = require('../services/brain/intelligence/intelligence');
@@ -22,6 +123,23 @@ const IS_OPENCODE_AVAILABLE = fs.existsSync(OPENCODE_BIN_PATH);
 // Env chuẩn cho mọi spawn opencode/agent: tắt màu ANSI ở NGUỒN để tránh rò rỉ mã "[[35m..." vào chat.
 // (stripAnsi + AnsiStreamCleaner ở các handler là lớp an toàn phụ khi tool vẫn phun mã màu.)
 const NO_COLOR_ENV = { ...process.env, LANG: 'en_US.UTF-8', NO_COLOR: '1', FORCE_COLOR: '0', TERM: 'dumb', CLICOLOR: '0', CLICOLOR_FORCE: '0' };
+
+// ─── HEALTH CHECK: chay ngay khi server khoi dong + moi 10 phut ───
+// Loai provider che (het quota/loi) khoi danh sach tu chon cua modelRouter
+(async () => {
+  try {
+    const results = await healthCheck.runHealthCheck();
+    modelRouter.setHealth(results);
+    console.log('[HealthCheck] initial:', results.map(r => r.provider + ':' + (r.ok ? 'OK' : 'FAIL')).join(', '));
+  } catch (e) { console.log('[HealthCheck] init error:', e.message); }
+})();
+setInterval(async () => {
+  try {
+    const results = await healthCheck.runHealthCheck();
+    modelRouter.setHealth(results);
+    console.log('[HealthCheck] refresh done');
+  } catch (e) { console.log('[HealthCheck] refresh error:', e.message); }
+}, 10 * 60 * 1000);
 
 // --- CACHING FOR MODELS ---
 const modelCache = new Map();
@@ -84,10 +202,17 @@ router.get('/conversations', (req, res, next) => {
   }
   return authMiddleware(req, res, next);
 }, (req, res) => {
-  const userId = req.user ? req.user.id : null;
-  if (!userId) {
-    return res.json([]);
+  // P0-privacy: guest chỉ thấy conv của ĐÚNG session mình (ma_phien), không thấy conv guest khác.
+  // (Trước đây: guest luôn nhận [] — mất sidebar; nhưng biết ID conv người khác vẫn đọc được.)
+  if (!req.user) {
+    if (!req.sessionID) return res.json([]);
+    db.all("SELECT * FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ? AND ma_phien = ? AND ngay_xoa IS NULL ORDER BY ngay_cap_nhat DESC", [GUEST_USER_ID, req.sessionID], (err, rows) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json(rows || []);
+    });
+    return;
   }
+  const userId = req.user.id;
   db.all("SELECT * FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ? AND ngay_xoa IS NULL ORDER BY ngay_cap_nhat DESC", [userId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
@@ -104,15 +229,25 @@ router.post('/conversations', (req, res, next) => {
   const { tieu_de, ten_mo_hinh_ai } = req.body;
   const maHoiThoai = crypto.randomUUID();
   const userId = req.user ? req.user.id : GUEST_USER_ID;
-
-  const sql = `
-    INSERT INTO cuoc_hoi_thoai (ma_hoi_thoai, ma_nguoi_dung, ma_thu_muc, tieu_de, ten_mo_hinh_ai, trang_thai)
-    VALUES (?, ?, ?, ?, ?, 'dang_mo')
-  `;
-  db.run(sql, [maHoiThoai, userId, null, tieu_de || 'Trò chuyện mới', ten_mo_hinh_ai || 'Gemini 3.5 Flash'], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json({ ma_hoi_thoai: maHoiThoai, tieu_de: tieu_de || 'Trò chuyện mới', ten_mo_hinh_ai: ten_mo_hinh_ai || 'Gemini 3.5 Flash' });
-  });
+  // P0-privacy: conv guest gắn ma_phien = session hiện tại → guest khác không sờ được.
+  // Tạo conv là hành động thật → khởi tạo session (đánh dấu dirty + save) để cookie/sessionID ổn định.
+  const maPhien = req.user ? null : (req.sessionID || null);
+  const doInsert = () => {
+    const sql = `
+      INSERT INTO cuoc_hoi_thoai (ma_hoi_thoai, ma_nguoi_dung, ma_thu_muc, tieu_de, ten_mo_hinh_ai, trang_thai, ma_phien)
+      VALUES (?, ?, ?, ?, ?, 'dang_mo', ?)
+    `;
+    db.run(sql, [maHoiThoai, userId, null, tieu_de || 'Trò chuyện mới', ten_mo_hinh_ai || 'Gemini 3.5 Flash', maPhien], function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ ma_hoi_thoai: maHoiThoai, tieu_de: tieu_de || 'Trò chuyện mới', ten_mo_hinh_ai: ten_mo_hinh_ai || 'Gemini 3.5 Flash' });
+    });
+  };
+  if (!req.user && req.session) {
+    req.session.messageCount = req.session.messageCount || 0;
+    req.session.agentTaskCount = req.session.agentTaskCount || 0;
+    if (typeof req.session.save === 'function') return req.session.save(() => doInsert());
+  }
+  doInsert();
 });
 
 // GUEST: Lấy thông tin giới hạn
@@ -228,7 +363,7 @@ router.post('/keys', [authMiddleware, adminMiddleware], (req, res) => {
     `INSERT INTO khoa_api (ma_khoa, ma_nguoi_dung, ten_nha_cung_cap, gia_tri_khoa) 
      VALUES (?, ?, ?, ?) 
      ON CONFLICT(ma_khoa) DO UPDATE SET gia_tri_khoa = excluded.gia_tri_khoa`,
-    [keyId, req.user.id, provider, api_key.trim()],
+    [keyId, req.user.id, provider, encryptKey(api_key.trim())],
     (err) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, provider });
@@ -359,7 +494,7 @@ router.post('/fetch-models', authMiddleware, async (req, res) => {
     } else if (provider === 'opencode') {
       try {
         if (!IS_OPENCODE_AVAILABLE) throw new Error('OpenCode binary not found.');
-        const stdout = execSync(`"${OPENCODE_BIN_PATH}" models`, { 
+        const stdout = safeExecSync(`"${OPENCODE_BIN_PATH}" models`, { 
           encoding: 'utf8', 
           timeout: 5000,
           env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' }
@@ -404,19 +539,18 @@ router.post('/admin/cache/clear-models', [authMiddleware, adminMiddleware], (req
   res.json({ success: true, message: `Đã xóa thành công ${cacheSize} mục khỏi cache models.` });
 });
 
-router.get('/conversations/:id/messages', authMiddleware, (req, res) => {
+router.get('/conversations/:id/messages', (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return guestMiddleware(req, res, next);
+  return authMiddleware(req, res, next);
+}, async (req, res) => {
   const { id } = req.params;
-  // Kiểm tra user có quyền xem cuộc hội thoại này không
-  const condition = req.user.role === 'admin' ? "" : `AND ma_nguoi_dung = ?`;
-  db.get(`SELECT ma_hoi_thoai FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ? ${condition}`, req.user.role === 'admin' ? [id] : [id, req.user.id], (err, conv) => {
+  // P1-09: dùng chung assertConvOwner (user + guest qua GUEST_USER_ID, chặn conv đã xóa mềm)
+  const ownerErr = await assertConvOwner(id, req);
+  if (ownerErr) return res.status(ownerErr.status).json({ error: ownerErr.error });
+  db.all("SELECT * FROM tin_nhan WHERE ma_hoi_thoai = ? ORDER BY ngay_gui ASC", [id], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    if (!conv) {
-      return res.status(403).json({ error: 'Không có quyền truy cập.' });
-    }
-    db.all("SELECT * FROM tin_nhan WHERE ma_hoi_thoai = ? ORDER BY ngay_gui ASC", [id], (err, rows) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(rows);
-    });
+    res.json(rows || []);
   });
 });
 
@@ -477,7 +611,7 @@ function saveAIMessageAndRespond(maHoiThoai, content, res) {
 }
 
 // Endpoint cho khách và người đã đăng nhập
-router.post('/conversations/:id/messages', (req, res, next) => {
+router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 }), (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     // Nếu không có token -> là khách -> dùng guestMiddleware
@@ -487,7 +621,14 @@ router.post('/conversations/:id/messages', (req, res, next) => {
   return authMiddleware(req, res, next);
 }, async (req, res) => {
   const { id } = req.params;
-  const { vai_tro, noi_dung, provider, client_api_key, model_name, base_url, mode, execution_mode, thinking_level, skill_id } = req.body;
+  // P2-19a: vai_tro từ body không đáng tin (user tự gắn 'admin' → bubble admin giả).
+  // Ép 'user' — chỉ POST /admin/.../reply mới được tạo vai_tro='admin'.
+  const { vai_tro: _roleIgnored, noi_dung, provider, client_api_key, model_name, base_url, mode, execution_mode, thinking_level, skill_id } = req.body;
+  const vai_tro = 'user';
+
+  // P1-09: chặn IDOR — chỉ chủ sở hữu (hoặc admin) mới được nhắn vào hội thoại này
+  const ownerErr = await assertConvOwner(id, req);
+  if (ownerErr) return res.status(ownerErr.status).json({ error: ownerErr.error });
 
   // Logic xử lý tin nhắn giữ nguyên...
   const maTinNhanUser = crypto.randomUUID();
@@ -499,8 +640,10 @@ router.post('/conversations/:id/messages', (req, res, next) => {
       if (err) return res.status(500).json({ error: err.message });
 
       // Tăng số lượng tin nhắn đã dùng cho khách CHỈ KHI thực sự gửi tin nhắn thành công
+      // P3-fix: saveUninitialized:false → phải save() tay để session (kể cả session mới) được ghi xuống store
       if (!req.user && req.session) {
         req.session.messageCount = (req.session.messageCount || 0) + 1;
+        if (typeof req.session.save === 'function') req.session.save(() => {});
       }
 
       db.get("SELECT tieu_de FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ?", [id], (err, convRow) => {
@@ -522,14 +665,21 @@ router.post('/conversations/:id/messages', (req, res, next) => {
           return saveAIMessageAndRespond(id, errorMessage, res);
         }
 
-        // Tăng counter cho guest
+        // Tăng counter cho guest (P3-fix: save() tay cho saveUninitialized:false)
         if (isGuest) {
           req.session.agentTaskCount = (req.session.agentTaskCount || 0) + 1;
+          if (typeof req.session.save === 'function') req.session.save(() => {});
         }
 
-        if (!IS_OPENCODE_AVAILABLE) {
-            const errorMessage = "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`. Vui lòng kiểm tra lại đường dẫn cài đặt.";
-            return saveAIMessageAndRespond(id, errorMessage, res);
+        // Engine: 'opencode' / 'dsh' / 'auto' (tự chọn theo độ phức tạp task)
+        const requestedEngine = String(req.body.agent_engine || 'auto').trim().toLowerCase();
+        const agentEngineName = agentEngine.pickEngine(noi_dung, requestedEngine);
+
+        if (!agentEngine.isEngineAvailable(agentEngineName)) {
+          const errorMessage = agentEngineName === 'dsh'
+            ? "⛔ **Lỗi hệ thống:** DeepSeek Harness (dsh) chưa được cài đặt. Vui lòng kiểm tra lại."
+            : "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`. Vui lòng kiểm tra lại đường dẫn cài đặt.";
+          return saveAIMessageAndRespond(id, errorMessage, res);
         }
 
         // Null/empty check cho Agent Mode để tránh spawn process vô nghĩa
@@ -540,36 +690,26 @@ router.post('/conversations/:id/messages', (req, res, next) => {
 
         const rootDir = path.join(__dirname, '..', '..', '..');
 
-        // Agent Mode luôn chạy qua opencode engine.
-        // Chỉ dùng model có prefix "opencode/"; nếu không (người dùng đang chọn Gemini/Claude/...)
-        // thì ép về model opencode mặc định để tránh lỗi "model not found".
-        const rawModel = (model_name || '').trim();
-        const opencodeModel = rawModel.startsWith('opencode/')
-          ? rawModel
-          : 'opencode/deepseek-v4-flash-free';
-
-        // Sử dụng spawn để chống Shell Injection.
-        // Timeout tăng lên 5 phút vì opencode agent thường mất 40-90s để hoàn thành 1 task.
-        const agentProcess = spawn(
-          OPENCODE_BIN_PATH,
-          ['run', noi_dung, '-m', opencodeModel, '--auto'],
-          { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV }
-        );
-
-        let stdout = '';
-        let stderr = '';
-        agentProcess.stdout.on('data', (data) => { stdout += stripAnsi(data.toString()); });
-        agentProcess.stderr.on('data', (data) => { stderr += stripAnsi(data.toString()); });
-
-        return agentProcess.on('close', (code) => {
-          let cauTraLoiAgent = "";
-          if (code !== 0) {
-            cauTraLoiAgent = stdout.trim() || stderr.trim() || `[Agent Error] Process exited with code ${code}`;
-          } else {
-            cauTraLoiAgent = stdout.trim() || "Tôi đã tự động thực thi các câu lệnh và cập nhật tệp tin thành công cho bạn.";
+        // Nếu dùng dsh → lấy XKIRO_API_KEY (sqlite3 trực tiếp — db adapter bị treo)
+        let extraEnv = {};
+        if (agentEngineName === 'dsh') {
+          extraEnv.XKIRO_API_KEY = await getXkiroApiKey();
+          if (!extraEnv.XKIRO_API_KEY) {
+            const errorMessage = "⚠️ **Lỗi:** Chưa có API key xKiro trong hệ thống. Admin cần lưu key provider `xkiro` trước khi dùng Agent DSH.";
+            return saveAIMessageAndRespond(id, errorMessage, res);
           }
-          saveAIMessageAndRespond(id, cauTraLoiAgent, res);
-        });
+        }
+
+        // Chạy agent engine (opencode hoặc dsh) — đọc/sửa file, chạy lệnh trong rootDir
+        const result = await agentEngine.runAgentEngine(agentEngineName, noi_dung, model_name, rootDir, extraEnv);
+
+        let cauTraLoiAgent = "";
+        if (result.code !== 0) {
+          cauTraLoiAgent = result.stdout.trim() || result.stderr.trim() || `[Agent Error] Process exited with code ${result.code}`;
+        } else {
+          cauTraLoiAgent = result.stdout.trim() || "Tôi đã tự động thực thi các câu lệnh và cập nhật tệp tin thành công cho bạn.";
+        }
+        return saveAIMessageAndRespond(id, cauTraLoiAgent, res);
       }
 
       let selectedProvider = provider || 'gemini';
@@ -581,7 +721,7 @@ router.post('/conversations/:id/messages', (req, res, next) => {
           const keyId = 'k_' + selectedProvider;
           db.run(
             `INSERT INTO khoa_api (ma_khoa, ma_nguoi_dung, ten_nha_cung_cap, gia_tri_khoa) VALUES (?, ?, ?, ?) ON CONFLICT(ma_khoa) DO UPDATE SET gia_tri_khoa = excluded.gia_tri_khoa`,
-            [keyId, req.user.id, selectedProvider, client_api_key.trim()]
+            [keyId, req.user.id, selectedProvider, encryptKey(client_api_key.trim())]
           );
         }
       }
@@ -594,7 +734,7 @@ router.post('/conversations/:id/messages', (req, res, next) => {
         db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = LOWER(?)", [selectedProvider], (err, r) => resDb(r));
       });
       if (dbKeyRow && dbKeyRow.gia_tri_khoa && dbKeyRow.gia_tri_khoa.trim()) {
-        keyToUse = dbKeyRow.gia_tri_khoa.trim();
+        keyToUse = decryptKey(dbKeyRow.gia_tri_khoa).trim();
       } else if (client_api_key && client_api_key.trim()) {
         keyToUse = client_api_key.trim();
       }
@@ -613,7 +753,7 @@ router.post('/conversations/:id/messages', (req, res, next) => {
         // Fallback: nếu đã cài opencode.exe, cho phép dùng miễn phí thay vì chặn
         if (IS_OPENCODE_AVAILABLE) {
           selectedProvider = 'opencode';
-          selectedModel = 'opencode/deepseek-v4-flash-free';
+          selectedModel = 'nvidia/google/gemma-4-31b-it';
         } else {
           const fallbackMsg = `Chưa cài đặt API Key cho nhà cung cấp ${selectedProvider.toUpperCase()}. Hãy bấm nút 'Cài đặt hệ thống' ở góc trái để nhập Key và chọn Model!`;
           return saveAIMessageAndRespond(id, fallbackMsg, res);
@@ -636,6 +776,9 @@ router.post('/conversations/:id/messages', (req, res, next) => {
         const messageText = noi_dung;
 
         // --- AI REXI BRAIN: tự lưu memory + cập nhật profile (fire-and-forget, không chặn chat) ---
+        // P0-privacy: CHỈ user đăng nhập mới có memory/profile. Guest dùng chung
+        // GUEST_USER_ID → lưu memory guest = rò rỉ thông tin cá nhân cho mọi guest khác.
+        if (req.user) {
         try {
           const _brainEnt = extractEntities(messageText);
           if (_brainEnt) {
@@ -643,10 +786,13 @@ router.post('/conversations/:id/messages', (req, res, next) => {
             Promise.resolve(updateProfileFromMessage(userIdForBrain, _brainEnt)).catch(() => {});
           }
         } catch (e) { /* brain không bao giờ được chặn chat */ }
+        }
 
         // --- AI REXI BRAIN: load memory thông minh (priority + keyword match) + profile ---
+        // P0-privacy: guest KHÔNG đọc memory/profile chung (chứa dữ liệu người khác).
         let memoryText = '';
         let profileText = '';
+        if (req.user) {
         try {
           const memResult = await loadSmartMemory(userIdForBrain, messageText);
           memoryText = memResult ? memResult.text : '';
@@ -655,7 +801,20 @@ router.post('/conversations/:id/messages', (req, res, next) => {
           const profile = await brain.getProfile(userIdForBrain);
           profileText = profile ? brain.formatToPromptText(profile) : '';
         } catch (e) { /* brain không bao giờ được chặn chat */ }
+        }
+        // ─── RAG: tự tìm FILE liên quan theo NGHĨA (PDF/Word/TXT đã upload) ───
+        let ragText = '';
+        try {
+          const ragHits = await searchDocuments(userIdForBrain, messageText, 3);
+          if (ragHits && ragHits.length > 0) {
+            ragText = '\n\n📄 TÀI LIỆU CỦA NGƯỜI DÙNG (trả lời dựa trên nội dung này nếu liên quan):\n' +
+              ragHits.map(h => `- [${h.ten_file}] ${h.noi_dung}`).join('\n');
+          }
+        } catch (eRag) { console.log('[RAG] context error:', eRag.message); }
         if (memoryText) console.log('[Brain] Memory loaded:', memoryText.slice(0, 200));
+
+        // ─── AUTO: tìm web khi cần + tóm tắt hội thoại dài ───
+        const { webSearchText, summaryText } = await buildAutoContext(req, id, noi_dung);
 
         const SPECIALTY_PROMPTS = {
           general: 'Bạn là Rexi, Siêu Trợ Lý AI Toàn Năng giúp giải quyết mọi câu hỏi cuộc sống, công việc, văn phòng và phân tích.',
@@ -671,56 +830,22 @@ router.post('/conversations/:id/messages', (req, res, next) => {
         // Load TẤT CẢ skills từ DB và inject vào system prompt
         let skillInstruction = '';
         try {
+          const skillRouter = require('../services/skillRouter');
           const allSkills = await new Promise((resolve) => {
-            db.all("SELECT ten_ky_nang, tieu_de, mo_ta FROM ky_nang WHERE trang_thai = 'kich_hoat'", [], (err, rows) => {
-              resolve(rows || []);
-            });
+            db.all("SELECT ten_ky_nang, tieu_de, mo_ta FROM ky_nang WHERE trang_thai = 'kich_hoat'", [], (err, rows) => resolve(rows || []));
           });
-          
-          const skillPrompts = [];
-          for (const skill of allSkills) {
-            const possiblePaths = [
-              // Ưu tiên 1: Skills trong dự án AI REXI
-              path.join(__dirname, '..', '..', 'skills', skill.ten_ky_nang, 'SKILL.md'),
-              // Ưu tiên 2: Skills của opencode
-              path.join(process.env.USERPROFILE || process.env.HOME, '.agents', 'skills', skill.ten_ky_nang, 'SKILL.md'),
-              // Ưu tiên 3: Skills của Gemini
-              path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'config', 'skills', skill.ten_ky_nang, 'SKILL.md')
-            ];
-            let skillContent = null;
-            for (const p of possiblePaths) {
-              if (fs.existsSync(p)) {
-                try {
-                  skillContent = fs.readFileSync(p, 'utf8');
-                  break;
-                } catch (e) {}
-              }
-            }
-            if (skillContent) {
-              // Giới hạn mỗi skill prompt tối đa 1200 chars để tránh system prompt quá dài
-              const trimmedSkill = skillContent.replace(/\s+/g, ' ').trim();
-              skillPrompts.push(`🎯 **${skill.tieu_de}** (${skill.ten_ky_nang}):\n${trimmedSkill.substring(0, 1200)}`);
-            } else {
-              skillPrompts.push(`🎯 **${skill.tieu_de}**: ${skill.mo_ta}`);
-            }
-          }
-          
-          if (skillPrompts.length > 0) {
-            // Giới hạn tối đa 5 skills trong system prompt để tránh quá dài
-            const MAX_SKILLS_IN_PROMPT = 5;
-            const trimmedSkillPrompts = skillPrompts.length > MAX_SKILLS_IN_PROMPT
-              ? skillPrompts.slice(0, MAX_SKILLS_IN_PROMPT)
-              : skillPrompts;
-            if (skillPrompts.length > MAX_SKILLS_IN_PROMPT) {
-              trimmedSkillPrompts.push(`... và ${skillPrompts.length - MAX_SKILLS_IN_PROMPT} skills khác đã được kích hoạt.`);
-            }
-            skillInstruction = `\n\n📚 **KỸ NĂNG AGENT CỦA REXI:**\n` + trimmedSkillPrompts.join('\n\n---\n\n');
+          skillInstruction = await skillRouter.buildSkillPrompt(noi_dung, allSkills);
+          if (!skillInstruction) {
+            skillInstruction = `
+
+📚 **KỸ NĂNG AGENT CỦA REXI:** Bạn có ${(allSkills || []).length} skills chuyên dụng (thiết kế, code, văn phòng, video, TTS, IPTV...). Nếu người dùng yêu cầu chuyên môn, hãy áp dụng đúng quy trình.`;
           }
         } catch (skillErr) {
           console.log('[Skill] Lỗi load skills:', skillErr.message);
         }
 
         let systemPrompt = `${currentRolePrompt} Bây giờ là ${nowFormatted} (Giờ Việt Nam). Vị trí địa lý ước tính của người dùng: ${locationStr}.
+${ragText}${webSearchText}${summaryText}
 ${profileText || ''
 }
 BỘ NHỚ DÀI HẠN VỀ NGƯỜI DÙNG & QUY TẮC CỦA REXI:
@@ -732,6 +857,31 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
         const MAX_SYSTEM_PROMPT = 6000;
         if (systemPrompt.length > MAX_SYSTEM_PROMPT) {
           systemPrompt = systemPrompt.substring(0, MAX_SYSTEM_PROMPT) + '\n\n[...đã cắt ngắn system prompt để phù hợp context limit...]';
+        }
+
+        // AgentRouter chặn nội dung không phải tiếng Anh → gửi system prompt tiếng Anh
+        if (selectedProvider === 'agentrouter') {
+          systemPrompt = `You are Rexi, an all-in-one AI assistant. Current time: ${nowFormatted} (Vietnam time). User's estimated location: ${locationStr}.\n${ragText}\n${profileText || ''}\nLONG-TERM MEMORY ABOUT THE USER & REXI RULES:\n${memoryText || '- The user prefers professional, concise, practical and accurate answers.'}\n\n- IMPORTANT RULE: Do not repeat disclaimers. Answer directly, naturally, friendly and helpfully.${skillInstruction}`;
+        }
+
+        // ─── AUTO ROUTER: model = 'auto' → phân loại câu hỏi + chọn model thông minh ───
+        let autoRouteInfo = null;
+        const isAutoModel = String(model_name || '').trim() === 'auto' || String(model_name || '').trim() === 'auto/' + selectedProvider;
+        if (isAutoModel) {
+          const hasImage = /data:image\/(png|jpe?g|gif|webp)/i.test(String(noi_dung || ''));
+          const userTier = !req.user ? 'guest' : (req.user.role === 'admin' || req.user.phan_quyen === 'admin' ? 'admin' : 'user');
+          const route = await modelRouter.pickRoute(noi_dung, { thinkingLevel: req.body.thinking_level, hasImage, userTier });
+          if (route.candidates && route.candidates.length) {
+            autoRouteInfo = { route, index: 0 };
+            selectedProvider = route.candidates[0].provider;
+            selectedModel = route.candidates[0].model;
+            // Lấy key + baseUrl cho provider được router chọn
+            const rp = await modelRouter.resolveProvider(selectedProvider);
+            if (rp.apiKey) keyToUse = rp.apiKey;
+            if (rp.baseUrl) baseUrl = rp.baseUrl;
+            // Ghi telemetry để admin xem thống kê định tuyến
+            telemetry.recordRoute({ provider: selectedProvider, model: selectedModel, category: route.category, userTier });
+          }
         }
 
         try {
@@ -766,8 +916,8 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
                 await new Promise((resOp) => {
                   const fallbackProcess = spawn(
                     OPENCODE_BIN_PATH,
-                    ['run', noi_dung, '--auto'],
-                    { cwd: rootDir, timeout: 20000, env: NO_COLOR_ENV }
+                    ['run', noi_dung, '--auto', '--pure', '--title', 'agent-task'],
+                    { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV, stdio: ['ignore', 'pipe', 'pipe'] }
                   );
                   let stdout = '';
                   fallbackProcess.stdout.on('data', data => { stdout += stripAnsi(data.toString()); });
@@ -785,13 +935,23 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               }
             }
 
-          } else if (['openai', 'deepseek', 'groq', 'github', 'custom'].includes(selectedProvider)) {
+          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
             let endpoint = "https://api.openai.com/v1/chat/completions";
             if (selectedProvider === 'deepseek') endpoint = "https://api.deepseek.com/chat/completions";
             else if (selectedProvider === 'groq') endpoint = "https://api.groq.com/openai/v1/chat/completions";
             else if (selectedProvider === 'github') endpoint = "https://models.github.ai/inference/chat/completions";
             else if (selectedProvider === 'custom') {
               const cleanedBase = (baseUrl || "https://openrouter.ai/api/v1").replace(/\/+$/, '');
+              endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
+            } else if (selectedProvider === 'xkiro') {
+              const cleanedBase = (baseUrl || "https://api.xkiro.com/v1").replace(/\/+$/, '');
+              endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
+            } else if (['bai', 'kiosapi', 'unorouter'].includes(selectedProvider)) {
+              const NEW_BASES = { bai: 'https://api.b.ai/v1', kiosapi: 'https://router.kiosapi.com/v1', unorouter: 'https://api.unorouter.com/v1' };
+              const cleanedBase = (baseUrl || NEW_BASES[selectedProvider]).replace(/\/+$/, '');
+              endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
+            } else if (selectedProvider === 'agentrouter') {
+              const cleanedBase = (baseUrl || "https://agentrouter.org/v1").replace(/\/+$/, '');
               endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
             } else if (baseUrl) {
               endpoint = baseUrl + "/chat/completions";
@@ -801,9 +961,13 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               { role: "system", content: systemPrompt },
               ...history.map(h => ({
                 role: h.vai_tro === 'user' ? 'user' : 'assistant',
-                content: h.noi_dung
+                content: h.vai_tro === 'user' ? buildOpenAIContent(h.noi_dung) : h.noi_dung
               }))
             ];
+            let finalModel = smartModelOverride(selectedProvider, selectedModel, noi_dung, req.body.thinking_level);
+            if (selectedProvider === 'agentrouter') finalModel = finalModel.replace(/^agentrouter\//, '');
+            if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink'].includes(selectedProvider)) finalModel = finalModel.replace(new RegExp('^' + selectedProvider + '/'), '');
+            if (selectedProvider === 'opencode') finalModel = finalModel.replace(/^opencode\//, '');
 
             const fetchHeaders = {
               'Content-Type': 'application/json',
@@ -811,17 +975,20 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               'Accept': 'application/json, text/plain, */*',
               'Authorization': `Bearer ${keyToUse}`
             };
+            if (selectedProvider === 'agentrouter') fetchHeaders['User-Agent'] = 'opencode/1.17.12';
+            // opencode Zen free models KHÔNG cần Authorization (gửi key sai sẽ bị 401)
+            if (selectedProvider === 'opencode') delete fetchHeaders['Authorization'];
 
             const response = await fetch(endpoint, {
               method: 'POST',
               headers: fetchHeaders,
               body: JSON.stringify({
-                model: selectedModel,
+                model: finalModel,
                 messages: formattedMessages,
                 temperature: 0.7,
-                max_tokens: 1024
+                max_tokens: thinking_level === 'deep' ? 16384 : 4096
               }),
-              signal: AbortSignal.timeout(30000)
+              signal: AbortSignal.timeout(streamTimeoutMs(req.body.thinking_level)) // P1-10: fail-fast theo level
             });
 
             const data = await response.json();
@@ -829,13 +996,22 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               const msg = data.choices[0].message;
               // Reasoning models (e.g. BazaarLink deepseek-v4-flash:free) có thể trả content rỗng
               // nhưng nội dung thật nằm trong field reasoning/reasoning_details
-              cauTraLoiAI = msg.content || msg.reasoning || (msg.reasoning_details && msg.reasoning_details.length > 0 ? msg.reasoning_details.map(r => r.text).filter(Boolean).join('\n') : '') || '';
+              // Model đa phương thức (Qwen omni/vl...): content có thể là MẢNG phần tử → gộp text lại
+              let msgContent = msg.content;
+              if (Array.isArray(msgContent)) msgContent = msgContent.map(p => (typeof p === 'string' ? p : p.text || '')).filter(Boolean).join('');
+              if (typeof msgContent !== 'string') msgContent = '';
+              cauTraLoiAI = msgContent || msg.reasoning || (msg.reasoning_details && msg.reasoning_details.length > 0 ? msg.reasoning_details.map(r => r.text).filter(Boolean).join('\n') : '') || '';
               if (!cauTraLoiAI) {
                 cauTraLoiAI = `Phản hồi (chỉ reasoning): ` + JSON.stringify(data).substring(0, 500);
               }
             } else if (data.error) {
-              cauTraLoiAI = `Lỗi từ ${selectedProvider.toUpperCase()}: ${data.error.message || JSON.stringify(data.error)}`;
-            } else {
+              // ⚠️ NÉM LỖI (không nuốt thành chuỗi) để FALLBACK CHUỖI bên dưới tự thử candidate kế tiếp
+              const friendlyErr = selectedProvider === 'agentrouter' ? agentRouterFriendlyError(data.error.message) : null;
+              const logicErr = new Error(friendlyErr || `${selectedProvider.toUpperCase()}: ${data.error.message || JSON.stringify(data.error)}`);
+              // P1-10: gắn status HTTP (nếu có) để catch bên dưới chỉ throttle đúng 429/5xx
+              if (!response.ok && response.status) logicErr.status = response.status;
+              throw logicErr;
+            } else if (!data.choices) {
               cauTraLoiAI = `Phản hồi từ ${selectedProvider.toUpperCase()}: ` + JSON.stringify(data);
             }
 
@@ -859,7 +1035,8 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
                 'x-api-key': keyToUse,
                 'anthropic-version': '2023-06-01'
               },
-              body: JSON.stringify(claudeBody)
+              body: JSON.stringify(claudeBody),
+              signal: AbortSignal.timeout(30000) // P2-19b (liên quan): non-stream cũng treo nếu Claude đơ
             });
             const data = await response.json();
             if (data.content && data.content.length > 0) {
@@ -868,20 +1045,22 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
             } else {
               cauTraLoiAI = `Lỗi từ Claude: ` + (data.error?.message || JSON.stringify(data));
             }
-          } else if (selectedProvider === 'opencode') {
+          } else if (selectedProvider === 'opencode' && execution_mode === 'agent') {
             if (IS_OPENCODE_AVAILABLE) {
-              const opencodeModel = selectedModel && selectedModel !== 'opencode-default' ? selectedModel : 'opencode/deepseek-v4-flash-free';
+              const opencodeModel = selectedModel && selectedModel !== 'opencode-default' ? selectedModel : 'nvidia/google/gemma-4-31b-it';
               const rootDir = path.join(__dirname, '..', '..', '..');
               const isAgentMode = execution_mode === 'agent';
               
               await new Promise((resolve) => {
                 const args = ['run', noi_dung, '-m', opencodeModel];
                 if (isAgentMode) args.push('--auto');
+                args.push('--pure');
+                args.push('--title', 'agent-task');
                 
                 const opencodeProcess = spawn(
                   OPENCODE_BIN_PATH,
                   args,
-                  { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV }
+                  { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV, stdio: ['ignore', 'pipe', 'pipe'] }
                 );
                 let stdout = '';
                 opencodeProcess.stdout.on('data', data => { stdout += stripAnsi(data.toString()); });
@@ -901,14 +1080,68 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
           }
         } catch (apiErr) {
           console.error(`Lỗi gọi ${selectedProvider}:`, apiErr.message);
-          cauTraLoiAI = `Lỗi kết nối tới ${selectedProvider.toUpperCase()} (${selectedModel}): ` + apiErr.message;
+          // P1-10: chỉ throttle khi 429/5xx/Abort (mạng nghẽn thật) — lỗi logic thì không phạt provider
+          const _st = apiErr && apiErr.status;
+          const _abort = apiErr.name === 'AbortError' || apiErr.name === 'TimeoutError' || /timeout|aborted/i.test(apiErr.message || '');
+          if (_st === 429 || (_st >= 500 && _st <= 599) || (!_st && _abort)) {
+            quotaManager.recordThrottle(selectedProvider);
+          }
+          // ─── FALLBACK CHUỖI (chỉ khi chế độ Auto) ───
+          // Provider được router chọn lỗi → tự thử các lựa chọn kế tiếp (khác provider/model)
+          if (autoRouteInfo && autoRouteInfo.route && autoRouteInfo.route.candidates.length > 1) {
+            try {
+              const result = await chatExecutor.callWithFallback(autoRouteInfo.route.candidates.slice(1), {
+                systemPrompt,
+                history,
+                thinkingLevel: req.body.thinking_level,
+              });
+              if (result.ok) {
+                cauTraLoiAI = result.content;
+                console.log(`[AutoFallback] ${selectedProvider} lỗi → đã chuyển sang ${result.provider}/${result.model}`);
+              } else {
+                cauTraLoiAI = chatExecutor.friendlyFail({ errors: result.errors, candidates: autoRouteInfo.route.candidates });
+              }
+            } catch (fbErr) {
+              console.error('[AutoFallback] error:', fbErr.message);
+              cauTraLoiAI = `Lỗi kết nối tới ${selectedProvider.toUpperCase()} (${selectedModel}): ` + apiErr.message;
+            }
+          } else {
+            cauTraLoiAI = `Lỗi kết nối tới ${selectedProvider.toUpperCase()} (${selectedModel}): ` + apiErr.message;
+          }
         }
 
+        logActivity(req.user ? req.user.id : 'guest', 'gui_tin', 'Hỏi: ' + String(noi_dung || '').substring(0, 120));
         saveAIMessageAndRespond(id, cauTraLoiAI, res);
       });
     }
   );
 });
+
+// ─── AUTO SMART CHAT: chọn model thông minh + fallback chuỗi ───
+// Khi người dùng chọn "Auto (tự chọn thông minh)": phân loại câu hỏi,
+// chọn model phù hợp nhất từ TẤT CẢ provider khỏe mạnh, gọi thử lần lượt.
+async function autoSmartChat(systemPrompt, history, noiDung, thinkingLevel, opts = {}) {
+  try {
+    const hasImage = /data:image\/(png|jpe?g|gif|webp)/i.test(String(noiDung || ''));
+    const route = await modelRouter.pickRoute(noiDung, { thinkingLevel, hasImage, userTier: opts.userTier });
+    if (!route.candidates.length) return { ok: false, content: '⚠️ Không tìm thấy model phù hợp nào đang khỏe mạnh.' };
+    const result = await chatExecutor.callWithFallback(route.candidates, { systemPrompt, history, thinkingLevel });
+    // ─── TELEMETRY + QUOTA: ghi nhận lần route để admin xem + tránh rate limit ───
+    // P2-20(1): recordUse đã gọi trong chatExecutor.callOnce khi success → không gọi lại ở đây (tránh đếm 2 lần).
+    if (result.ok) {
+      telemetry.recordRoute({ provider: result.provider, model: result.model, category: route.category, userTier: opts.userTier });
+      if (result.provider !== route.candidates[0].provider) {
+        telemetry.recordFallback({ from: route.candidates[0].provider, to: result.provider, model: result.model, reason: 'provider đầu lỗi' });
+      }
+      return { ok: true, content: result.content, provider: result.provider, model: result.model, route };
+    }
+    telemetry.recordError({ provider: route.candidates[0]?.provider, model: route.candidates[0]?.model, reason: result.errors?.join(' | ') });
+    return { ok: false, content: chatExecutor.friendlyFail({ errors: result.errors, candidates: route.candidates }), route };
+  } catch (e) {
+    console.error('[AutoSmartChat] error:', e.message);
+    return { ok: false, content: '⚠️ Lỗi hệ thống khi tự chọn model: ' + e.message };
+  }
+}
 
 // ========== STREAMING HELPERS (dùng chung cho route stream) ==========
 // Tách logic lấy API key / fallback provider ra khỏi route để tái sử dụng
@@ -923,7 +1156,7 @@ async function resolveProviderAndKey(req, provider, model_name, client_api_key) 
     db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = LOWER(?)", [selectedProvider], (err, r) => resDb(r));
   });
   if (dbKeyRow && dbKeyRow.gia_tri_khoa && dbKeyRow.gia_tri_khoa.trim()) {
-    keyToUse = dbKeyRow.gia_tri_khoa.trim();
+    keyToUse = decryptKey(dbKeyRow.gia_tri_khoa).trim();
   } else if (client_api_key && client_api_key.trim()) {
     keyToUse = client_api_key.trim();
   }
@@ -941,7 +1174,7 @@ async function resolveProviderAndKey(req, provider, model_name, client_api_key) 
   if (!keyToUse && !['opencode'].includes(selectedProvider)) {
     if (IS_OPENCODE_AVAILABLE) {
       selectedProvider = 'opencode';
-      selectedModel = 'opencode/deepseek-v4-flash-free';
+      selectedModel = 'nvidia/google/gemma-4-31b-it';
     } else {
       return { error: `Chưa cài đặt API Key cho nhà cung cấp ${selectedProvider.toUpperCase()}. Hãy bấm nút 'Cài đặt hệ thống' ở góc trái để nhập Key và chọn Model!` };
     }
@@ -950,8 +1183,61 @@ async function resolveProviderAndKey(req, provider, model_name, client_api_key) 
   return { selectedProvider, selectedModel, keyToUse, baseUrl };
 }
 
+// ─── AUTO WEB SEARCH + TÓM TẮT HỘI THOẠI DÀI (dùng chung cho 2 route) ───
+async function buildAutoContext(req, id, noi_dung) {
+  const out = { webSearchText: '', summaryText: '' };
+  // 1) Auto web search khi câu hỏi cần thông tin mới (tin tức, giá cả, thời tiết...)
+  const newsRe = /tin tức|thời sự|giá vàng|giá xăng|thời tiết|dự báo|bão|chứng khoán|tỷ giá|bitcoin|crypto|mới nhất|hôm nay|vừa ra mắt|năm 2026|tin nóng|news|today|latest|weather|forecast|stock market|price of|breaking|election|world cup/i;
+  if (newsRe.test(String(noi_dung || ''))) {
+    try {
+      const { searchWebTool } = require('../services/agentService');
+      const s = await searchWebTool(noi_dung);
+      if (s && s.results && s.results.length) {
+        out.webSearchText = '\n\n🌐 THÔNG TIN MỚI TỪ WEB (trả lời dựa trên nội dung này nếu liên quan):\n' +
+          s.results.slice(0, 5).map(r => `- ${r.title}: ${r.snippet}`).join('\n');
+      }
+    } catch (e) { console.log('[AutoWeb] error:', e.message); }
+  }
+  // 2) Tóm tắt hội thoại dài (> 30 tin) để không quên ngữ cảnh
+  try {
+    const cnt = await new Promise((res) => db.get("SELECT COUNT(*) AS c FROM tin_nhan WHERE ma_hoi_thoai = ?", [id], (err, r) => res(r ? r.c : 0)));
+    if (cnt > 30) {
+      const older = await new Promise((res) => db.all("SELECT vai_tro, noi_dung FROM tin_nhan WHERE ma_hoi_thoai = ? ORDER BY ngay_gui ASC LIMIT ?", [id, cnt - 30], (err, rows) => res(rows || [])));
+      const text = older.map(m => (m.vai_tro === 'user' ? 'Người dùng: ' : 'Rexi: ') + String(m.noi_dung || '')).join('\n').substring(0, 5000);
+      const summary = await quickSummarize(text);
+      if (summary) out.summaryText = '\n\n📋 TÓM TẮT HỘI THOẠI TRƯỚC ĐÂY (hội thoại đã dài, đây là tóm tắt phần cũ):\n' + summary;
+    }
+  } catch (e) { console.log('[Summarize] error:', e.message); }
+  return out;
+}
+
+async function quickSummarize(text) {
+  try {
+    const dbKeyRow = await new Promise((res) => db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'xkiro'", [], (err, r) => res(r)));
+    const { decryptKey } = require('../utils/cryptoKeys');
+    const key = dbKeyRow && dbKeyRow.gia_tri_khoa ? decryptKey(dbKeyRow.gia_tri_khoa).trim() : null;
+    if (!key) return '';
+    const r = await fetch('https://api.xkiro.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'mistralai/ministral-8b',
+        messages: [
+          { role: 'system', content: 'Bạn là trợ lý tóm tắt. Tóm tắt ngắn gọn (dưới 150 từ, tiếng Việt) hội thoại sau, giữ lại thông tin quan trọng về người dùng, quyết định đã thống nhất và ngữ cảnh đang bàn:' },
+          { role: 'user', content: text }
+        ],
+        temperature: 0.3,
+        max_tokens: 400
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    const j = await r.json();
+    return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  } catch (e) { console.log('[Summarize] fail:', e.message); return ''; }
+}
+
 // Tách logic build system prompt (lịch sử, memory, role, skills) ra khỏi route
-async function buildChatContext(req, id, mode, noi_dung, user_location) {
+async function buildChatContext(req, id, mode, noi_dung, user_location, provider) {
   const history = await new Promise((resolve) => {
     db.all("SELECT vai_tro, noi_dung FROM tin_nhan WHERE ma_hoi_thoai = ? ORDER BY ngay_gui ASC LIMIT 30", [id], (err, rows) => resolve(rows || []));
   });
@@ -961,10 +1247,24 @@ async function buildChatContext(req, id, mode, noi_dung, user_location) {
   const nowFormatted = now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
   const locationStr = user_location || 'Hà Nội, Việt Nam';
 
-  const memoryRows = await new Promise((resMem) => {
-    db.all("SELECT noi_dung FROM bo_nho_dai_han WHERE ma_nguoi_dung = ? ORDER BY do_uu_tien DESC LIMIT 5", [req.user ? req.user.id : GUEST_USER_ID], (err, r) => resMem(r || []));
-  });
+  // P0-privacy: guest KHÔNG đọc memory chung (rò rỉ dữ liệu người khác) — chỉ user đăng nhập.
+  const memoryRows = req.user ? await new Promise((resMem) => {
+    db.all("SELECT noi_dung FROM bo_nho_dai_han WHERE ma_nguoi_dung = ? ORDER BY do_uu_tien DESC LIMIT 5", [req.user.id], (err, r) => resMem(r || []));
+  }) : [];
   const memoryText = memoryRows.map(m => "- " + m.noi_dung).join('\n');
+
+  // ─── RAG: tự tìm FILE liên quan theo NGHĨA (PDF/Word/TXT đã upload) ───
+  let ragText = '';
+  try {
+    const ragHits = await searchDocuments(req.user ? req.user.id : GUEST_USER_ID, noi_dung, 3);
+    if (ragHits && ragHits.length > 0) {
+      ragText = '\n\n📄 TÀI LIỆU CỦA NGƯỜI DÙNG (trả lời dựa trên nội dung này nếu liên quan):\n' +
+        ragHits.map(h => `- [${h.ten_file}] ${h.noi_dung}`).join('\n');
+    }
+  } catch (eRag) { console.log('[RAG] context error:', eRag.message); }
+
+  // ─── AUTO: tìm web khi cần + tóm tắt hội thoại dài ───
+  const { webSearchText, summaryText } = await buildAutoContext(req, id, noi_dung);
 
   const SPECIALTY_PROMPTS = {
     general: 'Bạn là Rexi, Siêu Trợ Lý AI Toàn Năng giúp giải quyết mọi câu hỏi cuộc sống, công việc, văn phòng và phân tích.',
@@ -976,38 +1276,24 @@ async function buildChatContext(req, id, mode, noi_dung, user_location) {
   };
   const currentRolePrompt = SPECIALTY_PROMPTS[mode] || SPECIALTY_PROMPTS.general;
 
-  let skillInstruction = '';
+    let skillInstruction = '';
   try {
+    const skillRouter = require('../services/skillRouter');
     const allSkills = await new Promise((resolve) => {
       db.all("SELECT ten_ky_nang, tieu_de, mo_ta FROM ky_nang WHERE trang_thai = 'kich_hoat'", [], (err, rows) => resolve(rows || []));
     });
-    const skillPrompts = [];
-    for (const skill of allSkills) {
-      const possiblePaths = [
-        path.join(__dirname, '..', '..', 'skills', skill.ten_ky_nang, 'SKILL.md'),
-        path.join(process.env.USERPROFILE || process.env.HOME, '.agents', 'skills', skill.ten_ky_nang, 'SKILL.md'),
-        path.join(process.env.USERPROFILE || process.env.HOME, '.gemini', 'config', 'skills', skill.ten_ky_nang, 'SKILL.md')
-      ];
-      let skillContent = null;
-      for (const p of possiblePaths) { if (fs.existsSync(p)) { try { skillContent = fs.readFileSync(p, 'utf8'); break; } catch (e) {} } }
-      if (skillContent) {
-        const trimmedSkill = skillContent.replace(/\s+/g, ' ').trim();
-        skillPrompts.push(`🎯 **${skill.tieu_de}** (${skill.ten_ky_nang}):\n${trimmedSkill.substring(0, 1200)}`);
-      } else {
-        skillPrompts.push(`🎯 **${skill.tieu_de}**: ${skill.mo_ta}`);
-      }
-    }
-    if (skillPrompts.length > 0) {
-      const MAX_SKILLS_IN_PROMPT = 5;
-      const trimmedSkillPrompts = skillPrompts.length > MAX_SKILLS_IN_PROMPT ? skillPrompts.slice(0, MAX_SKILLS_IN_PROMPT) : skillPrompts;
-      if (skillPrompts.length > MAX_SKILLS_IN_PROMPT) trimmedSkillPrompts.push(`... và ${skillPrompts.length - MAX_SKILLS_IN_PROMPT} skills khác đã được kích hoạt.`);
-      skillInstruction = `\n\n📚 **KỸ NĂNG AGENT CỦA REXI:**\n` + trimmedSkillPrompts.join('\n\n---\n\n');
+    skillInstruction = await skillRouter.buildSkillPrompt(noi_dung, allSkills);
+    if (!skillInstruction) {
+      skillInstruction = `
+
+📚 **KỸ NĂNG AGENT CỦA REXI:** Bạn có ${(allSkills || []).length} skills chuyên dụng (thiết kế, code, văn phòng, video, TTS, IPTV...). Nếu người dùng yêu cầu chuyên môn, hãy áp dụng đúng quy trình.`;
     }
   } catch (skillErr) {
     console.log('[Skill] Lỗi load skills:', skillErr.message);
   }
 
   let systemPrompt = `${currentRolePrompt} Bây giờ là ${nowFormatted} (Giờ Việt Nam). Vị trí địa lý ước tính của người dùng: ${locationStr}.
+${ragText}${webSearchText}${summaryText}
 
 BỘ NHỚ DÀI HẠN VỀ NGƯỜI DÙNG & QUY TẮC CỦA REXI:
 ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dung ngắn gọn, súc tích, thực tế và chính xác.'}
@@ -1019,18 +1305,56 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
     systemPrompt = systemPrompt.substring(0, MAX_SYSTEM_PROMPT) + '\n\n[...đã cắt ngắn system prompt để phù hợp context limit...]';
   }
 
+  // AgentRouter chặn nội dung không phải tiếng Anh → gửi system prompt tiếng Anh
+  if (provider === 'agentrouter') {
+    systemPrompt = `You are Rexi, an all-in-one AI assistant. Current time: ${nowFormatted} (Vietnam time). User's estimated location: ${locationStr}.\n${ragText}\nLONG-TERM MEMORY ABOUT THE USER & REXI RULES:\n${memoryText || '- The user prefers professional, concise, practical and accurate answers.'}\n\n- IMPORTANT RULE: Do not repeat disclaimers. Answer directly, naturally, friendly and helpfully.${skillInstruction}`;
+  }
+
   return { history, systemPrompt };
+}
+
+// ─── P1-10: timeout theo độ khó câu hỏi (general 20s, complex 30s, deep 60s) ───
+// Tránh abort oan câu phức tạp (15s cắt cả câu complex) mà vẫn fail-fast câu đơn giản.
+function streamTimeoutMs(level) {
+  const l = String(level || 'general').toLowerCase();
+  if (l === 'deep') return 60000;
+  if (l === 'complex') return 30000;
+  return 20000;
+}
+
+// P0-fix (stream treo/abort oan): timeout TỔNG (AbortSignal.timeout) giết cả stream
+// đang chảy tốt khi câu trả lời dài → token đã gửi thành vô nghĩa + UI báo lỗi.
+// Chuẩn đúng cho stream: IDLE timeout (provider im lặng quá lâu mới cắt) + trần tuyệt đối.
+const STREAM_IDLE_MS = 20000;   // không có byte nào trong 20s → cắt attempt
+const STREAM_TOTAL_MS = 300000; // 1 attempt không bao giờ quá 5 phút
+// Đọc 1 chunk với idle-timeout (dùng cho reader của fetch stream)
+async function readStreamIdle(reader) {
+  let timer = null;
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise((_, rej) => {
+        timer = setTimeout(() => {
+          const err = new Error('stream idle quá 20s (provider ngừng gửi dữ liệu)');
+          err.idleTimeout = true;
+          rej(err);
+        }, STREAM_IDLE_MS);
+      })
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
 }
 
 // ========== STREAMING ENDPOINT (SSE) — token theo thời gian thực ==========
 // Frontend gọi route này thay vì route cũ để nhận phản hồi từng phần (cả Chat & Agent)
-router.post('/conversations/:id/messages/stream', (req, res, next) => {
+router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, max: 120 }), (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return guestMiddleware(req, res, next);
   return authMiddleware(req, res, next);
 }, async (req, res) => {
   const { id } = req.params;
-  const { vai_tro, noi_dung, provider, client_api_key, model_name, base_url, mode, execution_mode, thinking_level, user_location } = req.body;
+  // P2-19a: ép vai_tro='user' (xem route non-stream) — chống bubble admin giả.
+  const { vai_tro: _roleIgnored, noi_dung, provider, client_api_key, model_name, base_url, mode, execution_mode, thinking_level, user_location } = req.body;
+  const vai_tro = 'user';
 
   // Headers SSE — tắt buffering ở mọi tầng (Express, proxy, nginx)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -1044,6 +1368,9 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
 
   // Lưu tin nhắn user vào DB
   const maTinNhanUser = crypto.randomUUID();
+  // P1-09: chặn IDOR — stream đã gửi header SSE nên trả lỗi qua SSE, không dùng res.status
+  const ownerErrStream = await assertConvOwner(id, req);
+  if (ownerErrStream) { sendSSE({ type: 'error', message: ownerErrStream.error }); return endStream(); }
   await new Promise((resolve) => {
     db.run("INSERT INTO tin_nhan (ma_tin_nhan, ma_hoi_thoai, vai_tro, noi_dung) VALUES (?, ?, ?, ?)", [maTinNhanUser, id, vai_tro, noi_dung], () => resolve());
   });
@@ -1052,6 +1379,7 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
   // (trước đây chỉ tăng ở route non-stream /messages nên khách chat được vô hạn)
   if (!req.user && req.session) {
     req.session.messageCount = (req.session.messageCount || 0) + 1;
+    if (typeof req.session.save === 'function') req.session.save(() => {});
   }
 
   // Cập nhật tiêu đề cuộc trò chuyện nếu còn mặc định
@@ -1064,7 +1392,7 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
     }
   });
 
-  // ---------- AGENT MODE (stream stdout của opencode) ----------
+  // ---------- AGENT MODE (stream stdout của agent engine) ----------
   if (execution_mode === 'agent') {
     const isGuest = !req.user;
     if (isGuest && req.session.agentTaskCount >= 3) {
@@ -1075,8 +1403,13 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
       req.session.agentTaskCount = (req.session.agentTaskCount || 0) + 1;
       if (typeof req.session.save === 'function') req.session.save(() => {});
     }
-    if (!IS_OPENCODE_AVAILABLE) {
-      sendSSE({ type: 'error', message: "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`. Vui lòng kiểm tra lại đường dẫn cài đặt." });
+    // Engine: 'opencode' / 'dsh' / 'auto' (tự chọn theo độ phức tạp task)
+    const requestedEngine = String(req.body.agent_engine || 'auto').trim().toLowerCase();
+    const agentEngineName = agentEngine.pickEngine(noi_dung, requestedEngine);
+    if (!agentEngine.isEngineAvailable(agentEngineName)) {
+      sendSSE({ type: 'error', message: agentEngineName === 'dsh'
+        ? "⛔ **Lỗi hệ thống:** DeepSeek Harness (dsh) chưa được cài đặt. Vui lòng kiểm tra lại."
+        : "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`. Vui lòng kiểm tra lại đường dẫn cài đặt." });
       return endStream();
     }
     if (!noi_dung || !noi_dung.trim()) {
@@ -1085,32 +1418,26 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
     }
 
     const rootDir = path.join(__dirname, '..', '..', '..');
-    const rawModel = (model_name || '').trim();
-    const opencodeModel = rawModel.startsWith('opencode/') ? rawModel : 'opencode/deepseek-v4-flash-free';
 
-    sendSSE({ type: 'status', message: '🤖 Đang khởi động Agent (opencode)... Vui lòng đợi, agent có thể mất 40s–5 phút tùy tác vụ.' });
+    // dsh cần XKIRO_API_KEY làm credential — đọc key qua sqlite3 trực tiếp (db adapter bị treo)
+    let extraEnv = {};
+    if (agentEngineName === 'dsh') {
+      extraEnv.XKIRO_API_KEY = await getXkiroApiKey();
+      if (!extraEnv.XKIRO_API_KEY) {
+        sendSSE({ type: 'error', message: "⚠️ **Lỗi:** Chưa có API key xKiro trong hệ thống. Admin cần lưu key provider `xkiro` trước khi dùng Agent DSH." });
+        return endStream();
+      }
+    }
 
-    const agentProcess = spawn(OPENCODE_BIN_PATH, ['run', noi_dung, '-m', opencodeModel, '--auto'], { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV });
-    let stdout = '';
-    let stderr = '';
-    const cleaner = new AnsiStreamCleaner();
-    agentProcess.stdout.on('data', (data) => { const cleaned = cleaner.push(data.toString()); if (cleaned) { stdout += cleaned; sendSSE({ type: 'token', text: cleaned }); } });
-    agentProcess.stderr.on('data', (data) => { stderr += stripAnsi(data.toString()); });
-    agentProcess.on('error', () => { sendSSE({ type: 'error', message: 'Lỗi khởi động Agent process.' }); endStream(); });
-    agentProcess.on('close', (code) => {
-      const flushed = cleaner.flush();
-      if (flushed) stdout += flushed;
-      let finalText;
-      if (code !== 0) { finalText = stdout.trim() || stderr.trim() || `[Agent Error] Process exited with code ${code}`; }
-      else { finalText = stdout.trim() || "Tôi đã tự động thực thi các câu lệnh và cập nhật tệp tin thành công cho bạn."; }
-      const maTinNhanAI = crypto.randomUUID();
-      db.run("INSERT INTO tin_nhan (ma_tin_nhan, ma_hoi_thoai, vai_tro, noi_dung) VALUES (?, ?, 'assistant', ?)", [maTinNhanAI, id, finalText], () => {
-        sendSSE({ type: 'done', ma_tin_nhan: maTinNhanAI, noi_dung: finalText });
-        endStream();
-      });
-    });
+    sendSSE({ type: 'status', message: agentEngineName === 'dsh'
+      ? '🤖 Đang khởi động Agent (DeepSeek Harness)... Vui lòng đợi, agent có thể mất 1–5 phút tùy tác vụ.'
+      : '🤖 Đang khởi động Agent (opencode)... Vui lòng đợi, agent có thể mất 1–5 phút tùy tác vụ.' });
+
+    console.log('[Agent-DSH] goi runAgentEngineStream, bin =', agentEngine.DSH_BIN);
+    const killAgent = agentEngine.runAgentEngineStream(agentEngineName, noi_dung, model_name, rootDir, extraEnv, sendSSE, endStream);
+    console.log('[Agent-DSH] da spawn xong');
     // Client ngắt kết nối → kill agent
-    req.on('close', () => { try { if (!agentProcess.killed) agentProcess.kill(); } catch (e) {} });
+    req.on('close', () => { try { killAgent(); } catch (e) {} });
     return;
   }
 
@@ -1120,8 +1447,34 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
     try {
       const resolved = await resolveProviderAndKey(req, provider, model_name, client_api_key);
       if (resolved.error) { sendSSE({ type: 'error', message: resolved.error }); return endStream(); }
-      const { selectedProvider, selectedModel, keyToUse, baseUrl } = resolved;
-      const { history, systemPrompt } = await buildChatContext(req, id, mode, noi_dung, user_location);
+      let { selectedProvider, selectedModel, keyToUse, baseUrl } = resolved;
+
+      // ─── AUTO ROUTER (stream): model = 'auto' → chọn model thông minh ───
+      let autoRouteInfo = null;
+      const isAutoModel = String(model_name || '').trim() === 'auto' || String(model_name || '').trim() === 'auto/' + selectedProvider;
+      if (isAutoModel) {
+        const hasImage = /data:image\/(png|jpe?g|gif|webp)/i.test(String(noi_dung || ''));
+        const userTier = !req.user ? 'guest' : (req.user.role === 'admin' || req.user.phan_quyen === 'admin' ? 'admin' : 'user');
+        const route = await modelRouter.pickRoute(noi_dung, { thinkingLevel: thinking_level, hasImage, userTier });
+        if (route.candidates && route.candidates.length) {
+          autoRouteInfo = { route, index: 0 };
+          selectedProvider = route.candidates[0].provider;
+          selectedModel = route.candidates[0].model;
+          const rp = await modelRouter.resolveProvider(selectedProvider);
+          if (rp.apiKey) keyToUse = rp.apiKey;
+          if (rp.baseUrl) baseUrl = rp.baseUrl;
+        }
+      }
+      let finalModel = smartModelOverride(selectedProvider, selectedModel, noi_dung, thinking_level);
+      if (selectedProvider === 'agentrouter') finalModel = finalModel.replace(/^agentrouter\//, '');
+      if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink'].includes(selectedProvider)) finalModel = finalModel.replace(new RegExp('^' + selectedProvider + '/'), '');
+      if (selectedProvider === 'opencode') finalModel = finalModel.replace(/^opencode\//, '');
+      // ─── THÔNG BÁO ĐỊNH TUYẾN: cho khách biết đang dùng provider/model nào ───
+      if (isAutoModel) {
+        const routeLabel = autoRouteInfo && autoRouteInfo.route ? autoRouteInfo.route.category : 'auto';
+        sendSSE({ type: 'route', provider: selectedProvider, model: finalModel, category: routeLabel, auto: true });
+      }
+      const { history, systemPrompt } = await buildChatContext(req, id, mode, noi_dung, user_location, selectedProvider);
       if (selectedProvider === 'gemini') {
         const tempGenAI = new GoogleGenerativeAI(keyToUse);
         let model;
@@ -1135,56 +1488,121 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
           const t = chunk.text();
           if (t) { fullText += t; sendSSE({ type: 'token', text: t }); }
         }
-      } else if (['openai', 'deepseek', 'groq', 'github', 'custom'].includes(selectedProvider)) {
-        let endpoint = "https://api.openai.com/v1/chat/completions";
-        if (selectedProvider === 'deepseek') endpoint = "https://api.deepseek.com/chat/completions";
-        if (selectedProvider === 'groq') endpoint = "https://api.groq.com/openai/v1/chat/completions";
-        if (selectedProvider === 'github') endpoint = "https://models.github.ai/inference/chat/completions";
-        if (selectedProvider === 'custom') {
-          const cleanedBase = (baseUrl || "https://openrouter.ai/api/v1").replace(/\/+$/, '');
-          endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
-        } else if (baseUrl) {
-          endpoint = baseUrl + "/chat/completions";
-        }
-        const formattedMessages = [{ role: "system", content: systemPrompt }, ...history.map(h => ({ role: h.vai_tro === 'user' ? 'user' : 'assistant', content: h.noi_dung }))];
-        const fetchHeaders = {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/event-stream, application/json, */*',
-          'Authorization': `Bearer ${keyToUse}`
-        };
-        const response = await fetch(endpoint, {
-          method: 'POST',
-          headers: fetchHeaders,
-          body: JSON.stringify({ model: selectedModel, messages: formattedMessages, temperature: 0.7, stream: true }),
-          signal: AbortSignal.timeout(35000)
-        });
-        if (!response.ok || !response.body) {
-          const errData = await response.json().catch(() => ({}));
-          const statusText = response.status === 504 ? '504 Gateway Timeout (Server nhà cung cấp bị nghẽn/quá tải). Vui lòng đổi sang model khác như Gemini/Groq.' : response.status;
-          sendSSE({ type: 'error', message: `Lỗi từ ${selectedProvider.toUpperCase()}: ${errData.error?.message || statusText}` });
-          return endStream();
-        }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let sseBuffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split('\n');
-          sseBuffer = lines.pop();
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith('data: ')) continue;
-            const data = trimmed.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) { fullText += delta; sendSSE({ type: 'token', text: delta }); }
-            } catch (e) {}
+      } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
+        // ─── FALLBACK CHUỖI (stream): provider lỗi/429 → tự thử candidate kế tiếp ───
+        const quotaStream = require('../services/quotaManager');
+        const OPENAI_STYLE = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink', 'opencode'];
+        const attempts = [{ provider: selectedProvider, model: finalModel }];
+        if (autoRouteInfo && autoRouteInfo.route && autoRouteInfo.route.candidates) {
+          for (const c of autoRouteInfo.route.candidates.slice(1)) {
+            if (OPENAI_STYLE.includes(c.provider) && !attempts.some(a => a.provider === c.provider)) attempts.push(c);
           }
+        }
+        const formattedMessages = [{ role: "system", content: systemPrompt }, ...history.map(h => ({ role: h.vai_tro === 'user' ? 'user' : 'assistant', content: h.vai_tro === 'user' ? buildOpenAIContent(h.noi_dung) : h.noi_dung }))];
+        const streamCategory = autoRouteInfo && autoRouteInfo.route ? autoRouteInfo.route.category : null;
+        const userTierS = !req.user ? 'guest' : (req.user.role === 'admin' || req.user.phan_quyen === 'admin' ? 'admin' : 'user');
+        let streamDone = false, lastStreamErr = null;
+        for (let ai2 = 0; ai2 < attempts.length && !streamDone; ai2++) {
+          const att = attempts[ai2];
+          let attKey = keyToUse, attBase = baseUrl;
+          if (ai2 > 0) {
+            const rp2 = await modelRouter.resolveProvider(att.provider);
+            attKey = rp2.apiKey; attBase = rp2.baseUrl;
+            sendSSE({ type: 'route', provider: att.provider, model: att.model, category: streamCategory || 'auto', auto: true, fallback: true });
+            telemetry.recordFallback({ from: attempts[0].provider, to: att.provider, model: att.model, reason: 'provider trước lỗi (stream)' });
+          } else {
+            telemetry.recordRoute({ provider: att.provider, model: att.model, category: streamCategory, userTier: userTierS });
+          }
+          // Endpoint RIÊNG cho từng attempt (tránh biến endpoint dùng chung — race condition)
+          let attEndpoint = "https://api.openai.com/v1/chat/completions";
+          if (att.provider === 'deepseek') attEndpoint = "https://api.deepseek.com/chat/completions";
+          else if (att.provider === 'groq') attEndpoint = "https://api.groq.com/openai/v1/chat/completions";
+          else if (att.provider === 'github') attEndpoint = "https://models.github.ai/inference/chat/completions";
+          else if (['custom', 'xkiro', 'agentrouter'].includes(att.provider) || attBase) {
+            const cleanedBase = String(attBase || '').replace(/\/+$/, '');
+            if (cleanedBase) attEndpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : cleanedBase + '/chat/completions';
+          }
+          const attModel = String(att.model || '').replace(/^opencode\//, '');
+          const attHeaders = { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json, */*' };
+          if (att.provider === 'agentrouter') attHeaders['User-Agent'] = 'opencode/1.17.12';
+          if (att.provider !== 'opencode') attHeaders['Authorization'] = `Bearer ${attKey}`; // Zen free: gửi key sai sẽ 401
+          try {
+            const response = await fetch(attEndpoint, {
+              method: 'POST',
+              headers: attHeaders,
+              body: JSON.stringify({ model: attModel, messages: formattedMessages, temperature: 0.7, stream: true }),
+              signal: AbortSignal.timeout(STREAM_TOTAL_MS) // trần tuyệt đối; nhịp đọc do idle-timeout bên dưới
+            });
+            if (!response.ok || !response.body) {
+              const errData = await response.json().catch(() => ({}));
+              // P1-10: gắn status để catch bên dưới chỉ throttle đúng 429/5xx/Abort
+              const httpErr = new Error(`HTTP ${response.status}: ${errData.error?.message || ''}`);
+              httpErr.status = response.status;
+              throw httpErr;
+            }
+            let reader = null;
+            try {
+              reader = response.body.getReader();
+              const decoder = new TextDecoder();
+              let sseBuffer = '';
+              const t0stream = Date.now();
+              while (true) {
+                if (Date.now() - t0stream > STREAM_TOTAL_MS) {
+                  try { await reader.cancel(); } catch {}
+                  throw new Error('stream quá lâu (>5 phút)');
+                }
+                const { done, value } = await readStreamIdle(reader);
+                if (done) break;
+                sseBuffer += decoder.decode(value, { stream: true });
+              const lines = sseBuffer.split('\n');
+              sseBuffer = lines.pop();
+              for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data: ')) continue;
+                const data = trimmed.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(data);
+                  let delta = parsed.choices?.[0]?.delta?.content;
+                  if (Array.isArray(delta)) delta = delta.map(p => (typeof p === 'string' ? p : p.text || '')).join('');
+                  if (typeof delta === 'string' && delta) { fullText += delta; sendSSE({ type: 'token', text: delta }); }
+                } catch (e) {}
+              }
+            }
+            } catch (readErr) {
+              // Lỗi giữa lúc đọc stream (idle-timeout / abort): hủy reader giải phóng
+              // kết nối rồi ném tiếp cho catch ngoài (giữ đáp án từng phần ở đó).
+              try { if (reader) await reader.cancel(); } catch {}
+              throw readErr;
+            }
+            if (!fullText.trim()) throw new Error('phản hồi rỗng từ provider');
+            streamDone = true;
+            quotaStream.recordUse(att.provider); // P2-20(1): ghi lượt dùng sau success
+            quotaStream.recordSuccess(att.provider);
+          } catch (e) {
+            // P0-fix: transport abort (idle-timeout/abort) NHƯNG đã nhận nội dung thật
+            // → GIỮ đáp án (lưu + done ở cuối), KHÔNG thử fallback (tránh gửi trùng token
+            // đã stream), KHÔNG phạt throttle (provider vẫn khỏe — data vẫn chảy).
+            const _st = e && e.status;
+            const _abort = e && (e.name === 'AbortError' || e.name === 'TimeoutError' || e.idleTimeout || /timeout|aborted/i.test(e.message || ''));
+            if (!_st && _abort && fullText.trim()) {
+              streamDone = true;
+              quotaStream.recordUse(att.provider);
+              quotaStream.recordSuccess(att.provider);
+              break;
+            }
+            lastStreamErr = e;
+            // P1-10: chỉ phạt throttle khi 429/5xx/Abort — lỗi logic (phản hồi rỗng,
+            // JSON lỗi, 4xx khác) thì KHÔNG phạt, provider vẫn dùng được ở request sau
+            if (_st === 429 || (_st >= 500 && _st <= 599) || (!_st && _abort)) {
+              quotaStream.recordThrottle(att.provider);
+            }
+            telemetry.recordError({ provider: att.provider, model: att.model, reason: e.message });
+          }
+        }
+        if (!streamDone) {
+          sendSSE({ type: 'error', message: `Lỗi kết nối AI sau khi thử ${attempts.length} provider: ${lastStreamErr?.message || 'không rõ'}` });
+          return endStream();
         }
       } else {
         if (selectedProvider === 'claude') {
@@ -1193,7 +1611,8 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
           const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': keyToUse, 'anthropic-version': '2023-06-01' },
-            body: JSON.stringify(claudeBody)
+            body: JSON.stringify(claudeBody),
+            signal: AbortSignal.timeout(STREAM_TOTAL_MS) // P0-fix: trần tuyệt đối; nhịp đọc do idle-timeout (P2-19b cũ 30s tổng giết stream dài)
           });
           if (!response.ok || !response.body) {
             const errData = await response.json().catch(() => ({}));
@@ -1203,30 +1622,41 @@ router.post('/conversations/:id/messages/stream', (req, res, next) => {
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buf = '';
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const events = buf.split('\n\n');
-            buf = events.pop();
-            for (const evt of events) {
-              const dataLine = evt.split('\n').find(l => l.startsWith('data: '));
-              if (!dataLine) continue;
-              try {
-                const parsed = JSON.parse(dataLine.slice(6));
-                if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                  fullText += parsed.delta.text;
-                  sendSSE({ type: 'token', text: parsed.delta.text });
-                }
-              } catch (e) {}
+          const t0claude = Date.now();
+          try {
+            while (true) {
+              if (Date.now() - t0claude > STREAM_TOTAL_MS) { try { await reader.cancel(); } catch {} break; }
+              const { done, value } = await readStreamIdle(reader);
+              if (done) break;
+              buf += decoder.decode(value, { stream: true });
+              const events = buf.split('\n\n');
+              buf = events.pop();
+              for (const evt of events) {
+                const dataLine = evt.split('\n').find(l => l.startsWith('data: '));
+                if (!dataLine) continue;
+                try {
+                  const parsed = JSON.parse(dataLine.slice(6));
+                  if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                    fullText += parsed.delta.text;
+                    sendSSE({ type: 'token', text: parsed.delta.text });
+                  }
+                } catch (e) {}
+              }
+            }
+          } catch (readErr) {
+            try { await reader.cancel(); } catch {}
+            // P0-fix: abort giữa chừng NHƯNG đã nhận nội dung → giữ lại, lưu + done ở dưới.
+            // Chưa có gì mới báo lỗi.
+            if (!fullText.trim()) {
+              sendSSE({ type: 'error', message: `Lỗi từ Claude: ${readErr.message || 'stream gián đoạn'}` });
+              return endStream();
             }
           }
-        } else if (selectedProvider === 'opencode') {
-          if (!IS_OPENCODE_AVAILABLE) { sendSSE({ type: 'error', message: "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`." }); return endStream(); }
-          const opencodeModel = selectedModel && selectedModel !== 'opencode-default' ? selectedModel : 'opencode/deepseek-v4-flash-free';
+        } else if (selectedProvider === 'opencode' && execution_mode === 'agent') {
+          const opencodeModel = selectedModel && selectedModel !== 'opencode-default' ? selectedModel : 'nvidia/google/gemma-4-31b-it';
           const rootDir = path.join(__dirname, '..', '..', '..');
           await new Promise((resolve) => {
-            const proc = spawn(OPENCODE_BIN_PATH, ['run', noi_dung, '-m', opencodeModel], { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV });
+            const proc = spawn(OPENCODE_BIN_PATH, ['run', noi_dung, '-m', opencodeModel, '--pure', '--title', 'agent-task'], { cwd: rootDir, timeout: 300000, env: NO_COLOR_ENV, stdio: ['ignore', 'pipe', 'pipe'] });
             let out = '';
             const cleaner = new AnsiStreamCleaner();
             proc.stdout.on('data', (d) => { const t = cleaner.push(d.toString()); if (t) { out += t; sendSSE({ type: 'token', text: t }); } });
@@ -1282,14 +1712,12 @@ router.delete('/memory/:id', authMiddleware, (req, res) => {
 });
 
 // Exec API - Cho user đã đăng nhập (yêu cầu confirm header để tránh exec vô tình)
-router.post('/exec', authMiddleware, (req, res) => {
+// P2-19c: thống nhất check admin bằng adminMiddleware (role || phan_quyen) thay vì
+// chỉ check req.user.role — trước đây token có phan_quyen='admin' nhưng role khác vẫn bị 403 oan.
+// GIỮ NGUYÊN localhost check (quyết định đợt 1) — không nới lỏng.
+router.post('/exec', authMiddleware, adminMiddleware, (req, res) => {
   const { command } = req.body;
   if (!command) return res.status(400).json({ error: 'Thiếu câu lệnh execution' });
-
-  // BẮT BUỘC: Chỉ admin mới được exec
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ error: '⛔ Exec API chỉ dành cho Admin.' });
-  }
 
   // Chỉ cho phép request từ localhost
   const clientIp = req.ip || req.connection?.remoteAddress || '';
@@ -1327,40 +1755,34 @@ router.post('/exec', authMiddleware, (req, res) => {
 
   const rootDir = path.join(__dirname, '..', '..', '..');
 
-  exec(command, { cwd: rootDir, timeout: 15000, maxBuffer: 1024 * 100 }, (error, stdout, stderr) => {
+  // FIX PROD: dùng safeExec — timeout + cắt output + chặn lệnh hủy diệt (bổ sung blocklist thủ công bên trên)
+  const { safeExec } = require('../utils/safeExec');
+  safeExec(command, { timeout: 15000, maxOutput: 100 * 1024, strict: true, cwd: rootDir }).then((r) => {
     res.json({
-      success: !error,
-      stdout: stdout ? stdout.trim() : '',
-      stderr: stderr ? stderr.trim() : '',
-      error: error ? error.message : null
+      success: r.success && !r.timedOut,
+      stdout: r.stdout.trim(),
+      stderr: r.stderr.trim(),
+      error: r.success ? null : (r.timedOut ? 'Lệnh hết thời gian chờ (15s).' : r.stderr || 'Lệnh thất bại.')
     });
   });
 });
 
 // Git APIs
-router.get('/git/status', authMiddleware, (req, res) => {
+router.get('/git/status', authMiddleware, async (req, res) => {
   const rootDir = path.join(__dirname, '..', '..', '..');
-  exec('git status --short && git branch --show-current', { 
-    cwd: rootDir, 
-    encoding: 'utf8',
-    env: { ...process.env, LANG: 'en_US.UTF-8' }
-  }, (error, stdout) => {
-    if (error) return res.json({ isGit: false, message: 'Thư mục không phải Git repo' });
-    const lines = stdout.trim().split('\n');
-    const branch = lines.pop() || 'main';
-    res.json({ isGit: true, branch, changes: lines });
-  });
+  const { safeExec } = require('../utils/safeExec');
+  const result = await safeExec('git status --short && git branch --show-current', { cwd: rootDir, maxOutput: 10 * 1024 });
+  if (!result.success) return res.json({ isGit: false, message: 'Thư mục không phải Git repo' });
+  const lines = result.stdout.trim().split('\n');
+  const branch = lines.pop() || 'main';
+  res.json({ isGit: true, branch, changes: lines });
 });
 
-router.get('/git/diff', authMiddleware, (req, res) => {
+router.get('/git/diff', authMiddleware, async (req, res) => {
   const rootDir = path.join(__dirname, '..', '..', '..');
-  exec('git diff', { 
-    cwd: rootDir, 
-    maxBuffer: 1024 * 1024, 
-    encoding: 'utf8' 
-  }, (error, stdout) => {
-    res.json({ diff: stdout || 'Không có thay đổi chưa commit.' });
-  });
+  const { safeExec } = require('../utils/safeExec');
+  const result = await safeExec('git diff', { cwd: rootDir, maxOutput: 100 * 1024 });
+  res.json({ diff: result.stdout || 'Không có thay đổi chưa commit.' });
 });
 
 // Search API - Cho phép mọi người dùng đã đăng nhập
@@ -1369,22 +1791,37 @@ router.post('/search', authMiddleware, async (req, res) => {
   if (!query) return res.status(400).json({ error: 'Thiếu từ khóa tìm kiếm' });
 
   try {
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const resp = await fetch(searchUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-    });
-    const html = await resp.text();
-    const matches = [...html.matchAll(/<a class="result__snippet[^>]*>([\s\S]*?)<\/a>/g)];
-    const results = matches.slice(0, 4).map(m => m[1].replace(/<[^>]+>/g, '').trim());
+    const { searchWebTool } = require('../services/agentService');
+    const out = await searchWebTool(query);
+    const results = (out && out.results) || [`Tìm kiếm thông tin cho '${query}' hoàn tất.`];
 
     res.json({
       success: true,
       query,
-      results: results.length > 0 ? results : [`Tìm kiếm thông tin cho '${query}' hoàn tất.`]
+      results
     });
   } catch (err) {
     res.json({ success: false, error: 'Lỗi tìm kiếm: ' + err.message });
   }
+});
+
+// ─── INTENT ROUTER: nhận diện ý định câu chat → gợi ý tab/service ───
+// P2-19d: thêm authMiddleware (FE App.jsx handleSendMessage đã gửi authHeaders).
+router.post('/intent', rateLimit({ windowMs: 60000, max: 60 }), authMiddleware, (req, res) => {
+  try {
+    const intentRouter = require('../services/intentRouter');
+    const text = (req.body && (req.body.noi_dung || req.body.text)) || '';
+    const result = intentRouter.detectIntent(text);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// ─── ROUTING TELEMETRY: thống kê định tuyến cho admin ───
+router.get('/routing-stats', [authMiddleware, adminMiddleware], (req, res) => {
+  const report = telemetry.getReport();
+  res.json({ success: true, ...report });
 });
 
 module.exports = router;

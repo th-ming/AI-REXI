@@ -7,6 +7,7 @@
  * better-sqlite3 file cứng — trước đây chỉ chạy đúng trên máy local.
  */
 const db = require('./config/db');
+const { decryptKey } = require('./utils/cryptoKeys');
 
 // Biểu thức thời gian theo loại DB
 const isSqlite = db.type === 'sqlite';
@@ -41,16 +42,34 @@ const PROVIDER_ENDPOINTS = {
   openai:      { name: 'OpenAI',            endpoint: 'https://api.openai.com/v1/models',                      auth: 'bearer' },
   deepseek:    { name: 'DeepSeek',          endpoint: 'https://api.deepseek.com/models',                       auth: 'bearer' },
   opencode:    { name: 'OpenCode',          endpoint: 'https://opencode.ai/api/v1/models',                     auth: 'bearer' },
-  github:      { name: 'GitHub Models',    endpoint: 'https://models.inference.ai.azure.com/models',          auth: 'bearer' },
+  // github: XÓA khỏi map — GitHub Models retirement (catalog + inference trả 410
+  // github_models_retirement_brownout, verify 9/2026). Giữ key trong DB, khi nào
+  // Microsoft mở lại thì thêm lại endpoint mới.
   grok:        { name: 'xAI Grok',          endpoint: 'https://api.x.ai/v1/models',                            auth: 'bearer' },
-  claude:      { name: 'Anthropic Claude',  endpoint: 'https://api.anthropic.com/v1/models',                   auth: 'bearer' },
+  claude:      { name: 'Anthropic Claude',  endpoint: 'https://api.anthropic.com/v1/models',                   auth: 'anthropic' },
+  // P0-fix: xkiro từng vắng mặt ở đây → 21 model chết nằm lì trong DB, scanner không bao giờ đụng tới.
+  // Chỉ thêm provider CÓ key (kiraai/bazaarlink chưa có key → thêm vào sẽ bị cleanupStaleModels xóa rows).
+  xkiro:       { name: 'xKiro Free',         endpoint: 'https://api.xkiro.com/v1/models',                      auth: 'bearer' },
+  agentrouter: { name: 'AgentRouter',        endpoint: 'https://agentrouter.org/v1/models',                    auth: 'bearer' },
+  // 3 router mới (key lấy từ opencode config của user, 9/2026 — opencode dùng hằng ngày):
+  bai:         { name: 'B.AI',               endpoint: 'https://api.b.ai/v1/models',                           auth: 'bearer' },
+  kiosapi:     { name: 'KiosAPI Free',       endpoint: 'https://router.kiosapi.com/v1/models',                 auth: 'bearer' },
+  // trustCatalog: free tier 1 req/phút TOÀN ACCOUNT (verify 9/2026) → health-test hàng loạt
+  // chỉ gây bão 429, vô nghĩa. Đăng ký thẳng theo listing (:free = active), quotaManager
+  // giới hạn 1/phút lúc chat thật.
+  unorouter:   { name: 'UnoRouter',          endpoint: 'https://api.unorouter.com/v1/models',                  auth: 'bearer', trustCatalog: true },
 };
 
-// Lấy API key từ CSDL cho một provider
+// Lấy API key từ CSDL cho một provider (key lưu mã hóa — phải decryptKey)
 async function getKeyForProvider(providerId) {
   try {
     const row = await getRow("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = LOWER(?)", [providerId]);
-    return row?.gia_tri_khoa?.trim() || null;
+    if (!row || !row.gia_tri_khoa) return null;
+    try {
+      return decryptKey(row.gia_tri_khoa).trim() || null;
+    } catch (e) {
+      return String(row.gia_tri_khoa).trim() || null;
+    }
   } catch (e) { return null; }
 }
 
@@ -74,26 +93,44 @@ try {
       });
       const models = modelsRaw.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#') && l.includes('/') && l.startsWith('opencode/'));
       if (models.length === 0) return { success: false, error: 'No opencode local models found via CLI' };
-      return { success: true, models };
+      // FIX: 'tiers' khai báo dưới TDZ → opencode scan lỗi 'Cannot access tiers before initialization'
+      return { success: true, models, tiers: {} };
     }
 
     const headers = { 'Accept': 'application/json' };
     if (authType === 'bearer' && apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    // Anthropic không dùng Bearer — /v1/models cần x-api-key + anthropic-version
+    if (authType === 'anthropic' && apiKey) {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+    }
 
     let url = endpoint;
-    if (authType === 'key' && apiKey) url = `${endpoint}?key=${apiKey}`;
+    if (authType === 'key' && apiKey) url = `${endpoint}?key=${encodeURIComponent(apiKey)}`;
 
     const resp = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
     if (!resp.ok) return { success: false, error: `HTTP ${resp.status}` };
 
     const data = await resp.json();
-    let models = [];
-    if (Array.isArray(data)) models = data.map(m => m.id || m.name || m);
-    else if (Array.isArray(data.data)) models = data.data.map(m => m.id || m.name || m);
-    else if (Array.isArray(data.models)) models = data.models.map(m => m.id || m.name || m);
+    let rawItems = [];
+    if (Array.isArray(data)) rawItems = data;
+    else if (Array.isArray(data.data)) rawItems = data.data;
+    else if (Array.isArray(data.models)) rawItems = data.models;
+    let models = rawItems.map(m => (m && typeof m === 'object' ? (m.id || m.name || m) : m));
 
     // Filter only string IDs
     models = models.filter(m => typeof m === 'string' && m.length > 0);
+
+    // Tier từ listing (vd xkiro: access_tier = free|paid|premium) — scanner dùng để
+    // khỏi đốt call test từng model trả phí (probe 1 cái là đủ, xem scanProvider).
+    // Provider không có field này → tiers rỗng → test từng model như cũ.
+    const tiers = {};
+    for (const m of rawItems) {
+      if (!m || typeof m !== 'object') continue;
+      const id = m.id || m.name;
+      const tier = m.access_tier || m.tier || m.access || null;
+      if (typeof id === 'string' && id && typeof tier === 'string' && tier) tiers[id] = tier;
+    }
 
     // OpenRouter: CHỈ quét model :free (giá $0) — vì tài khoản có thể chưa nạp credits,
     // model trả phí sẽ fail 'Insufficient credits' + quét 400 model sẽ đốt hết quota free 50/ngày
@@ -112,7 +149,7 @@ try {
       return { success: false, error: 'No models returned from API' };
     }
 
-    return { success: true, models };
+    return { success: true, models, tiers };
   } catch(e) {
     return { success: false, error: e.message };
   }
@@ -124,7 +161,7 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
 
   try {
     const CHAT_ENDPOINTS = {
-      gemini: `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`,
+      gemini: `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey)}`,
       groq: 'https://api.groq.com/openai/v1/chat/completions',
       openrouter: 'https://openrouter.ai/api/v1/chat/completions',
       nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
@@ -134,8 +171,15 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
       openai: 'https://api.openai.com/v1/chat/completions',
       deepseek: 'https://api.deepseek.com/chat/completions',
       opencode: 'https://opencode.ai/api/v1/chat/completions',
-      github: 'https://models.inference.ai.azure.com/chat/completions',
+      // github: retirement (410) — xem PROVIDER_ENDPOINTS
       grok: 'https://api.x.ai/v1/chat/completions',
+      claude: 'https://api.anthropic.com/v1/messages',
+      // xkiro/agentrouter OpenAI-compatible → dùng block generic bên dưới
+      xkiro: 'https://api.xkiro.com/v1/chat/completions',
+      agentrouter: 'https://agentrouter.org/v1/chat/completions',
+      bai: 'https://api.b.ai/v1/chat/completions',
+      kiosapi: 'https://router.kiosapi.com/v1/chat/completions',
+      unorouter: 'https://api.unorouter.com/v1/chat/completions',
     };
 
     const endpoint = CHAT_ENDPOINTS[providerId];
@@ -144,7 +188,7 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
     // Gemini uses a different format
     if (providerId === 'gemini') {
       const cleanModelId = modelId.replace(/^models\//, '');
-      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelId}:generateContent?key=${apiKey}`;
+      const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModelId}:generateContent?key=${encodeURIComponent(apiKey)}`;
       const resp = await fetch(geminiEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -160,7 +204,7 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
       const resp = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+    body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 8 }),
         signal: AbortSignal.timeout(12000)
       });
       const latency = Date.now() - start;
@@ -190,23 +234,49 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
       });
     }
 
-    // OpenAI-compatible format for the rest
+    // Claude dùng Messages API riêng (x-api-key, không phải Bearer)
+    if (providerId === 'claude') {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: modelId, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+        signal: AbortSignal.timeout(12000)
+      });
+      const latency = Date.now() - start;
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok && (data.content || data.id)) return { status: 'working', latency_ms: latency };
+      return { status: 'failed', latency_ms: latency, error: data.error?.message || `HTTP ${resp.status}` };
+    }
+
+    // max_tokens hơi rộng tay (50): router mới (b.ai/tencent) nhét reasoning/manifest vào
+    // token đầu khiến choices rỗng nếu max_tokens=1.
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 1 }),
+      body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 50 }),
       signal: AbortSignal.timeout(12000)
     });
     const latency = Date.now() - start;
-    const data = await resp.json().catch(() => ({}));
-    if (resp.ok && (data.choices || data.id)) return { status: 'working', latency_ms: latency };
-    return { status: 'failed', latency_ms: latency, error: data.error?.message || `HTTP ${resp.status}` };
+    // new-api style router (kiosapi/bai) nhiều model trả SSE thay vì JSON → parse cả 2 kiểu,
+    // có content hoặc choices rỗng nhưng id object hợp lệ vẫn tính là model TỒN TẠI.
+    const raw = await resp.text();
+    let data = {};
+    let content = '';
+    try { data = JSON.parse(raw); } catch {
+      const line = raw.split('\n').map(l => l.trim()).find(l => l.startsWith('data:') && l.includes('{'));
+      if (line) { try { data = JSON.parse(line.slice(5)); } catch {} }
+    }
+    content = data.choices?.[0]?.message?.content || data.choices?.[0]?.delta?.content || '';
+    if (resp.ok && (content.trim() || (Array.isArray(data.choices) && data.choices.length))) return { status: 'working', latency_ms: latency };
+    if (resp.ok && data.object === 'chat.completion') return { status: 'working', latency_ms: latency }; // 200 + object hợp lệ, empty choices (reasoning-only) → vẫn alive
+    return { status: 'failed', latency_ms: latency, error: (data.error && (data.error.message || data.error)) || raw.slice(0, 120) || `HTTP ${resp.status}` };
   } catch(e) {
     return { status: 'failed', latency_ms: Date.now() - start, error: e.message };
   }
 }
 
 // Lưu kết quả quét vào CSDL (bảng đã được tạo bởi init-db khi khởi động)
+// trang_thai ∈ working | needs_balance | dead | error | skipped
 async function saveScanResult(providerId, modelId, status, latencyMs, errorMsg) {
   try {
     await runSql(`
@@ -255,7 +325,39 @@ function classifyZeroWorkingReason(results) {
   return 'Không model nào trả lời được (provider đang lỗi / hết hạn)';
 }
 
+// Phân loại kết quả health-check thành bucket để Smart Reset xử lý đúng:
+// - working: gọi thật được → active trong picker
+// - needs_balance: model TỒN TẠI upstream nhưng key hiện tại thiếu tiền/quyền (403-balance/402/paid)
+//   → GIỮ trong picker, gắn cờ paid (xóa đi là mất oan, user nạp tiền là dùng được)
+// - dead: upstream báo không tồn tại (404/does-not-exist) → tắt (giữ row, kich_hoat=0)
+// - error: rate-limit/5xx/timeout/key hỏng → TẠM THỜI, không đụng DB (đụng vào là mất oan)
+function classifyHealth(health) {
+  if (!health || health.status === 'working') return 'working';
+  const e = String(health.error || '').toLowerCase();
+  // 429/rate-limit trước tiên (kể cả message chứa chữ quota/balance mà là 429 → tạm thời)
+  if (/(^|[^0-9])429([^0-9]|$)|rate.?limit|too many requests/.test(e)) return 'error';
+  // Key hỏng (401/invalid key) mà KHÔNG nhắc tiền → lỗi key, không đụng model
+  if (/(401|unauthorized|invalid.*(key|api)|incorrect.*key|authentication failed)/.test(e)
+      && !/(balance|billing|payment|deposited|paid|subscribe|credit|quota)/.test(e)) return 'error';
+  // Model không tồn tại upstream → chết thật
+  if (/(^|[^0-9])404([^0-9]|$)|not found|does not exist|no such (model|deployment)|model_not_found|invalid model/.test(e)) return 'dead';
+  // Tồn tại nhưng đòi nạp tiền/quyền
+  if (/(^|[^0-9])402([^0-9]|$)|payment|billing|balance|deposit|paid plan|paying customers|subscribe|insufficient|available on the.*(ultra|pro|premium|plan)|requires an? active|upgrade|premium models/.test(e)) return 'needs_balance';
+  return 'error';
+}
+
 // Quét toàn bộ một provider
+// Phân loại modality theo tên model. chat = test thật; image/tts/stt/embed = đăng ký catalog,
+// không gọi chat probe (gọi sai endpoint vừa waste quota vừa fail oan).
+function modalityOf(modelId) {
+  const m = String(modelId).toLowerCase();
+  if (/embed|rerank|\bbge-|e5-|multilingual-gemma2|retrieval|balingua/.test(m)) return 'embed';
+  if (/(sdxl|-xl|xl-|pony|dreamshaper|\bshaper\b|animerge|absolutereality|cyberrealistic|anything-v\d|nsfw|illustrious|furry|\bdeliberate\b|flat-2d|icbinp|autismmix|swamp|ampony|tunix|wai-|prefect|midjourney|stable-diffusion|seedream|dall|imagen-|\bimage|\bflux\b|anima|cute-|realistic|mix-v\d|-flax|diffusionmodel)/.test(m)) return 'image';
+  if (/whisper|transcribe|-asr\b|speech-to-text|voxtral|audio-input|audio\.in/.test(m)) return 'stt';
+  if (/(^|-|\b)tts(\b|-|$)|kokoro|speech-\d|piper|bark|elevenlabs|\bvoice\b|talking/.test(m)) return 'tts';
+  return 'chat';
+}
+
 async function scanProvider(providerId) {
   const cfg = PROVIDER_ENDPOINTS[providerId];
   if (!cfg) return { success: false, error: 'Unknown provider' };
@@ -271,11 +373,24 @@ async function scanProvider(providerId) {
   // ⏱️ Ghi thời điểm thử quét NGAY từ đầu (kể cả fetch fail) để cooldown startup áp dụng cho mọi provider
   await saveProviderScanTime(providerId, 0, 0);
 
-  let { success, models, error } = await fetchModels(providerId, apiKey, cfg.endpoint, cfg.auth);
+  let { success, models, tiers, error } = await fetchModels(providerId, apiKey, cfg.endpoint, cfg.auth);
   if (!success) {
     console.error(`[ModelScanner] ${cfg.name} fetch failed: ${error}`);
     return { success: false, error };
   }
+  tiers = tiers || {};
+
+  // Tier-aware (đọc từ listing, khỏi đốt call): free → lấy thẳng (không test);
+  // paid/premium → probe đúng 1 cái (đủ tiền thì test tiếp, thiếu thì gắn cờ cả đám);
+  // không có tier → test từng cái như cũ.
+  // REXI_FULL_TEST=1 → TIN KEY Fakta hơn TIN LABEL: test thật MỌI model 1 lượt
+  // (tier upstream có thể nói láo — xkiro: model "free" 403, model "paid" chạy được).
+  const FULL_TEST = process.env.REXI_FULL_TEST === '1';
+  const tierOf = (id) => String((tiers && tiers[id]) || '').toLowerCase();
+  const isFreeTier = (id) => !FULL_TEST && tierOf(id) === 'free';
+  const isPaidTier = (id) => !FULL_TEST && /^(premium|paid)$/.test(tierOf(id));
+  let paidProbe = null; // null=chưa probe, true=key đủ tiền, false=thiếu tiền
+  let tierSavedCalls = 0;
 
   if (models.length === 0) {
     console.error(`[ModelScanner] ${cfg.name}: no models returned`);
@@ -284,17 +399,26 @@ async function scanProvider(providerId) {
 
   console.log(`[ModelScanner] ${cfg.name}: ${models.length} models found. Optimizing scan...`);
 
+  // Giữ nguyên live list upstream (trước mọi filter) để Smart Reset so sánh model biến mất
+  const models_all = [...models];
+
   // ─── TỐI UU HÓA 1: Filter model không phải chat ──────────────
-  const SKIP_PATTERNS = [/embed/i, /image/i, /dall-e/i, /tts/i, /rerank/i, /moderation/i, /whisper/i, /speech/i, /audio/i, /stable-diffusion/i, /midjourney/i, /vision/i, /embed/i, /inpainting/i, /upscale/i];
-  const beforeFilter = models.length;
-  models = models.filter(m => !SKIP_PATTERNS.some(p => p.test(m)));
-  if (models.length < beforeFilter) {
-    console.log(`[ModelScanner] ${cfg.name}: filtered ${beforeFilter - models.length} non-chat models → ${models.length} remaining`);
+  const SKIP_PATTERNS = [];  // deprecated: chuyển sang modalityOf() — non-chat giờ đăng ký catalog thay vì lọc bỏ
+  const nonChatModels = [];
+  const chatModels = [];
+  for (const m of models) (modalityOf(m) === 'chat' ? chatModels : nonChatModels).push(m);
+  models = chatModels;
+  if (nonChatModels.length > 0) {
+    console.log(`[ModelScanner] ${cfg.name}: ${nonChatModels.length} non-chat models (image/tts/stt/embed) -> catalog only, khong health-test`);
   }
 
-  // ─── TỐI UU HÓA 2: Skip model đã test gần đây ───────────────
+  // ─── TỐI UU HOA 2: Skip model đã test gần đây ───────────────
   const results = [];   // khai báo sớm để cả 2 luồng (skip + health test) cùng dùng
   let skipCount = 0;
+  for (const m of nonChatModels) {
+    try { await saveScanResult(providerId, m, 'skipped', 0, `modality:${modalityOf(m)}`); } catch { /* ignore */ }
+    results.push({ id: m, status: 'skipped', latency_ms: 0, reason: 'non_chat', tested: false, modality: modalityOf(m), tier: tierOf(m) || null });
+  }
   try {
     const recent = await allRows(`
       SELECT ma_model, trang_thai, thoi_gian_quet
@@ -313,7 +437,7 @@ async function scanProvider(providerId) {
     const skippedModels = [];  // track models skipped vì vừa test xong
     for (const m of models) {
       const prev = recentMap.get(m);
-      if (!prev) { modelsToKeep.push(m); continue; }           // chưa test → cần test
+      if (!prev || FULL_TEST) { modelsToKeep.push(m); continue; }  // chưa test (hoặc full-test) → cần test
       const age = now - prev.time;
       if (prev.status === 'working' && age < WORKING_TTL) { skippedModels.push(m); continue; } // working 24h → skip
       if (prev.status === 'failed' && age < FAILED_TTL) { skipCount++; continue; }    // failed 6h → skip
@@ -333,9 +457,11 @@ async function scanProvider(providerId) {
     console.log(`[ModelScanner] ${cfg.name}: skipped ${skipCount} recently tested → ${models.length} to scan`);
   }
 
-  // Ưu tiên: model free/mini/flash lên đầu
+  // Ưu tiên: tier free trước, paid sau cùng (probe 1 cái là đủ); rồi mới tới keyword cũ
   const priorityKeywords = ['mini', 'free', 'flash', '70b', 'small', 'lite'];
   models.sort((a, b) => {
+    const aPaid = isPaidTier(a) ? 1 : 0, bPaid = isPaidTier(b) ? 1 : 0;
+    if (aPaid !== bPaid) return aPaid - bPaid;
     const aPri = priorityKeywords.some(kw => a.toLowerCase().includes(kw));
     const bPri = priorityKeywords.some(kw => b.toLowerCase().includes(kw));
     if (aPri && !bPri) return -1;
@@ -350,22 +476,87 @@ async function scanProvider(providerId) {
   let consecutiveSuccesses = 0;
   const EARLY_SUCCESS_THRESHOLD = 12; // 12 model liên tiếp working → provider ổn, bỏ qua phần còn lại
 
+  let quotaFuse = false;
   for (let i = 0; i < models.length; i += BATCH) {
     const batch = models.slice(i, i + BATCH);
     const batchResults = await Promise.all(batch.map(async modelId => {
+      // FUSE 429: provider đã báo hết quota/rate-limit → không đốt thêm call, chờ lượt sau
+      if (quotaFuse) {
+        const err = 'Chưa test lượt này — provider hết quota/rate-limit (fuse)';
+        await saveScanResult(providerId, modelId, 'error', 0, err);
+        return { id: modelId, status: 'failed', bucket: 'error', latency_ms: 0, error: err, tested: false, tier: tierOf(modelId) || null };
+      }
+      // TRUST-CATALOG (vd unorouter): free tier 1 req/phút TOÀN ACCOUNT → health-check
+      // hàng loạt = tất yếu 429 không có ý nghĩa gì về model availability. Đăng ký theo
+      // nhãn :free — model không có ':free' → needs_balance (chờ key có tiền / hết throttle).
+      if (cfg.trustCatalog) {
+        if ((modelId.endsWith(':free') || modelId.includes(':free'))) {
+          await saveScanResult(providerId, modelId, 'working', 0, null);
+          return { id: modelId, status: 'working', bucket: 'working', latency_ms: 0, error: null, tested: false, tier: 'free' };
+        }
+        const err = 'Không có nhãn :free — chỉ dùng được khi trả phí hoặc account đã nâng cấp tier';
+        await saveScanResult(providerId, modelId, 'needs_balance', 0, err);
+        return { id: modelId, status: 'failed', bucket: 'needs_balance', latency_ms: 0, error: err, tested: false, tier: null };
+      }
+      // TIER-FREE: upstream có thể nói láo tier (xkiro: glm-5.3-flash "free" nhưng 403
+      // đòi paid plan) → vẫn test THẬT 1 lần; cache TTL 24h nên model free đã confirm
+      // không bị đốt call lại ở các lượt quét sau.
+      if (isFreeTier(modelId)) {
+        const health = await quickHealthCheck(providerId, apiKey, modelId);
+        const bucket = classifyHealth(health);
+        await saveScanResult(providerId, modelId, bucket, health.latency_ms, health.error);
+        return { id: modelId, ...health, bucket, tested: true, tier: 'free' };
+      }
+      // TIER-PAID mà probe đã kết luận thiếu tiền → gắn cờ thẳng, không call
+      if (isPaidTier(modelId) && paidProbe === false) {
+        tierSavedCalls++;
+        const err = 'Model trả phí — key thiếu tiền (kết luận từ probe, không đốt call test)';
+        await saveScanResult(providerId, modelId, 'needs_balance', 0, err);
+        return { id: modelId, status: 'failed', bucket: 'needs_balance', latency_ms: 0, error: err, tested: false, tier: tierOf(modelId) };
+      }
       const health = await quickHealthCheck(providerId, apiKey, modelId);
-      await saveScanResult(providerId, modelId, health.status, health.latency_ms, health.error);
-      return { id: modelId, ...health };
+      const bucket = classifyHealth(health);
+      await saveScanResult(providerId, modelId, bucket, health.latency_ms, health.error);
+      const out = { id: modelId, ...health, bucket, tested: true, tier: tierOf(modelId) || null };
+      // Probe: model paid đầu tiên cho biết key có đủ tiền không
+      if (isPaidTier(modelId) && paidProbe === null) {
+        if (health.status === 'working') {
+          paidProbe = true;
+          console.log(`[ModelScanner] ${cfg.name}: probe paid OK (${modelId}) — key đủ tiền, test tiếp các model paid`);
+        } else {
+          const e = String(health.error || '').toLowerCase();
+          if (/balance|billing|payment|deposited|paid plan|paying customers|subscribe|(^|[^0-9])402([^0-9]|$)/.test(e)) {
+            paidProbe = false;
+            console.log(`[ModelScanner] ${cfg.name}: probe paid FAIL thiếu tiền (${modelId}) — gắn cờ paid còn lại, không test`);
+          }
+        }
+      }
+      return out;
     }));
     results.push(...batchResults);
 
-    // Early bail-out: first batch ALL fail auth → key invalid
-    const batchFailed = batchResults.filter(r => r.status === 'failed').length;
-    const hasAuthError = batchResults.some(r => {
+    // Bật fuse nếu batch này có ≥2 model TESTED thật fail vì 429/rate-limit
+    const rateFails = batchResults.filter(r => r.tested && /429|rate.?limit|too many requests/i.test(r.error || '')).length;
+    if (rateFails >= 2 && !quotaFuse) {
+      quotaFuse = true;
+      const rest = models.slice(i + BATCH);
+      console.log(`[ModelScanner] ${cfg.name}: ${rateFails} model 429/rate-limit trong batch — FUSE, dừng gọi API (${rest.length} model giữ nguyên DB, lượt sau quét tiếp)`);
+      for (const m of rest) {
+        const err = 'Chưa test lượt này — provider hết quota/rate-limit (fuse)';
+        await saveScanResult(providerId, m, 'error', 0, err);
+        results.push({ id: m, status: 'failed', bucket: 'error', latency_ms: 0, error: err, tested: false, tier: tierOf(m) || null });
+      }
+      break;
+    }
+
+    // Early bail-out: batch đầu TESTED toàn fail auth → key invalid (chỉ xét model đã test thật)
+    const testedResults = batchResults.filter(r => r.tested);
+    const batchFailed = testedResults.filter(r => r.status === 'failed').length;
+    const hasAuthError = testedResults.some(r => {
       const e = (r.error || '').toLowerCase();
       return e.includes('401') || e.includes('403') || e.includes('unauthorized') || e.includes('invalid') || e.includes('forbidden');
     });
-    const allFailed = batchFailed === batch.length;
+    const allFailed = testedResults.length > 0 && batchFailed === testedResults.length;
     consecutiveFailures = allFailed && hasAuthError ? consecutiveFailures + batch.length : (allFailed ? consecutiveFailures : 0);
     if (i === 0 && consecutiveFailures >= batch.length) {
       console.log(`[ModelScanner] ${cfg.name}: first batch all auth errors — key invalid, stopping`);
@@ -373,15 +564,16 @@ async function scanProvider(providerId) {
     }
 
     // Early success: nếu 12+ model liên tiếp working → provider ổn, bỏ qua phần còn lại
+    // (chỉ khi KHÔNG full-test; full-test phải test hết để tìm model paid dùng được thật)
     const batchSuccesses = batchResults.filter(r => r.status === 'working').length;
     consecutiveSuccesses = batchSuccesses > 0 ? consecutiveSuccesses + batchSuccesses : 0;
-    if (consecutiveSuccesses >= EARLY_SUCCESS_THRESHOLD && i + BATCH < models.length) {
+    if (!FULL_TEST && !cfg.trustCatalog && consecutiveSuccesses >= EARLY_SUCCESS_THRESHOLD && i + BATCH < models.length) {
       console.log(`[ModelScanner] ${cfg.name}: ${consecutiveSuccesses} consecutive working — provider healthy, skipping remaining ${models.length - i - BATCH} models`);
       // Mark skipped models as "skipped" (không gọi API)
       const skipped = models.slice(i + BATCH);
       for (const m of skipped) {
         await saveScanResult(providerId, m, 'skipped', 0, 'provider_healthy');
-        results.push({ id: m, status: 'skipped', latency_ms: 0, reason: 'provider_healthy' });
+        results.push({ id: m, status: 'skipped', latency_ms: 0, reason: 'provider_healthy', tested: false, tier: tierOf(m) || null });
       }
       break;
     }
@@ -394,44 +586,76 @@ async function scanProvider(providerId) {
 
   const workingList = results.filter(r => r.status === 'working');
   const working = workingList.length;
+  const paidList = results.filter(r => r.bucket === 'needs_balance');
+  const deadList = results.filter(r => r.bucket === 'dead');
 
   // Only save scan time if we actually tested models (lưu kèm tổng + số working vào provider_scan_log)
   if (results.length > 0) {
     await saveProviderScanTime(providerId, results.length, working);
   }
 
-  console.log(`[ModelScanner] ${cfg.name}: ${working}/${results.length} working`);
+  console.log(`[ModelScanner] ${cfg.name}: ${working} working / ${paidList.length} needs_balance / ${deadList.length} dead / ${results.length} total (tiết kiệm ${tierSavedCalls} call nhờ tier)`);
 
-  // 🔄 RESET THÔNG MINH (Smart Reset): mỗi lượt quét = 1 lần reset của chính provider đó.
-  // ≥1 model working → XÓA HẾT model cũ + insert đúng danh sách working mới.
-  // 0 working (mạng lỗi / rate-limit / key lỗi tạm thời) → GIỮ model cũ + báo rõ lý do, tránh mất trắng provider.
+  // 🔄 SMART RESET (v2 — không DELETE-all nữa):
+  // - working → upsert active (kiểm chứng gọi thật được)
+  // - needs_balance → upsert active, loai='paid' (tồn tại upstream, nạp tiền là dùng)
+  // - dead (404 upstream) → kich_hoat=0, GIỮ row (không xóa trắng)
+  // - error/skipped (rate-limit/5xx/timeout/chưa test) → KHÔNG ĐỤNG (đụng là mất oan)
+  // - model trong DB nhưng đã biến mất khỏi live list upstream → kich_hoat=0
+  // - 0 working NHƯNG có paid/dead (key/balance lỗi, không phải mạng chết) → vẫn áp dụng
+  //   phân loại trên; chỉ GIỮ NGUYÊN khi toàn bộ là error/transient.
   let keptOld = false;
   let keptOldReason = '';
-  if (working > 0) {
+  const hasSignal = working > 0 || paidList.length > 0 || deadList.length > 0;
+  if (hasSignal) {
     try {
-      // 🔒 ATOMIC SWAP: xóa model cũ + insert model mới trong 1 transaction (BEGIN/COMMIT/ROLLBACK)
-      // — crash giữa chừng sẽ rollback toàn bộ, KHÔNG bao giờ để bảng rỗng nửa vời giữa 2 DB.
+      const liveSet = new Set(models_all.map(String));
+      const existingRows = await allRows('SELECT ma_model FROM ai_models WHERE ma_nha_cung_cap = ?', [providerId]);
+      const existingSet = new Set((existingRows || []).map(r => String(r.ma_model)));
+      const guessType = (modelId) => {
+        const m = String(modelId);
+        if (m.includes('pro') || m.includes('gpt-4') || m.includes('opus') || m.includes('sonnet') || m.includes('paid')) return 'pro';
+        return 'free';
+      };
       await db.withTransaction(async (tx) => {
-        await tx.run('DELETE FROM ai_models WHERE ma_nha_cung_cap = ?', [providerId]);
-        const ins = `
-          INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi, kich_hoat)
-          VALUES (?, ?, ?, ?, 0, 1)
-        `;
-        for (const m of workingList) {
-          const modelId = m.id;
+        const upsert = (modelId, loai) => {
           const displayName = modelId.includes('/') ? modelId.split('/').pop() : modelId;
-          const type = (modelId.includes('pro') || modelId.includes('gpt-4') || modelId.includes('opus') || modelId.includes('sonnet')) ? 'pro' : 'free';
-          await tx.run(ins, [modelId, providerId, displayName, type]);
+          return tx.run(
+            `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, modality, thu_tu_hien_thi, kich_hoat)
+             VALUES (?, ?, ?, ?, ?, 0, 1)
+             ON CONFLICT(ma_model, ma_nha_cung_cap) DO UPDATE SET ten_hien_thi = excluded.ten_hien_thi, loai = excluded.loai, modality = excluded.modality, kich_hoat = 1`,
+            [modelId, providerId, displayName, loai, modalityOf(modelId)]
+          );
+        };
+        for (const m of workingList) await upsert(m.id, guessType(m.id));
+        for (const m of paidList) await upsert(m.id, 'paid');
+        for (const m of deadList) {
+          await tx.run('UPDATE ai_models SET kich_hoat = 0 WHERE ma_model = ? AND ma_nha_cung_cap = ?', [m.id, providerId]);
+        }
+        // Model trong DB nhưng đã biến khỏi live list upstream → tắt (giữ row)
+        for (const oldId of existingSet) {
+          if (!liveSet.has(oldId)) {
+            await tx.run('UPDATE ai_models SET kich_hoat = 0 WHERE ma_model = ? AND ma_nha_cung_cap = ?', [oldId, providerId]);
+          }
+        }
+        // Model mới trong live list nhưng chưa được test (early-exit skipped) → thêm active
+        // (tồn tại upstream; nếu lỗi tier sẽ bị phát hiện ở lượt quét sau hoặc lúc chat báo rõ).
+        // Riêng skipped mà tier paid → gắn cờ paid luôn (khỏi chờ test).
+        for (const m of results.filter(r => r.status === 'skipped')) {
+          if (!existingSet.has(String(m.id))) {
+            const t = String(m.tier || tierOf(String(m.id)) || '').toLowerCase();
+            await upsert(String(m.id), /^(premium|paid)$/.test(t) ? 'paid' : guessType(m.id));
+          }
         }
       });
-      console.log(`[ModelScanner] ${cfg.name}: đã replace ${working} model working mới vào DB (xóa model cũ, atomic)`);
+      console.log(`[ModelScanner] ${cfg.name}: upsert xong (working ${workingList.length}, paid ${paidList.length}, dead-tắt ${deadList.length})`);
     } catch (repErr) {
       console.error(`[ModelScanner] ${cfg.name} replace models error:`, repErr.message);
     }
   } else {
     keptOld = true;
     keptOldReason = classifyZeroWorkingReason(results);
-    console.warn(`[ModelScanner] ${cfg.name}: 0 model working — giữ nguyên model cũ. Lý do: ${keptOldReason}`);
+    console.warn(`[ModelScanner] ${cfg.name}: toàn bộ lỗi tạm thời — giữ nguyên model cũ. Lý do: ${keptOldReason}`);
   }
 
   return { success: true, provider: providerId, total: results.length, working, results, keptOld, keptOldReason };
@@ -527,10 +751,13 @@ async function scanOnStartup() {
 let schedulerStarted = false;
 
 async function startModelScannerScheduler() {
-  // Scan ngay khi server khởi động (delay 5s để server ổn định)
-  setTimeout(() => {
-    scanOnStartup().catch(e => console.error('[ModelScanner] Startup scan failed:', e.message));
-  }, 5000);
+  // SKIP startup scan — tránh boot chậm 30-60s (health check đã chạy lúc boot).
+  // Chỉ quét theo lịch hàng tuần. Bật lại qua env ENABLE_STARTUP_SCAN=true nếu cần.
+  if (process.env.ENABLE_STARTUP_SCAN === 'true') {
+    setTimeout(() => {
+      scanOnStartup().catch(e => console.error('[ModelScanner] Startup scan failed:', e.message));
+    }, 5000);
+  }
 
   schedulerStarted = true;
   try {
@@ -646,4 +873,4 @@ async function scheduleWeeklyReset() {
   }, waitMs);
 }
 
-module.exports = { startModelScannerScheduler, scanAllProviders, scanOnStartup, scanProvider, PROVIDER_ENDPOINTS, getWeeklySchedule, setWeeklySchedule, resetWeeklySchedule, scheduleWeeklyReset };
+module.exports = { modalityOf, startModelScannerScheduler, scanAllProviders, scanOnStartup, scanProvider, PROVIDER_ENDPOINTS, getWeeklySchedule, setWeeklySchedule, resetWeeklySchedule, scheduleWeeklyReset };

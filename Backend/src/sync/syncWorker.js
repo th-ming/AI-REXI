@@ -1,14 +1,51 @@
 /**
  * SYNC WORKER 3-WAY
- * Poll _sync_queue trong SQLite, đồng bộ thay đổi sang SQL Server + PostgreSQL
+ * Poll _sync_queue, đồng bộ thay đổi sang SQL Server + PostgreSQL
+ * P1-fix(audit): dùng db adapter chung (sqlite/PG) — trước đây require('sqlite3') raw
+ * → chết trên Render (PostgreSQL). Worker chỉ chạy khi DB chính là SQLite (đúng bản chất
+ * "poll queue từ SQLite đẩy sang 2 DB khác"); PG-primary không cần sync chính nó.
  */
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+const db = require('../config/db');
 
-const DB_PATH = path.join(__dirname, '..', '..', '..', 'Database', 'tro_ly_ai.db');
-const db = new sqlite3.Database(DB_PATH, (err) => {
-  if (err) console.error('[SyncWorker] SQLite error:', err.message);
-});
+// Whitelist các bảng được phép sync — chống SQL injection qua table_name
+const VALID_TABLES = new Set([
+  'nguoi_dung',
+  'cuoc_hoi_thoai',
+  'tin_nhan',
+  'khoa_api',
+  'ky_nang',
+  'bo_nho_dai_han',
+  'ai_providers',
+  'ai_models',
+  'thu_muc_du_an',
+  'luu_tru_file_code',
+  'tai_lieu_dau_ra',
+  'cac_buoc_xu_ly',
+  'luot_su_dung_token',
+  'tien_trinh_chay_ngam',
+  'danh_gia_cau_tra_loi',
+  'hoi_thoai_ky_nang',
+  'model_scan_cache',
+  'provider_scan_log',
+  'iptv_scan_log',
+  'iptv_channels',
+  'iptv_notifications',
+  'repo_summaries',
+  'saved_repos',
+  'star_snapshots',
+  'starred_repos',
+  'trending_cache',
+  'trending_notifications',
+  'app_settings',
+  '_sync_log',
+  '_sync_queue',
+  'context_sessions',
+  'sessions_store',
+]);
+
+function isValidTable(table) {
+  return VALID_TABLES.has(table);
+}
 
 let mssqlPool = null;
 let pgPool = null;
@@ -61,6 +98,7 @@ async function initConnections() {
 
 async function syncToSqlServer(table, operation, rowId, rowData) {
   if (!mssqlReady || !mssqlPool) return { skipped: true };
+  if (!isValidTable(table)) return { success: false, error: `Invalid table: ${table}` };
   const data = JSON.parse(rowData || '{}');
   try {
     if (operation === 'DELETE') {
@@ -80,6 +118,7 @@ async function syncToSqlServer(table, operation, rowId, rowData) {
 
 async function syncToPostgres(table, operation, rowId, rowData) {
   if (!pgReady || !pgPool) return { skipped: true };
+  if (!isValidTable(table)) return { success: false, error: `Invalid table: ${table}` };
   const data = JSON.parse(rowData || '{}');
   try {
     if (operation === 'DELETE') {
@@ -100,24 +139,38 @@ function logSync(table, operation, rowId, targetDb, status, error) {
   db.run("INSERT INTO _sync_log (table_name, operation, row_id, target_db, status, error) VALUES (?, ?, ?, ?, ?, ?)", [table, operation, rowId, targetDb, status, error || null]);
 }
 
+// Adapter dạng promise cho các query trong worker
+const allQ = (sql, params = []) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || [])));
+const runQ = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function (err) { err ? reject(err) : resolve(this); }));
+
 async function processQueue() {
-  db.all("SELECT * FROM _sync_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 50", [], async (err, rows) => {
-    if (err || !rows || rows.length === 0) return;
-    for (const job of rows) {
-      const { id, table_name, operation, row_id, row_data } = job;
-      const mssqlResult = await syncToSqlServer(table_name, operation, row_id, row_data);
-      if (!mssqlResult.skipped) logSync(table_name, operation, row_id, 'sqlserver', mssqlResult.success ? 'success' : 'error', mssqlResult.error);
-      const pgResult = await syncToPostgres(table_name, operation, row_id, row_data);
-      if (!pgResult.skipped) logSync(table_name, operation, row_id, 'postgresql', pgResult.success ? 'success' : 'error', pgResult.error);
-      const hasError = (!mssqlResult.skipped && !mssqlResult.success) || (!pgResult.skipped && !pgResult.success);
-      db.run("UPDATE _sync_queue SET status = ?, error = ?, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [hasError ? 'error' : 'synced', hasError ? (mssqlResult.error || pgResult.error) : null, id]);
-    }
-  });
+  // DB chính là PostgreSQL (Render) → không có queue SQLite để poll, bỏ qua.
+  if (db.type !== 'sqlite') return;
+  let rows;
+  try { rows = await allQ("SELECT * FROM _sync_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 50", []); }
+  catch (err) { console.error('[SyncWorker] Queue read error:', err.message); return; }
+  if (!rows || rows.length === 0) return;
+  for (const job of rows) {
+    const { id, table_name, operation, row_id, row_data } = job;
+    const mssqlResult = await syncToSqlServer(table_name, operation, row_id, row_data);
+    if (!mssqlResult.skipped) logSync(table_name, operation, row_id, 'sqlserver', mssqlResult.success ? 'success' : 'error', mssqlResult.error);
+    const pgResult = await syncToPostgres(table_name, operation, row_id, row_data);
+    if (!pgResult.skipped) logSync(table_name, operation, row_id, 'postgresql', pgResult.success ? 'success' : 'error', pgResult.error);
+    const hasError = (!mssqlResult.skipped && !mssqlResult.success) || (!pgResult.skipped && !pgResult.success);
+    try {
+      await runQ("UPDATE _sync_queue SET status = ?, error = ?, retry_count = retry_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [hasError ? 'error' : 'synced', hasError ? (mssqlResult.error || pgResult.error) : null, id]);
+    } catch (e) { console.error('[SyncWorker] Queue update error:', e.message); }
+  }
 }
 
 let intervalHandle = null;
 function startWorker(intervalMs = 2000) {
-  initConnections().then(() => {
+  // Worker này chỉ có nghĩa khi DB chính là SQLite (local). PG-primary bỏ qua.
+  if (db.type !== 'sqlite') {
+    console.log('[SyncWorker] Skipped — DB chính không phải SQLite.');
+    return Promise.resolve();
+  }
+  return initConnections().then(() => {
     console.log(`[SyncWorker] Started. Polling every ${intervalMs}ms.`);
     intervalHandle = setInterval(processQueue, intervalMs);
   }).catch(err => { console.error('[SyncWorker] Failed to start:', err.message); setTimeout(() => startWorker(intervalMs), 10000); });

@@ -1,0 +1,153 @@
+# ═══════════════════════════════════════════════════════════════
+# AI REXI — docker-compose.prod.yml (deploy VPS)
+#
+# Cách chạy (trên VPS):
+#   1. Copy toàn bộ thư mục AI REXI + D:/repos/OpenCut lên VPS
+#   2. cp deploy/.env.example .env  →  sửa DOMAIN=rexi.domain.com
+#   3. ./deploy/deploy.sh  (hoặc docker compose -f deploy/docker-compose.prod.yml up -d --build)
+#
+# RAM ước tính: backend ~300MB + frontend (Caddy) ~50MB + opencut ~400MB
+#               + postgres ~150MB + redis ~50MB ≈ 1GB → OK cho VPS 2GB.
+#   💡 Nếu RAM yếu (1GB): comment service opencut + opencut-* để chỉ chạy lõi chat.
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  # ─── Backend AI REXI (Node) ───
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      # Cho phép đúng origin khi khách gọi API (nếu cần CORS mở rộng)
+      CORS_ORIGIN: https://${DOMAIN}
+    volumes:
+      # Database SQLite — mount trực tiếp từ máy chủ (backup dễ)
+      - ../Database:/app/Database
+      # Thư mục tạm (upload audio/video/PDF)
+      - rexi_temp:/app/backend/temp
+    expose:
+      - "5000"
+    networks:
+      - rexi
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ─── Frontend (Caddy serve static) ───
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        VITE_OPENCUT_URL: /opencut
+    restart: unless-stopped
+    expose:
+      - "80"
+    depends_on:
+      - backend
+    networks:
+      - rexi
+
+  # ─── OpenCut Editor (tùy chọn — comment nếu RAM yếu) ───
+  opencut:
+    build:
+      context: ../repos/OpenCut
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://opencut:opencut@opencut-db:5432/opencut
+      BETTER_AUTH_SECRET: ${OPENCUT_AUTH_SECRET:-change-me-opencut-secret}
+      UPSTASH_REDIS_REST_URL: http://opencut-redis-http:8079
+      UPSTASH_REDIS_REST_TOKEN: example_token
+      NEXT_PUBLIC_SITE_URL: https://${DOMAIN}/opencut
+      NODE_ENV: production
+    expose:
+      - "3000"
+    depends_on:
+      opencut-db:
+        condition: service_healthy
+      opencut-redis:
+        condition: service_healthy
+    networks:
+      - rexi
+      - opencut-net
+
+  # ─── Hạ tầng OpenCut (Postgres + Redis) ───
+  opencut-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: opencut
+      POSTGRES_PASSWORD: opencut
+      POSTGRES_DB: opencut
+    volumes:
+      - opencut_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opencut"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opencut-net
+
+  opencut-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - opencut-net
+
+  opencut-redis-http:
+    image: hiett/serverless-redis-http:latest
+    restart: unless-stopped
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: example_token
+      SRH_CONNECTION_STRING: redis://opencut-redis:6379
+    depends_on:
+      opencut-redis:
+        condition: service_healthy
+    networks:
+      - opencut-net
+
+  # ─── Caddy (HTTPS miễn phí + reverse proxy tất cả) ───
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+      - opencut
+    networks:
+      - rexi
+
+networks:
+  rexi:
+  opencut-net:
+    internal: true
+
+volumes:
+  caddy_data:
+  caddy_config:
+  rexi_temp:
+  opencut_db_data:

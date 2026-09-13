@@ -1,9 +1,13 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware');
 const fs = require('fs');
 const { execSync } = require('child_process');
+const { safeExecSync } = require('../utils/safeExec');
+const { encryptKey, decryptKey } = require('../utils/cryptoKeys');
+// Require top-level (model-scanner chỉ cần db/cryptoKeys → không circular)
+const { scanAllProviders, scanProvider, getWeeklySchedule, setWeeklySchedule, scheduleWeeklyReset, resetWeeklySchedule } = require('../model-scanner.scheduler');
 
 // Biểu thức thời gian theo loại DB (SQLite local / PostgreSQL trên Render)
 const dbNow = () => (db.type === 'sqlite' ? "datetime('now')" : 'NOW()');
@@ -29,7 +33,7 @@ router.get('/', (req, res) => {
   const provider = (req.query.provider || '').trim();
   let sql = `
     SELECT m.ma_model, m.ma_nha_cung_cap, COALESCE(p.ten_hien_thi, m.ma_nha_cung_cap) as provider_name,
-           m.ten_hien_thi, m.loai, m.thu_tu_hien_thi
+           m.ten_hien_thi, m.loai, COALESCE(m.modality, 'chat') as modality, m.thu_tu_hien_thi
     FROM ai_models m
     LEFT JOIN ai_providers p ON LOWER(m.ma_nha_cung_cap) = LOWER(p.ma_nha_cung_cap)
     WHERE m.kich_hoat = 1
@@ -45,13 +49,20 @@ router.get('/', (req, res) => {
     sql += ' AND LOWER(m.ma_nha_cung_cap) = LOWER(?)';
     params.push(provider);
   }
-  // Sắp xếp: provider theo thứ tự key trong khoa_api (giống trang Admin), model theo tên A→Z
+  // Sắp xếp: provider theo thứ tự key trong khoa_api (giống trang Admin),
+  // model dùng được (working) trước, model trả phí sau, rồi tên A→Z.
+  // (Trước đây paid xếp lẫn/trên working vì sort thuần theo tên.)
   sql += ` ORDER BY
     COALESCE((SELECT MIN(k.ngay_tao) FROM khoa_api k WHERE LOWER(k.ten_nha_cung_cap) = LOWER(m.ma_nha_cung_cap)), '9999-12-31') ASC,
+    CASE WHEN m.loai = 'paid' THEN 1 ELSE 0 END ASC,
     m.ten_hien_thi ASC`;
 
   db.all(sql, params, (err, rows) => {
     if (err) return res.status(500).json({ success: false, error: err.message });
+    // State mới nhất từ scanner để status hiển thị đúng (needs_balance dù loai cũ = free)
+    db.all(`SELECT ma_model, ma_nha_cung_cap, trang_thai FROM model_scan_cache`, [], (errC, cacheRows) => {
+    const cacheState = new Map();
+    for (const c of (cacheRows || [])) cacheState.set(`${String(c.ma_nha_cung_cap).toLowerCase()}|${c.ma_model}`, c.trang_thai);
 
     // Nếu CSDL ai_models rỗng → Fallback sang model_scan_cache hoặc danh sách mặc định uy tín
     if (!rows || rows.length === 0) {
@@ -87,19 +98,28 @@ router.get('/', (req, res) => {
       });
     }
 
+    const modFilter = (req.query.modality || '').trim().toLowerCase();
     const map = new Map();
     for (const r of rows) {
+      const mod = r.modality || 'chat';
+      if (modFilter && mod !== modFilter) continue;
       const pKey = r.ma_nha_cung_cap.toLowerCase();
+      const cached = cacheState.get(`${pKey}|${r.ma_model}`);
       if (!map.has(pKey)) map.set(pKey, []);
       map.get(pKey).push({
         id: r.ma_model,
         name: r.ten_hien_thi,
         type: r.loai,
+        modality: mod,
+        // paid trong DB HOẶC scanner vừa kết luận needs_balance → 🔒 (hết quota ngày vẫn hiện working,
+        // 429/5xx là transient không phải lock)
+        status: (r.loai === 'paid' || cached === 'needs_balance') ? 'needs_balance' : 'working',
         provider: pKey,
         providerName: r.provider_name,
       });
     }
     res.json({ success: true, models: Object.fromEntries(map) });
+    });
   });
 });
 
@@ -113,7 +133,7 @@ router.get('/test-db-select', [authMiddleware, adminMiddleware], (req, res) => {
     const safeList = (rows || []).map(r => ({
       ma_khoa: r.ma_khoa,
       provider: r.ten_nha_cung_cap,
-      hasKey: !!r.api_key_value
+      hasKey: !!r.gia_tri_khoa // chỉ trả boolean — KHÔNG trả key thô ra ngoài
     }));
     res.json({
       success: true,
@@ -257,7 +277,18 @@ router.post('/admin/models/sync', [authMiddleware, adminMiddleware], async (req,
   if (!provider) return res.status(400).json({ success: false, error: 'Thiếu tên nhà cung cấp (provider).' });
 
   try {
-    const result = await fetchModelsFromProvider(provider, (api_key || '').trim(), (base_url || '').trim());
+    // Key ưu tiên từ body; nếu rỗng thì dùng key đã lưu trong CSDL (AdminPage gửi api_key rỗng)
+    let effKey = (api_key || '').trim();
+    if (!effKey) {
+      const row = await new Promise((resolve) => {
+        db.get('SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = LOWER(?) LIMIT 1', [provider], (err, r) => resolve(err ? null : r));
+      });
+      if (row && row.gia_tri_khoa) {
+        try { effKey = decryptKey(row.gia_tri_khoa).trim(); } catch { effKey = ''; }
+      }
+    }
+    if (!effKey) return res.json({ success: false, error: `Chưa có API key cho ${provider}. Nhập key rồi quét lại.` });
+    const result = await fetchModelsFromProvider(provider, effKey, (base_url || '').trim());
     if (!result.success) return res.json({ success: false, error: result.error });
 
     // LƯU Ý: sync chỉ fetch danh sách KHÔNG verify health → KHÔNG xóa model cũ (tránh mất model working);
@@ -321,13 +352,23 @@ async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
   } else if (provider === 'opencode') {
     try {
       if (!IS_OPENCODE_AVAILABLE) throw new Error('OpenCode binary not found.');
-      const stdout = execSync(`"${OPENCODE_BIN_PATH}" models`, { encoding: 'utf8', timeout: 5000, env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } });
+      const stdout = safeExecSync(`"${OPENCODE_BIN_PATH}" models`, { timeout: 5000, env: { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' } });
       const rawList = stdout.split('\n').map(m => m.trim()).filter(m => m.length > 0);
       modelsList = [...rawList.filter(m => m.toLowerCase().includes('free')), ...rawList.filter(m => !m.toLowerCase().includes('free'))];
     } catch (errModels) {
       // KHÔNG chèn model mẫu khi CLI lỗi — báo lỗi rõ ràng
       return { success: false, error: 'OpenCode: ' + (errModels.message || 'CLI lỗi — không thể lấy danh sách model') };
     }
+  } else if (provider === 'xkiro') {
+    const resp = await fetch('https://api.xkiro.com/v1/models', { headers: { 'Authorization': 'Bearer ' + apiKey } });
+    const data = await resp.json();
+    if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
+    else if (data.error) return { success: false, error: 'xKiro: ' + (data.error.message || JSON.stringify(data.error)) };
+  } else if (provider === 'agentrouter') {
+    const resp = await fetch('https://agentrouter.org/v1/models', { headers: { 'Authorization': 'Bearer ' + apiKey, 'User-Agent': 'opencode/1.17.12' } });
+    const data = await resp.json();
+    if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
+    else if (data.error) return { success: false, error: 'AgentRouter: ' + (data.error.message || JSON.stringify(data.error)) };
   } else {
     // custom
     const cleanedBase = (baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
@@ -352,7 +393,7 @@ const getGroqClient = async () => {
     key = await new Promise((resolve) => {
       db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'groq'", [], (err, row) => {
         if (err || !row || !row.gia_tri_khoa) return resolve(null);
-        resolve(row.gia_tri_khoa.trim());
+        resolve(decryptKey(row.gia_tri_khoa).trim());
       });
     });
   }
@@ -442,7 +483,12 @@ async function aiAnalyzeProviderWithGroq(providerInput) {
     'mistral': { providerId: 'mistral', providerName: 'Mistral AI', modelsEndpoint: 'https://api.mistral.ai/v1/models' },
     'cerebras': { providerId: 'cerebras', providerName: 'Cerebras', modelsEndpoint: 'https://api.cerebras.ai/v1/models' },
     'cohere': { providerId: 'cohere', providerName: 'Cohere AI', modelsEndpoint: 'https://api.cohere.ai/v2/models' },
-    'nvidia': { providerId: 'nvidia', providerName: 'Nvidia NIM', modelsEndpoint: 'https://integrate.api.nvidia.com/v1/models' }
+    'nvidia': { providerId: 'nvidia', providerName: 'Nvidia NIM', modelsEndpoint: 'https://integrate.api.nvidia.com/v1/models' },
+    'agentrouter': { providerId: 'agentrouter', providerName: 'AgentRouter (GPT-5.6 Sol)', modelsEndpoint: 'https://agentrouter.org/v1/models' },
+    'bai': { providerId: 'bai', providerName: 'B.AI', modelsEndpoint: 'https://api.b.ai/v1/models' },
+    'b.ai': { providerId: 'bai', providerName: 'B.AI', modelsEndpoint: 'https://api.b.ai/v1/models' },
+    'kiosapi': { providerId: 'kiosapi', providerName: 'KiosAPI', modelsEndpoint: 'https://router.kiosapi.com/v1/models' },
+    'unorouter': { providerId: 'unorouter', providerName: 'UnoRouter', modelsEndpoint: 'https://api.unorouter.com/v1/models' }
   };
 
   if (FAST_MAP[cleanInput]) {
@@ -514,7 +560,7 @@ async function verifyModelHealth(provider, apiKey, baseUrl, modelId) {
       }
     }
 
-    if (['openai', 'groq', 'grok', 'deepseek', 'github', 'custom'].includes(provider)) {
+    if (['openai', 'groq', 'grok', 'deepseek', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter'].includes(provider)) {
       let endpoint = 'https://api.openai.com/v1/chat/completions';
       if (provider === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
       if (provider === 'grok') endpoint = 'https://api.x.ai/v1/chat/completions';
@@ -524,10 +570,23 @@ async function verifyModelHealth(provider, apiKey, baseUrl, modelId) {
         const base = cleanBase || 'https://openrouter.ai/api/v1';
         endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
       }
+      if (provider === 'xkiro') {
+        const base = cleanBase || 'https://api.xkiro.com/v1';
+        endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+      }
+      if (provider === 'agentrouter') {
+        const base = cleanBase || 'https://agentrouter.org/v1';
+        endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+      }
+      if (['bai', 'kiosapi', 'unorouter'].includes(provider)) {
+        const NEW_BASES = { bai: 'https://api.b.ai/v1', kiosapi: 'https://router.kiosapi.com/v1', unorouter: 'https://api.unorouter.com/v1' };
+        const base = cleanBase || NEW_BASES[provider];
+        endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+      }
 
       const resp = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(cleanKey ? { 'Authorization': 'Bearer ' + cleanKey } : {}) },
+        headers: { 'Content-Type': 'application/json', ...(cleanKey ? { 'Authorization': 'Bearer ' + cleanKey } : {}), ...(provider === 'agentrouter' ? { 'User-Agent': 'opencode/1.17.12' } : {}) },
         body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1 }),
         signal: AbortSignal.timeout(12000)
       });
@@ -609,7 +668,7 @@ router.post('/admin/models/verify-and-scan', [authMiddleware, adminMiddleware], 
           `INSERT INTO khoa_api (ma_khoa, ma_nguoi_dung, ten_nha_cung_cap, gia_tri_khoa)
            VALUES (?, ?, ?, ?)
            ON CONFLICT(ma_khoa) DO UPDATE SET gia_tri_khoa = excluded.gia_tri_khoa`,
-          [keyId, req.user.id, resolvedProvider, api_key.trim()]
+          [keyId, req.user.id, resolvedProvider, encryptKey(api_key.trim())]
         );
       }
 
@@ -681,7 +740,7 @@ router.post('/admin/models/publish-active', [authMiddleware, adminMiddleware], a
         `INSERT INTO khoa_api (ma_khoa, ma_nguoi_dung, ten_nha_cung_cap, gia_tri_khoa)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(ma_khoa) DO UPDATE SET gia_tri_khoa = excluded.gia_tri_khoa`,
-        [keyId, req.user.id, provider, api_key.trim()]
+        [keyId, req.user.id, provider, encryptKey(api_key.trim())]
       );
     }
 
@@ -730,7 +789,6 @@ router.post('/admin/models/publish-active', [authMiddleware, adminMiddleware], a
 // POST /api/admin/models/scan-all
 router.post('/admin/models/scan-all', [authMiddleware, adminMiddleware], async (req, res) => {
   try {
-    const { scanAllProviders } = require('../model-scanner.scheduler');
     const summary = await scanAllProviders();
     const totalWorking = summary.reduce((acc, s) => acc + (s.working || 0), 0);
     const totalModels = summary.reduce((acc, s) => acc + (s.total || 0), 0);
@@ -768,7 +826,6 @@ router.post('/admin/models/scan-provider', [authMiddleware, adminMiddleware], as
   const { provider } = req.body;
   if (!provider) return res.status(400).json({ success: false, error: 'Thiếu provider' });
   try {
-    const { scanProvider } = require('../model-scanner.scheduler');
     const result = await scanProvider(provider);
     // Push SSE event to connected frontends
     if (typeof global !== 'undefined' && global.__modelScanComplete) {
@@ -813,7 +870,6 @@ const DAY_NAMES = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 router.get('/admin/models/weekly-schedule', [authMiddleware, adminMiddleware], async (req, res) => {
   try {
-    const { getWeeklySchedule } = require('../model-scanner.scheduler');
     const s = await getWeeklySchedule();
     res.json({ success: true, day: s.day, time: s.time, label: `${DAY_NAMES[s.day]} ${s.time}` });
   } catch(e) {
@@ -830,7 +886,6 @@ router.post('/admin/models/weekly-schedule', [authMiddleware, adminMiddleware], 
     if (typeof time !== 'string' || !/^\d{1,2}:\d{2}$/.test(time)) {
       return res.status(400).json({ success: false, message: 'Giờ không hợp lệ (VD: 00:00, 03:30)' });
     }
-    const { setWeeklySchedule, scheduleWeeklyReset } = require('../model-scanner.scheduler');
     const ok = await setWeeklySchedule(day, time);
     if (!ok) return res.status(500).json({ success: false, message: 'Không lưu được lịch quét' });
     try { await scheduleWeeklyReset(); } catch(e) { /* scheduler chưa bật */ }
@@ -842,7 +897,6 @@ router.post('/admin/models/weekly-schedule', [authMiddleware, adminMiddleware], 
 
 router.post('/admin/models/weekly-schedule/reset', [authMiddleware, adminMiddleware], async (req, res) => {
   try {
-    const { resetWeeklySchedule, scheduleWeeklyReset } = require('../model-scanner.scheduler');
     await resetWeeklySchedule();
     try { await scheduleWeeklyReset(); } catch(e) { /* scheduler chưa bật */ }
     res.json({ success: true, day: 1, time: '00:00', label: 'CN → T2 00:00', message: 'Đã reset về mặc định: CN → T2 00:00' });

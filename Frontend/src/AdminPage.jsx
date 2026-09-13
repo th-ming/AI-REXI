@@ -74,8 +74,14 @@ function Toast({ message, type, onClose }) {
 // ══════════════════════════════════════════════════════════
 export default function AdminPage() {
   const token = localStorage.getItem('rexi_token') || '';
-  const storedUser = localStorage.getItem('rexi_user');
-  const currentUser = storedUser ? JSON.parse(storedUser) : null;
+  let currentUser = null;
+  try {
+    const storedUser = localStorage.getItem('rexi_user');
+    currentUser = storedUser ? JSON.parse(storedUser) : null;
+  } catch {
+    // storage hỏng → coi như chưa đăng nhập (redirect ở dưới)
+    currentUser = null;
+  }
 
   // Redirect nếu chưa đăng nhập hoặc không phải admin
   useEffect(() => {
@@ -260,12 +266,13 @@ export default function AdminPage() {
     finally { setSyncingProvider(null); }
   };
 
-  const toggleModelOnHome = async (modelId, currentStatus) => {
+  const toggleModelOnHome = async (modelId, currentStatus, providerId) => {
     try {
       // FIX: /models/admin/models thay vì /admin/models
+      // provider lấy từ dòng model đang hiển thị (modelId không phải lúc nào cũng có dạng provider/id)
       const data = await apiFetch(`/models/admin/models`, token, {
         method: 'POST',
-        body: JSON.stringify({ ma_model: modelId, ma_nha_cung_cap: modelId.split('/')[0] || 'gemini', ten_hien_thi: modelId, kich_hoat: currentStatus ? 0 : 1 })
+        body: JSON.stringify({ ma_model: modelId, ma_nha_cung_cap: providerId || 'gemini', ten_hien_thi: modelId, kich_hoat: currentStatus ? 0 : 1 })
       });
       if (data.success) {
         showToast(`Model ${currentStatus ? 'đã ẩn' : 'đã hiện'} trên trang chủ`, 'success');
@@ -441,7 +448,7 @@ export default function AdminPage() {
                             <StatusBadge status={user.trang_thai || 'active'} />
                           </td>
                           <td className="px-5 py-3.5 text-slate-400 font-mono text-xs">
-                            {new Date(user.ngay_tao).toLocaleString('vi-VN')}
+                            {(() => { const d = user.ngay_tao ? new Date(user.ngay_tao) : null; return d && !isNaN(d) ? d.toLocaleString('vi-VN') : '—'; })()}
                           </td>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center justify-center gap-2">
@@ -599,7 +606,7 @@ export default function AdminPage() {
                                 <span className="text-xs text-slate-300 truncate">{model.ten_hien_thi}</span>
                               </div>
                               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => toggleModelOnHome(model.ma_model, model.kich_hoat)}
+                                <button onClick={() => toggleModelOnHome(model.ma_model, model.kich_hoat, model.ma_nha_cung_cap || p.ma_nha_cung_cap)}
                                   className="p-1.5 rounded-lg hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition-colors" title={model.kich_hoat ? 'Ẩn khỏi trang chủ' : 'Hiện lên trang chủ'}>
                                   <span className="text-xs">{model.kich_hoat ? '↓' : '↑'}</span>
                                 </button>

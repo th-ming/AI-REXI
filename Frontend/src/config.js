@@ -9,6 +9,12 @@
 export const API_BASE = '/api';
 
 /**
+ * OpenCut editor URL (Next.js dev server default port 3000).
+ * Override with env var VITE_OPENCUT_URL at build time.
+ */
+export const OPENCUT_URL = import.meta.env.VITE_OPENCUT_URL || 'http://localhost:3000';
+
+/**
  * Centralized fetch wrapper with auth token support.
  * 
  * @param {string} path - API endpoint path (without /api prefix), e.g. '/auth/users'

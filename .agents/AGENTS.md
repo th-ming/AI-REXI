@@ -1,5 +1,30 @@
 # QUY ĐỊNH TỰ KIỂM TRA VÀ XÁC MINH BẰNG CHỨNG THỰC TẾ (STRICT SELF-VERIFICATION & PROOF RULE)
 
+# 🔑 TÀI KHOẢN & API KEY CÓ SẴN TRONG DATABASE (KHÔNG CẦN TẠO MỚI)
+
+> Đã test đăng nhập thật ngày 10/08/2026 — dùng các tài khoản này để test, đừng tạo user mới mỗi lần.
+
+## Tài khoản Admin (đã xác minh đăng nhập ✅)
+- **`admin` / `admin123`** → role **admin** ✅
+- **`admin@rexi.com` / `admin123`** → role **admin** ✅ (fallback seed trong ensure-admin.js)
+
+## Cách lấy token nhanh (test API)
+```bash
+TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login   -H 'Content-Type: application/json'   -d '{"email":"admin","password":"admin123"}' | python -c "import json,sys; print(json.load(sys.stdin)['token'])")
+# Sau đó: curl -H "Authorization: Bearer $TOKEN" ...
+```
+
+## API Keys đã lưu trong bảng `khoa_api` (DB: D:/AI REXI/Database/tro_ly_ai.db)
+Gemini · Groq · NVIDIA · Cerebras · Cohere · OpenRouter · Mistral · OpenCode · GitHub
+→ 109 model active (gemini 13, mistral 32, nvidia 25, groq 11, openrouter 11, cohere 6, cerebras 3, opencode 8)
+→ Backend tự đọc/giải mã keys này (AES-256-GCM, xem src/utils/cryptoKeys.js) — agent KHÔNG cần lấy key thủ công.
+
+## Ghi chú
+- User thường trong DB (test@rexi.ai, test@test.com...) KHÔNG có password mặc định — không dùng được login, đừng phí thời gian thử.
+- Guest: email `guest@rexi.ai`, dùng không cần mật khẩu (chế độ khách tự động).
+- File seed admin: `D:/AI REXI/Database/admin-seed.js` + `Backend/src/ensure-admin.js`.
+
+---
 ## 1. NGUYÊN TẮC CỐT LÕI
 - **Mọi kết quả công việc phải có minh chứng thực tế rõ ràng**: Không bao giờ được phép tuyên bố hoàn thành task, sửa lỗi thành công hay thay đổi UI/UX nếu chưa tự mình chạy lệnh kiểm thử (build, test, log, screenshot) và xác minh kết quả.
 - **Tự động lặp lại (Self-Correction Loop)**: Nếu kết quả tự kiểm tra phát hiện lỗi (UI hỏng, lệnh build fail, trắng trang, runtime error), Agent BẮT BUỘC phải tự động phân tích nguyên nhân và thực hiện lại cho đến khi CHÍNH XÁC 100% thì mới báo lại cho User.

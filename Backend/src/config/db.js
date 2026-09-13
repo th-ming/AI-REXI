@@ -25,18 +25,28 @@ class SQLiteAdapter {
     });
   }
   _init() { this.db.run("PRAGMA foreign_keys = ON;"); }
+  // P2-20(9): hết 5s mà DB chưa ready → gọi cb với Error RÕ RÀNG (trước đây gọi cb()
+  // mù → query chạy trên connection chưa mở, treo/lỗi khó hiểu).
   _wait(cb) {
-    if (this.ready) return cb();
-    const check = setInterval(() => { if (this.ready) { clearInterval(check); cb(); } }, 50);
-    setTimeout(() => { clearInterval(check); cb(); }, 5000);
+    if (this.ready) return cb(null);
+    let done = false;
+    const check = setInterval(() => {
+      if (this.ready) { done = true; clearInterval(check); clearTimeout(timer); cb(null); }
+    }, 50);
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      clearInterval(check);
+      cb(new Error('SQLite chưa sẵn sàng sau 5s (file DB bị khoá hoặc không mở được)'));
+    }, 5000);
   }
-  get(sql, params = [], cb) { this._wait(() => this.db.get(sql, params, cb)); }
-  all(sql, params = [], cb) { this._wait(() => this.db.all(sql, params, cb)); }
+  get(sql, params = [], cb) { this._wait((waitErr) => { if (waitErr) return cb(waitErr); this.db.get(sql, params, cb); }); }
+  all(sql, params = [], cb) { this._wait((waitErr) => { if (waitErr) return cb(waitErr); this.db.all(sql, params, cb); }); }
   run(sql, params = [], cb) {
     if (typeof params === 'function') { cb = params; params = []; }
-    this._wait(() => this.db.run(sql, params, function(err) { if (cb) cb.call(this, err); }));
+    this._wait((waitErr) => { if (waitErr) { if (cb) cb.call(this, waitErr); return; } this.db.run(sql, params, function(err) { if (cb) cb.call(this, err); }); });
   }
-  exec(sql, cb) { this._wait(() => this.db.exec(sql, (err) => { if (cb) cb(err); })); }
+  exec(sql, cb) { this._wait((waitErr) => { if (waitErr) { if (cb) cb(waitErr); return; } this.db.exec(sql, (err) => { if (cb) cb(err); }); }); }
   /**
    * Thực thi công việc trong 1 transaction (BEGIN/COMMIT/ROLLBACK).
    * work(tx) nhận tx = { run, get, all } promise-based, tất cả chạy trên cùng 1 connection
@@ -186,23 +196,53 @@ class PostgreSQLAdapter {
     this.queue = [];
     this._connect();
   }
-  async _connect() {
+  async _connect(retries = 3) {
+    let lastErr = null;
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const { Pool } = require('pg');
+        // Đóng pool cũ (nếu retry) trước khi tạo mới — tránh rò rỉ connection
+        if (this.pool) { try { await this.pool.end(); } catch (_) {} this.pool = null; }
+        this.pool = new Pool({
+          host: process.env.PGHOST || 'localhost',
+          port: parseInt(process.env.PGPORT) || 5432,
+          database: process.env.PGDATABASE || 'ai_rexi',
+          user: process.env.PGUSER || 'postgres',
+          password: process.env.PGPASSWORD || '',
+          ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false,
+        });
+        await this.pool.query('SELECT 1');
+        log('PostgreSQL connected');
+        this._drain(null);
+        return;
+      } catch (err) {
+        lastErr = err;
+        log(`PostgreSQL connect attempt ${attempt}/${retries} failed: ${err.message}`);
+        try { if (this.pool) await this.pool.end(); } catch (_) {}
+        this.pool = null;
+        if (attempt < retries) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1))); // 1s, 2s
+      }
+    }
+    // P1-08: sau 3 lần fail — đóng pool, fallback SQLite + drain queue với lỗi rõ (không để treo)
+    log('PostgreSQL failed after ' + retries + ' attempts: ' + (lastErr && lastErr.message) + ' — fallback SQLiteAdapter');
+    try { if (this.pool) await this.pool.end(); } catch (_) {}
+    this.pool = null;
     try {
-      const { Pool } = require('pg');
-      this.pool = new Pool({
-        host: process.env.PGHOST || 'localhost',
-        port: parseInt(process.env.PGPORT) || 5432,
-        database: process.env.PGDATABASE || 'ai_rexi',
-        user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || '',
-        ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false,
-      });
-      await this.pool.query('SELECT 1');
-      log('PostgreSQL connected');
-    } catch (err) { log('PostgreSQL failed: ' + err.message); return; }
-    this._drain();
+      this.fallback = new SQLiteAdapter();
+    } catch (e) {
+      log('PostgreSQL fallback SQLite failed: ' + e.message);
+    }
+    this._drain(lastErr || new Error('PostgreSQL not connected'));
   }
   _exec(sql, params, cb, mode) {
+    // P1-08: đã fallback SQLite → ủy thác (SQLiteAdapter tự chờ ready)
+    if (this.fallback) {
+      if (mode === 'get') this.fallback.get(sql, params, cb);
+      else if (mode === 'all') this.fallback.all(sql, params, cb);
+      else if (mode === 'exec') this.fallback.exec(sql, cb);
+      else this.fallback.run(sql, params, cb);
+      return;
+    }
     if (!this.pool) { this.queue.push([sql, params, cb, mode]); return; }
     // mode 'exec': chạy trực tiếp (simple protocol — hỗ trợ multi-statement, không thay ?)
     if (mode === 'exec') {
@@ -218,7 +258,17 @@ class PostgreSQLAdapter {
       else if (cb) cb.call({ changes: r.rowCount || 0 }, null);
     }).catch(cb || (() => {}));
   }
-  _drain() { this.queue.forEach(([s, p, cb, m]) => this._exec(s, p, cb, m)); this.queue = []; }
+  _drain(drainErr) {
+    const q = this.queue;
+    this.queue = [];
+    // P1-08: có lỗi (hết retry, không fallback được) → trả lỗi cho từng callback đang chờ,
+    // không để request treo vĩnh viễn. Bình thường (connect OK / đã fallback) → chạy lại qua _exec.
+    if (drainErr && !this.fallback) {
+      q.forEach(([s, p, cb]) => { try { if (cb) cb(drainErr); } catch (_) {} });
+      return;
+    }
+    q.forEach(([s, p, cb, m]) => this._exec(s, p, cb, m));
+  }
   get(sql, params = [], cb) { this._exec(sql, params, cb, 'get'); }
   all(sql, params = [], cb) { this._exec(sql, params, cb, 'all'); }
   run(sql, params = [], cb) {
@@ -226,6 +276,7 @@ class PostgreSQLAdapter {
     this._exec(sql, params, cb, 'run');
   }
   exec(sql, cb) {
+    if (this.fallback) { this.fallback.exec(sql, cb); return; }
     if (!this.pool) { this.queue.push([sql, [], cb, 'exec']); return; }
     this.pool.query(sql).then(() => { if (cb) cb(null); }).catch(cb || (() => {}));
   }
@@ -234,6 +285,8 @@ class PostgreSQLAdapter {
    * không bị rò rỉ qua các connection khác của pool.
    */
   async withTransaction(work) {
+    // P1-08: đã fallback SQLite → ủy thác transaction cho SQLiteAdapter
+    if (this.fallback) return this.fallback.withTransaction(work);
     let client;
     try {
       if (!this.pool) throw new Error('PostgreSQL not connected');

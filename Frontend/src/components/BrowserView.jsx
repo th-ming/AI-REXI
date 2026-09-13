@@ -33,7 +33,9 @@ export default function BrowserView({ onClose }) {
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
     // Đảm bảo kết nối trực tiếp đến backend WebSocket port 5000 nếu dev mode hoặc giữ nguyên host khi proxy
     const host = window.location.port === '5173' ? 'localhost:5000' : window.location.host;
-    const wsUrl = `${wsProto}://${host}/api/services/browser/stream`;
+    // P0-03: WS browser yêu cầu JWT — gửi kèm token đăng nhập qua query (server verifyClient)
+    const token = localStorage.getItem('rexi_token') || '';
+    const wsUrl = `${wsProto}://${host}/api/services/browser/stream?token=${encodeURIComponent(token)}`;
     intentionalCloseRef.current = false;
     wsRef.current = new WebSocket(wsUrl);
 
@@ -200,7 +202,7 @@ export default function BrowserView({ onClose }) {
   };
 
   useEffect(() => {
-    launchBrowser(url);
+    // Không tự launch khi mở tab (đỡ tốn RAM Chromium) — user bấm Go/Khởi động thì navigate() sẽ launch
     return () => {
       disconnectWS();
     };
@@ -327,7 +329,7 @@ export default function BrowserView({ onClose }) {
           <p className="uppercase tracking-wider mb-2">Phím tắt</p>
           <div className="space-y-1 font-mono">
             <div className="flex justify-between"><span>Click</span><span>Chuột trái</span></div>
-            <div className="flex justify-between"><span>Double-click</span><span>Chuột phải</span></div>
+            <div className="flex justify-between"><span>Double-click</span><span>Click trái ×2</span></div>
             <div className="flex justify-between"><span>Scroll</span><span>Cuộn chuột</span></div>
             <div className="flex justify-between"><span>Type</span><span>Gõ trực tiếp</span></div>
             <div className="flex justify-between"><span>Enter</span><span>Submit/Go</span></div>

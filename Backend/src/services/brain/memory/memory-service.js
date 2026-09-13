@@ -17,6 +17,13 @@
 const { extractEntities } = require('../nlp/entity-extractor');
 const { extractKeywords } = require('../nlp/tokenizer-utils');
 const { isDuplicateMemory, similarity } = require('./memory-similarity');
+const { getEmbedding, cosineSimilarity, saveMemoryEmbedding, deleteMemoryEmbedding } = require('./embedding-service');
+
+// FIX SECURITY/SQL: escape ký tự wildcard của LIKE (% _ ) và escape char (\ )
+// để keyword do user nhập không biến thành wildcard hoặc làm sai kết quả.
+function escapeLike(str) {
+  return String(str || '').replace(/[\\%_]/g, (m) => '\\' + m);
+}
 
 const db = require('../../../config/db');
 
@@ -94,12 +101,25 @@ async function saveMemory(userId, { loai, noi_dung, do_uu_tien = 5, nguon = 'man
 
   const existing = await findSimilarExisting(userId, loai, noi_dung);
   if (existing) {
-    // merge: giữ nội dung mới hơn, tăng ưu tiên
-    const merged = existing.noi_dung.includes(noi_dung) ? existing.noi_dung : noi_dung;
+    // FIX (bước 3.2): merge KHÔNG mất thông tin — nếu nội dung mới có phần khác
+    // với nội dung cũ thì NỐI THÊM vào (thay vì thay thế toàn bộ làm mất dữ liệu cũ).
+    let merged = existing.noi_dung;
+    if (existing.noi_dung !== noi_dung) {
+      if (existing.noi_dung.includes(noi_dung)) {
+        merged = existing.noi_dung; // mới là subset của cũ — giữ cũ
+      } else if (noi_dung.includes(existing.noi_dung)) {
+        merged = noi_dung; // cũ là subset của mới — dùng mới
+      } else {
+        // hai nội dung bổ sung nhau — gộp, không trùng, giới hạn 500 ký tự
+        merged = (existing.noi_dung + ' ' + noi_dung).trim().slice(0, 500);
+      }
+    }
     await run(
       "UPDATE bo_nho_dai_han SET noi_dung = ?, do_uu_tien = CASE WHEN do_uu_tien > ? THEN do_uu_tien ELSE ? END, ngay_tao = CURRENT_TIMESTAMP WHERE ma_bo_nho = ?",
       [merged, do_uu_tien, do_uu_tien, existing.ma_bo_nho]
     );
+    // Cập nhật VECTOR (hiểu theo nghĩa) cho memory vừa merge — không block
+    saveMemoryEmbedding(existing.ma_bo_nho, merged).catch(() => {});
     return { action: 'updated', id: existing.ma_bo_nho };
   }
 
@@ -108,6 +128,8 @@ async function saveMemory(userId, { loai, noi_dung, do_uu_tien = 5, nguon = 'man
     "INSERT INTO bo_nho_dai_han (ma_bo_nho, ma_nguoi_dung, loai, noi_dung, do_uu_tien) VALUES (?, ?, ?, ?, ?)",
     [maBoNho, userId, loai, noi_dung, do_uu_tien]
   );
+  // Vector hóa memory mới (nền — không block luồng gửi tin)
+  saveMemoryEmbedding(maBoNho, noi_dung).catch(() => {});
   return { action: 'saved', id: maBoNho };
 }
 
@@ -151,6 +173,7 @@ async function updateMemory(userId, maBoNho, noiDungMoi) {
 async function deleteMemory(userId, maBoNho) {
   if (!maBoNho) return false;
   const res = await run("DELETE FROM bo_nho_dai_han WHERE ma_bo_nho = ? AND ma_nguoi_dung = ?", [maBoNho, userId]);
+  if (res.changes > 0) deleteMemoryEmbedding(maBoNho);
   return res.changes > 0;
 }
 
@@ -175,10 +198,10 @@ async function loadSmartMemory(userId, currentMessage = '') {
     if (currentMessage) {
       const keywords = extractKeywords(currentMessage, 6);
       if (keywords.length) {
-        const conds = keywords.map(() => "noi_dung LIKE ?").join(' OR ');
+        const conds = keywords.map(() => "noi_dung LIKE ? ESCAPE '\\'").join(' OR ');
         const ctx = await all(
           `SELECT ma_bo_nho, loai, noi_dung, do_uu_tien FROM bo_nho_dai_han WHERE ma_nguoi_dung = ? AND (${conds}) ORDER BY do_uu_tien DESC LIMIT ?`,
-          [userId, ...keywords.map(k => `%${k}%`), CONTEXT_MATCH_LIMIT]
+          [userId, ...keywords.map(k => `%${escapeLike(k)}%`), CONTEXT_MATCH_LIMIT]
         );
         for (const m of ctx) {
           if (!memories.some(x => x.ma_bo_nho === m.ma_bo_nho)) memories.push(m);
@@ -186,6 +209,47 @@ async function loadSmartMemory(userId, currentMessage = '') {
       }
     }
 
+    // ─── VECTOR SEARCH: hiểu theo NGHĨA (như ChatGPT/Gemini) ───────────
+    // Nếu câu hỏi diễn đạt khác từ nhưng cùng ý → vẫn tìm ra memory liên quan
+    try {
+      const qVec = await getEmbedding(currentMessage);
+      if (qVec) {
+        const vecRows = await all(
+          "SELECT me.ma_bo_nho, me.vector FROM memory_embedding me WHERE me.ma_bo_nho IN (SELECT ma_bo_nho FROM bo_nho_dai_han WHERE ma_nguoi_dung = ?)",
+          [userId]
+        );
+        const scored = [];
+        for (const vr of vecRows) {
+          let v;
+          try { v = JSON.parse(vr.vector); } catch (e) { continue; }
+          const sim = cosineSimilarity(qVec, v);
+          if (sim >= 0.32) scored.push({ ma_bo_nho: vr.ma_bo_nho, sim });
+        }
+        scored.sort((a, b) => b.sim - a.sim);
+        const topIds = scored.slice(0, CONTEXT_MATCH_LIMIT).map(x => x.ma_bo_nho);
+        if (topIds.length) {
+          const placeholders = topIds.map(() => '?').join(',');
+          const semRows = await all(
+            `SELECT ma_bo_nho, loai, noi_dung, do_uu_tien FROM bo_nho_dai_han WHERE ma_nguoi_dung = ? AND ma_bo_nho IN (${placeholders})`,
+            [userId, ...topIds]
+          );
+          const existingIds = new Set(memories.map(m => m.ma_bo_nho));
+          for (const m of semRows) {
+            if (!existingIds.has(m.ma_bo_nho)) { memories.push(m); existingIds.add(m.ma_bo_nho); }
+          }
+          memories.sort((a, b) => (b.do_uu_tien || 0) - (a.do_uu_tien || 0));
+        }
+      }
+    } catch (eVec) {
+      console.log('[Brain][Memory] vector search error:', eVec.message);
+    }
+
+    // Backfill nền: memory nào chưa có vector → vector hóa dần (lần sau search được)
+    try {
+      for (const m of memories.slice(0, OVERALL_LIMIT)) {
+        saveMemoryEmbedding(m.ma_bo_nho, m.noi_dung).catch(() => {});
+      }
+    } catch (eBack) { console.log('[Brain][Memory] backfill error:', eBack.message); }
     const sliced = memories.slice(0, OVERALL_LIMIT);
     const text = sliced.length
       ? '\n\n🧠 BỘ NHỚ VỀ NGƯỜI DÙNG:\n' + sliced.map(m => `- [${m.loai}] ${m.noi_dung}`).join('\n')

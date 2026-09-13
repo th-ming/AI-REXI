@@ -51,3 +51,20 @@ screen_*.png
 # SQLite WAL/SHM temp
 *.db-wal
 *.db-shm
+
+# Local junk / heavy dirs — never commit
+ocr_venv/
+Backend/ocr_venv/
+.pw-tmp*/
+temp/
+.playwright-mcp/
+__pycache__/
+*.pyc
+.ms-playwright/
+frontend_build.log
+backend.log
+*.sqlite
+
+
+skills/
+tts_demo/

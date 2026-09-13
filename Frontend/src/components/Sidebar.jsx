@@ -113,7 +113,8 @@ export default function Sidebar({
 
 
 
-      {/* Skills & Super Tools Buttons */}
+      {/* Skills & Super Tools Buttons — chỉ hiển thị khi đã đăng nhập (backend chặn guest 401) */}
+      {currentUser && (
       <div className="grid grid-cols-2 gap-2 px-3 mt-2">
         <button
           onClick={() => setSkillsOpen(true)}
@@ -128,6 +129,7 @@ export default function Sidebar({
           <Zap size={13} /> Super Tools
         </button>
       </div>
+      )}
 
       {/* Search */}
       <div className="px-3 my-2">
@@ -169,7 +171,8 @@ export default function Sidebar({
         ))}
       </div>
 
-      {/* Files Drawer */}
+      {/* Files Drawer — chỉ hiển thị khi đã đăng nhập (trước đây guest thấy nhưng click bị 401) */}
+      {currentUser && (
       <div className="px-2 border-t border-white/5 pt-2">
         <button
           onClick={() => setFilesDrawerOpen(!filesDrawerOpen)}
@@ -184,6 +187,7 @@ export default function Sidebar({
           </div>
         )}
       </div>
+      )}
 
       {/* User Profile Bar */}
       <div className="p-3 border-t border-white/5 flex items-center justify-between bg-[#131417] relative">

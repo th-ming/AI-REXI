@@ -155,3 +155,58 @@ SKILL AUTO-DETECTION: You have access to specialized skills.
 Before any task, scan SKILL-REGISTRY.md for matching keywords.
 Load the skill immediately if found. Do not wait for user to ask.
 ```
+
+### ?? Design & UI/UX - Enhanced (1-thiet-ke - Copied to ~/.agents/skills/)
+
+| Skill | Trigger Keywords | When to Use |
+|-------|------------------|-------------|
+| `ui-ux-pro-max` | UI/UX, design database, 67 styles, 161 palettes | Comprehensive UI/UX design intelligence |
+| `ui-styling` | shadcn, Tailwind, dark mode, theme | UI styling |
+| `design-system` | design tokens, CSS variables, spacing | Building design systems |
+| `frontend-design` | web component, UI, React, HTML/CSS | Building frontend UI |
+| `gpt-taste` | GSAP, animation, AIDA, bento grid | Advanced frontend motion |
+| `high-end-visual-design` | premium, expensive, luxury UI | High-end visual design |
+| `minimalist-ui` | minimalist, clean, editorial | Clean UI design |
+| `industrial-brutalist-ui` | brutalist, raw, industrial | Brutalist UI design |
+| `redesign-existing-projects` | redesign, upgrade, improve UI | Redesigning existing UI |
+| `brand` | brand voice, identity, messaging, style guide | Branding work |
+| `brandkit` | brand kit, logo system, identity deck | Creating brand systems |
+| `accessibility` | a11y, WCAG, screen reader, keyboard nav | Web accessibility |
+| `banner-design` | banner, social media, ads, hero image | Banner design |
+| `slides` | presentation, slides, Chart.js | HTML presentations |
+| `image-to-code` | image to code, screenshot to HTML | Converting images to code |
+| `design-taste-frontend` | landing page, portfolio, redesign | Frontend redesigns |
+| `imagegen-frontend-web` | landing page, marketing site, product comp | Web design images |
+| `stitch-design-taste` | Google Stitch, DESIGN.md | Stitch integration |
+| `design` | logo, CIP, mockups, icons, social photos | General design tasks |
+| `design-md` | DESIGN.md, design tokens, machine-readable | Creating design docs |
+
+### ?? Design Tools - Copied from open-design
+
+| Skill | Trigger Keywords | When to Use |
+|-------|------------------|-------------|
+| `impeccable-design-polish` | polish, refine, perfect UI | UI polish and refinement |
+| `taste-skill` | design taste, aesthetic sense | Design taste evaluation |
+| `shadcn-ui` | shadcn, components, UI library | shadcn UI components |
+| `theme-factory` | theme, color scheme, dark mode | Theme creation |
+| `apple-hig` | iOS, Apple, HIG, mobile | Apple design guidelines |
+| `login-flow` | auth, login, signup, onboarding | Login/auth flow design |
+| `paywall-upgrade-cro` | paywall, conversion, pricing | Conversion optimization |
+| `marketing-psychology` | persuasion, CRO, conversion psychology | Marketing psychology |
+| `creative-director` | creative direction, vision, brand | Creative direction |
+| `color-expert` | color theory, palette, color psychology | Color expertise |
+| `design-brief` | brief, project scope, requirements | Design briefing |
+| `design-consultation` | consultation, review, feedback | Design consultation |
+| `design-review` | review, audit, QA | Design review |
+| `plan-design-review` | planning, design planning | Design planning |
+| `reference-design-contract` | contract, spec, design spec | Design specifications |
+| `ui-skills` | UI skills, general UI | General UI skills |
+| `frontend-dev` | frontend development, dev | Frontend development |
+| `web-design-guidelines` | guidelines, best practices | Web design guidelines |
+| `platform-design` | platform, cross-platform | Platform design |
+
+### ?? impeccable (Full CLI Tool)
+
+| Skill | Trigger Keywords | When to Use |
+|-------|------------------|-------------|
+| `impeccable` | polish, craft, layout, colorize, critique, refine, shape, typeset, animate, audit, doctor | Full design CLI tool with 35+ commands |

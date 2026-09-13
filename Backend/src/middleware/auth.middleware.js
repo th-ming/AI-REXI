@@ -2,10 +2,18 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../config/db');
 
-// FIX PROD: KHÔNG THROW khi production thiếu JWT_SECRET (trước đây → backend không khởi động nổi).
-// Secret được giải quyết động: env → global.__JWT_SECRET (tự tạo + lưu DB bởi init-db.js) → random.
+// FIX PROD: Secret được giải quyết động: env → global.__JWT_SECRET (tự tạo + lưu DB bởi init-db.js).
+// BẢO MẬT: Trong production, nếu không có secret ổn định (env hoặc đã lưu DB) → THROW để tránh
+// secret random mỗi lần khởi động khiến mọi token bị vô hiệu + tránh secret dễ đoán.
+// (Trong dev vẫn fallback random để server khởi động nhanh khi chưa cấu hình.)
 function getJWTSecret() {
-  return process.env.JWT_SECRET || global.__JWT_SECRET || ('dev-only-secret-' + crypto.randomBytes(16).toString('hex'));
+  const envSecret = process.env.JWT_SECRET;
+  if (envSecret) return envSecret;
+  if (global.__JWT_SECRET) return global.__JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET bắt buộc phải được cấu hình (env JWT_SECRET hoặc lưu trong DB) khi chạy ở môi trường production.');
+  }
+  return 'dev-only-secret-' + crypto.randomBytes(16).toString('hex');
 }
 
 // Middleware kiểm tra đã đăng nhập chưa
@@ -60,21 +68,20 @@ function adminMiddleware(req, res, next) {
 }
 
 // Middleware kiểm tra giới hạn cho khách (chưa đăng nhập)
+// P3-fix(audit): CHỈ ĐỌC — không gán biến session ở đây (gán = session dirty =
+// saveUninitialized:false không chặn được nữa → lại tạo row cho mọi request).
+// Counter khởi tạo/ghi thật khi user gửi tin nhắn (chat.routes.js).
 function guestMiddleware(req, res, next) {
     if (!req.session) req.session = {};
-    if (req.session.messageCount === undefined) {
-        req.session.messageCount = 0;
-    }
-    if (req.session.agentTaskCount === undefined) {
-        req.session.agentTaskCount = 0;
-    }
+    const messageCount = req.session.messageCount || 0;
+    const agentTaskCount = req.session.agentTaskCount || 0;
 
     // Giới hạn 10 tin nhắn chat cho người chưa đăng nhập
-    if (req.session.messageCount >= 10) {
+    if (messageCount >= 10) {
       return res.status(401).json({
         error: 'Bạn đã dùng hết 10 tin nhắn cho tài khoản khách. Hãy đăng nhập để chat không giới hạn.',
         code: 'LOGIN_REQUIRED',
-        remaining: { messages: 0, agentTasks: Math.max(0, 3 - req.session.agentTaskCount) }
+        remaining: { messages: 0, agentTasks: Math.max(0, 3 - agentTaskCount) }
       });
     }
     // LƯU Ý: Không increment messageCount ở đây! Chỉ increment khi POST tin nhắn chat thành công.
@@ -84,12 +91,10 @@ function guestMiddleware(req, res, next) {
 // Middleware cho guest dùng Agent Mode (giới hạn 3 tasks)
 function guestAgentMiddleware(req, res, next) {
     if (!req.session) req.session = {};
-    if (req.session.agentTaskCount === undefined) {
-        req.session.agentTaskCount = 0;
-    }
+    const agentTaskCount = req.session.agentTaskCount || 0;
 
-    if (req.session.agentTaskCount >= 3) {
-        return res.status(401).json({
+    if (agentTaskCount >= 3) {
+      return res.status(401).json({
             error: 'Bạn đã dùng hết 3 Agent Mode cho tài khoản khách. Đăng nhập để dùng Agent Mode không giới hạn.',
             code: 'AGENT_LIMIT_REACHED',
             remaining: { messages: Math.max(0, 10 - (req.session.messageCount || 0)), agentTasks: 0 }

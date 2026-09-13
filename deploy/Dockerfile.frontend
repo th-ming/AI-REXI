@@ -1,0 +1,25 @@
+# ═══════════════════════════════════════════════════════════════
+# AI REXI — Frontend Dockerfile (build static + Caddy serve)
+# Build:  docker build -f deploy/Dockerfile.frontend -t ai-rexi-frontend .
+# ═══════════════════════════════════════════════════════════════
+FROM node:20-slim AS build
+
+WORKDIR /app
+
+# OpenCut URL: dùng /opencut (cùng origin, Caddy proxy) khi deploy
+ARG VITE_OPENCUT_URL=/opencut
+ENV VITE_OPENCUT_URL=$VITE_OPENCUT_URL
+
+COPY Frontend/package.json Frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY Frontend/ ./
+RUN npm run build
+
+# ─── Production image: Caddy serve static + proxy ───
+FROM caddy:2-alpine
+
+COPY --from=build /app/dist /srv
+COPY deploy/Caddyfile /etc/caddy/Caddyfile
+
+EXPOSE 80

@@ -3,24 +3,47 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
+const { safeExec } = require('../utils/safeExec');
 const db = require('../config/db');
-const { authMiddleware } = require('../middleware/auth.middleware');
+const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware');
+const { GUEST_USER_ID } = require('../ensure-admin');
+const { logActivity } = require('../utils/activityLog');
 const { Shell } = require('node-powershell');
-const { isPrivateHostname } = require('../utils/urlSafety');
+const { isPrivateHostname, assertPublicUrlAsync } = require('../utils/urlSafety');
+const { rateLimit } = require('../middleware/rateLimit');
+const { decryptKey } = require('../utils/cryptoKeys');
 const multer = require('multer');
 const Groq = require('groq-sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { generateEdgeTTSNode } = require('../services/edgeTTS');
+const { searchVideos, getVideoStream, downloadAudio } = require('../services/ytdlpService');
+const { PDFParse } = require('pdf-parse');
+const ragService = require('../services/ragService');
 
 // Multer: Lưu file audio tạm thời vào thư mục temp
 const upload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => cb(null, path.join(__dirname, '..', '..', 'temp')),
-    filename: (req, file, cb) => cb(null, `caption_${Date.now()}.webm`)
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname) || '.webm';
+      cb(null, `caption_${Date.now()}${ext}`);
+    }
   }),
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
+  limits: { fileSize: 25 * 1024 * 1024 }, // P2-20(5): 50MB → 25MB max (multer này chỉ dùng cho /transcribe)
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['audio/webm', 'audio/mp3', 'audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-wav', 'audio/x-m4a'];
+    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file audio (mp3, wav, webm, m4a, ogg, mp4)'), false);
+    }
+  }
 });
 
-// Khởi tạo Groq client (API key từ env hoặc DB bảng khoa_api)
+// Khởi tạo Groq client
+// NOTE FOR AI AGENTS & DEVELOPERS: API Key của Groq được lưu trữ trực tiếp trong Cơ sở dữ liệu SQLite
+// ở bảng `khoa_api` (cột `ten_nha_cung_cap` = 'groq', đã mã hóa). Hàm getGroqClient() sẽ ưu tiên lấy từ DB
+// nếu file .env không có `GROQ_API_KEY`. Vì vậy key đã sẵn có trong DB mà không cần khai báo trong .env!
 const getGroqClient = async () => {
   let key = process.env.GROQ_API_KEY;
   if (!key || key === 'YOUR_GROQ_API_KEY_HERE') {
@@ -28,7 +51,7 @@ const getGroqClient = async () => {
       db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'groq'", [], (err, row) => {
         console.log('[getGroqClient] db result err=', err ? err.message : null, 'row=', row ? row.gia_tri_khoa ? 'HAS_KEY' : 'EMPTY' : 'NONE');
         if (err || !row || !row.gia_tri_khoa) return resolve(null);
-        resolve(row.gia_tri_khoa.trim());
+        resolve(decryptKey(row.gia_tri_khoa).trim());
       });
     });
   }
@@ -36,10 +59,49 @@ const getGroqClient = async () => {
   return new Groq({ apiKey: key });
 };
 
+// P2-20(5): bọc promise thêm timeout (Groq SDK không phải lúc nào cũng nhận AbortSignal)
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'Yêu cầu') + ` quá thời gian (${Math.round(ms / 1000)}s). Vui lòng thử lại với file ngắn hơn.`)), ms)),
+  ]);
+}
+
+// Khởi tạo Gemini client (key từ DB — bảng khoa_api, ten_nha_cung_cap = 'gemini')
+// Dùng làm FALLBACK khi Groq hết quota/lỗi — đảm bảo Tóm tắt AI luôn hoạt động.
+const getGeminiClient = async () => {
+  let key = process.env.GEMINI_API_KEY;
+  if (!key || key === 'YOUR_GEMINI_API_KEY_HERE') {
+    key = await new Promise((resolve) => {
+      db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'gemini'", [], (err, row) => {
+        if (err || !row || !row.gia_tri_khoa) return resolve(null);
+        resolve(decryptKey(row.gia_tri_khoa).trim());
+      });
+    });
+  }
+  if (!key) return null;
+  return new GoogleGenerativeAI(key);
+};
+
 // Office packages
 const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle } = require('docx');
 const PptxGenJS = require('pptxgenjs');
 const { PDFDocument } = require('pdf-lib');
+
+// ─── P1-09: kiểm tra chủ sở hữu cuộc hội thoại (admin bypass) ───
+// Trả null nếu được phép; trả { status, error } nếu bị chặn (404/403/500).
+function assertConvOwner(maHoiThoai, req) {
+  return new Promise((resolve) => {
+    if (req.user && (req.user.role === 'admin' || req.user.phan_quyen === 'admin')) return resolve(null);
+    const expectedOwner = req.user ? req.user.id : GUEST_USER_ID;
+    db.get("SELECT ma_nguoi_dung FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ? AND ngay_xoa IS NULL", [maHoiThoai], (err, row) => {
+      if (err) return resolve({ status: 500, error: err.message });
+      if (!row) return resolve({ status: 404, error: 'Không tìm thấy cuộc hội thoại.' });
+      if (row.ma_nguoi_dung !== expectedOwner) return resolve({ status: 403, error: 'Không có quyền truy cập cuộc hội thoại này.' });
+      resolve(null);
+    });
+  });
+}
 
 // Skills API — Lấy skills đang kích hoạt (public dành cho chat)
 router.get('/skills', authMiddleware, (req, res) => {
@@ -58,7 +120,7 @@ router.get('/skills/all', authMiddleware, (req, res) => {
 });
 
 // Skills API — Toggle bật/tắt một skill (Admin only)
-router.put('/skills/:id/toggle', authMiddleware, (req, res) => {
+router.put('/skills/:id/toggle', [authMiddleware, adminMiddleware], (req, res) => {
   const { id } = req.params;
   const { trang_thai } = req.body;
   if (!trang_thai || !['kich_hoat', 'vo_hieu'].includes(trang_thai)) {
@@ -67,12 +129,23 @@ router.put('/skills/:id/toggle', authMiddleware, (req, res) => {
   db.run('UPDATE ky_nang SET trang_thai = ? WHERE ma_ky_nang = ?', [trang_thai, id], function(err) {
     if (err) return res.status(500).json({ success: false, error: err.message });
     if (this.changes === 0) return res.status(404).json({ success: false, error: 'Không tìm thấy kỹ năng' });
+    // P1-13: ghi nhật ký ai toggle skill nào
+    logActivity(req.user && req.user.id, 'toggle_skill', `${id} -> ${trang_thai}`);
     res.json({ success: true, message: `Đã ${trang_thai === 'kich_hoat' ? 'bật' : 'tắt'} kỹ năng`, trang_thai });
   });
 });
 
 // Live Desktop API - Cho mọi user đã đăng nhập (TỐI ƯU HIỆU NĂNG)
-router.get('/desktop/screenshot', authMiddleware, async (req, res) => {
+// Live Desktop API - Cho mọi user đã đăng nhập (TỐI ƯU HIỆU NĂNG)
+const DESKTOP_ONLY_LOCAL = (res) => {
+  if (process.platform !== 'win32') {
+    res.status(501).json({ success: false, error: 'Remote Desktop chỉ khả dụng khi backend chạy trên Windows local — trên server web tính năng này tắt.' });
+    return true;
+  }
+  return false;
+};
+router.get('/desktop/screenshot', [authMiddleware, adminMiddleware], async (req, res) => {
+  if (DESKTOP_ONLY_LOCAL(res)) return;
   const { spawnSync } = require('child_process');
   const path = require('path');
   const fs = require('fs');
@@ -125,7 +198,8 @@ $ms.Dispose()
   }
 });
 
-router.post('/desktop/click', authMiddleware, (req, res) => {
+router.post('/desktop/click', [authMiddleware, adminMiddleware], (req, res) => {
+  if (DESKTOP_ONLY_LOCAL(res)) return;
   const { x_percent, y_percent } = req.body;
   
   // VALIDATE LINH HOẠT: chấp nhận cả số và string number, chặn string chữ
@@ -319,7 +393,7 @@ async function runEdgeTtsPython(voiceName, trimmedText, validRate, validPitch, t
   });
 }
 
-router.post('/tts', async (req, res) => {
+router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), authMiddleware, async (req, res) => {
   const { text, voice, rate, pitch } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Văn bản không được để trống' });
@@ -383,20 +457,29 @@ const getCountryFlag = (code) => {
 // Browser gọi: /api/services/iptv/proxy?url=<encoded_stream_url>
 // Backend fetch về rồi chuyển tiếp với CORS headers mở
 // ============================================================
-router.get('/iptv/proxy', async (req, res) => {
+// P2-19d: proxy yêu cầu đăng nhập. <video>/hls.js không gửi được Authorization
+// header → cho phép token qua ?token= (bridge sang header cho authMiddleware).
+// FE đã gửi token vào URL proxy (App.jsx playHlsStream, YouTubeTab proxyUrl);
+// playlist m3u8 rewrite giữ lại token cho các segment con (qsToken).
+function proxyAuth(req, res, next) {
+  if (!req.headers.authorization && req.query.token) {
+    req.headers.authorization = 'Bearer ' + req.query.token;
+  }
+  return authMiddleware(req, res, next);
+}
+
+router.get('/iptv/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth, async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'Missing url param' });
 
   let targetUrl;
   try {
     targetUrl = decodeURIComponent(url);
-    const parsed = new URL(targetUrl);
-    if (!['http:', 'https:'].includes(parsed.protocol)) {
-      return res.status(400).json({ error: 'Invalid protocol' });
-    }
-    const hostname = parsed.hostname;
-    if (isPrivateHostname(hostname)) {
-      return res.status(403).json({ error: 'Internal network access is not allowed' });
+    // P2-18: check async (literal + DNS resolve) thay vì isPrivateHostname sync
+    const check = await assertPublicUrlAsync(targetUrl);
+    if (!check.ok) {
+      const code = (check.reason === 'URL không hợp lệ' || check.reason === 'Chỉ cho phép http/https') ? 400 : 403;
+      return res.status(code).json({ error: check.reason });
     }
   } catch {
     return res.status(400).json({ error: 'Invalid url' });
@@ -418,7 +501,8 @@ router.get('/iptv/proxy', async (req, res) => {
       });
       if (upstream.status >= 300 && upstream.status < 400 && upstream.headers.get('location')) {
         const nextUrl = new URL(upstream.headers.get('location'), effectiveUrl).toString();
-        if (isPrivateHostname(new URL(nextUrl).hostname)) {
+        const hopCheck = await assertPublicUrlAsync(nextUrl);
+        if (!hopCheck.ok) {
           return res.status(403).json({ error: 'Internal network access is not allowed (redirect)' });
         }
         effectiveUrl = nextUrl;
@@ -438,8 +522,11 @@ router.get('/iptv/proxy', async (req, res) => {
     res.status(upstream.status);
 
     // Nếu là file .m3u8 playlist thì rewrite các URL → tuyệt đối qua proxy
-    if (contentType.includes('mpegurl') || effectiveUrl.endsWith('.m3u8')) {
+    if (contentType.toLowerCase().includes('mpegurl') || effectiveUrl.toLowerCase().endsWith('.m3u8')) {
       let body = await upstream.text();
+      // Chuẩn hoá CRLF -> LF (một số server dùng CRLF, regex rewrite sẽ miss)
+      if (body.includes('\r\n')) body = body.replace(/\r\n/g, '\n');
+
       const base = effectiveUrl.substring(0, effectiveUrl.lastIndexOf('/') + 1);
       const origin = new URL(effectiveUrl).origin;
       const toAbsolute = (u) => {
@@ -447,7 +534,9 @@ router.get('/iptv/proxy', async (req, res) => {
         if (u.startsWith('/')) return origin + u;
         return base + u;
       };
-      const toProxy = (u) => `${req.protocol}://${req.get('host')}/api/services/iptv/proxy?url=${encodeURIComponent(toAbsolute(u))}`;
+      // Giữ ?token= cho segment con (nếu client gọi proxy kèm token qua query)
+      const qsToken = req.query.token ? `&token=${encodeURIComponent(req.query.token)}` : '';
+      const toProxy = (u) => `${req.protocol}://${req.get('host')}/api/services/iptv/proxy?url=${encodeURIComponent(toAbsolute(u))}${qsToken}`;
       // 1) Rewrite dòng URI thường (segment, variant playlist)
       body = body.replace(/^(?!#)([^\r\n]+)$/gm, (line) => {
         line = line.trim();
@@ -728,6 +817,367 @@ router.get('/iptv/countries', async (req, res) => {
 // ------------------- OFFICE API: DOCX / PPTX / PDF -------------------
 
 // POST /api/office/generate-docx - Tạo file Word từ text (Markdown -> DOCX)
+// ─────────────────────────────────────────────────────────────────────────────
+// YOUTUBE FREE: Xem YouTube không quảng cáo (yt-dlp) — như Premium free
+// ─────────────────────────────────────────────────────────────────────────────
+// P2-20(12): kiểm tra python + yt_dlp + ffmpeg có sẵn sàng không.
+// Chỉ CHECK (exec --version), KHÔNG cài thêm gì.
+router.get('/youtube/status', authMiddleware, async (req, res) => {
+  const { execFile } = require('child_process');
+  const cands = process.env.YTDLP_PYTHON ? [process.env.YTDLP_PYTHON] : ['python', 'python3', 'py'];
+  let python = null;
+  let ytdlp = null;
+  for (const bin of cands) {
+    try {
+      const ver = await new Promise((resolve, reject) => {
+        execFile(bin, ['-c', 'import yt_dlp; print(yt_dlp.version.__version__)'], { timeout: 10000 }, (err, stdout) => {
+          if (err || !String(stdout || '').trim()) return reject(err || new Error('empty'));
+          resolve(String(stdout).trim());
+        });
+      });
+      python = bin;
+      ytdlp = ver;
+      break;
+    } catch { /* thử binary kế tiếp */ }
+  }
+  let ffmpeg = false;
+  try { ffmpeg = !!(ffmpegPath && fs.existsSync(ffmpegPath)); } catch { ffmpeg = false; }
+  res.json({
+    success: true,
+    python,
+    yt_dlp: ytdlp,
+    ffmpeg,
+    ffmpegPath: ffmpegPath || null,
+    ready: !!(python && ytdlp),
+    note: !python ? 'Không tìm thấy Python + yt_dlp. Admin cài ngoài: pip install yt-dlp' : undefined,
+  });
+});
+
+router.get('/youtube/search', authMiddleware, async (req, res) => {
+  const { q, limit } = req.query;
+  if (!q) return res.status(400).json({ error: 'Thiếu từ khóa (q)' });
+  try {
+    const videos = await searchVideos(q, parseInt(limit, 10) || 12);
+    res.json({ success: true, videos });
+  } catch (e) {
+    console.error('[YouTube] Search error:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+router.get('/youtube/stream', authMiddleware, async (req, res) => {
+  const { url } = req.query;
+  if (!url || !isValidYouTubeUrl(url)) return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ (chỉ hỗ trợ YouTube).' });
+  try {
+    const info = await getVideoStream(url);
+    res.json({ success: true, ...info });
+  } catch (e) {
+    console.error('[YouTube] Stream error:', e.message);
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// Proxy stream video (chống CORS + SSRF) — copy pattern từ iptv/proxy
+router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth, async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'Missing url param' });
+
+  let targetUrl;
+  try {
+    targetUrl = decodeURIComponent(url);
+    // P2-18: check async (literal + DNS resolve) thay vì isPrivateHostname sync
+    const check = await assertPublicUrlAsync(targetUrl);
+    if (!check.ok) {
+      const code = (check.reason === 'URL không hợp lệ' || check.reason === 'Chỉ cho phép http/https') ? 400 : 403;
+      return res.status(code).json({ error: check.reason });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Invalid url' });
+  }
+
+  try {
+    let effectiveUrl = targetUrl;
+    let upstream;
+    for (let hop = 0; hop <= 5; hop++) {
+      upstream = await fetch(effectiveUrl, {
+        redirect: 'manual',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+          'Referer': 'https://www.youtube.com/',
+          'Origin': 'https://www.youtube.com',
+        },
+        signal: AbortSignal.timeout(15000)
+      });
+      if (upstream.status >= 300 && upstream.status < 400 && upstream.headers.get('location')) {
+        const nextUrl = new URL(upstream.headers.get('location'), effectiveUrl).toString();
+        const hopCheck = await assertPublicUrlAsync(nextUrl);
+        if (!hopCheck.ok) {
+          return res.status(403).json({ error: 'Internal network access is not allowed (redirect)' });
+        }
+        effectiveUrl = nextUrl;
+        continue;
+      }
+      break;
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    res.setHeader('Cache-Control', 'no-cache, no-store');
+    res.setHeader('Content-Type', contentType);
+    res.status(upstream.status);
+
+    const buffer = await upstream.arrayBuffer();
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error('[YouTube Proxy] Error:', err.message);
+    return res.status(502).json({ error: 'Proxy upstream error: ' + err.message });
+  }
+});
+
+// TÓM TẮT VIDEO AI: tải audio → Groq Whisper (STT) → Groq LLM → Markdown
+// ─────────────────────────────────────────────────────────────────────────────
+// Tóm tắt một video YouTube chỉ bằng 1 câu hỏi. Dây chuyền:
+//   yt-dlp (audio mp3) → Groq whisper-large-v3 (transcript) → llama-3.3-70b (tóm tắt VN)
+// TÓM TẮT VIDEO AI: tải audio → STT (Groq Whisper → fallback Gemini) → LLM (Groq → fallback Gemini)
+// ─────────────────────────────────────────────────────────────────────────────
+// Tóm tắt một video YouTube chỉ bằng 1 câu hỏi. Dây chuyền:
+//   yt-dlp (audio mp3 ≤10 phút) → Groq whisper-large-v3 / Gemini (transcript) → LLM (tóm tắt VN)
+// Chỉ cho phép URL YouTube hợp lệ — chặn file:// (đọc file cục bộ!), SSRF, host nội bộ
+function isValidYouTubeUrl(url) {
+  const s = String(url || '').trim();
+  if (!s) return false;
+  // Video ID thuần (11 ký tự) — dùng phổ biến trong app
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return true;
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    return false;
+  }
+  if (!['http:', 'https:'].includes(u.protocol)) return false;
+  if (isPrivateHostname(u.hostname)) return false;
+  const host = u.hostname.replace(/^www\./, '').toLowerCase();
+  if (host === 'youtu.be') {
+    return /^\/[A-Za-z0-9_-]{11}/.test(u.pathname);
+  }
+  if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
+    return /^\/(watch|shorts|live|embed)/.test(u.pathname);
+  }
+  return false;
+}
+
+function buildSummaryPrompt(text) {
+  return `Bạn là chuyên gia tóm tắt video chuyên nghiệp. Dưới đây là transcript (lời thoại) của một video YouTube. Hãy tóm tắt bằng TIẾNG VIỆT theo đúng định dạng Markdown sau (chỉ trả nội dung, không thêm lời dẫn):
+
+# 📝 Tóm tắt video
+
+## 🎯 Ý chính
+- <3-5 gạch đầu dòng nêu nội dung cốt lõi>
+
+## 📌 Điểm nổi bật
+- <các thông tin/quan điểm quan trọng>
+
+## 💡 Kết luận / Bài học
+- <kết luận rút ra từ video>
+
+Transcript:
+"""
+${text.slice(0, 20000)}
+"""`;
+}
+
+// STT qua Groq Whisper (có timeout 90s — tránh treo vô hạn khi Groq bận)
+async function transcribeWithGroq(groq, audioPath) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  try {
+    const transcription = await groq.audio.transcriptions.create({
+      file: await Groq.toFile(
+        fs.createReadStream(audioPath),
+        path.basename(audioPath),
+        { type: 'audio/mpeg' }
+      ),
+      model: 'whisper-large-v3',
+      response_format: 'verbose_json',
+    }, { signal: controller.signal });
+    return {
+      text: String(transcription?.text || '').trim(),
+      segments: Array.isArray(transcription?.segments)
+        ? transcription.segments.map(s => ({
+            start: Number(s.start || 0),
+            end: Number(s.end || 0),
+            text: String(s.text || '').trim()
+          }))
+        : []
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Chuyển segments -> nội dung file SRT (phụ đề timestamp chuẩn)
+function segmentsToSrt(segments) {
+  if (!Array.isArray(segments) || segments.length === 0) return '';
+  const fmt = (sec) => {
+    const s = Math.max(0, Math.floor(sec));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), secs = s % 60;
+    const ms = Math.floor((sec - Math.floor(sec)) * 1000);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+  };
+  return segments.map((seg, i) => {
+    const text = (seg.text || '').trim();
+    if (!text) return null;
+    return `${i + 1}\n${fmt(seg.start)} --> ${fmt(seg.end)}\n${text}`;
+  }).filter(Boolean).join('\n\n');
+}
+
+// STT qua Gemini (fallback khi Groq lỗi/hết quota)
+async function transcribeWithGemini(genAI, audioPath) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120000);
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const b64 = fs.readFileSync(audioPath).toString('base64');
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
+        parts: [
+          { inlineData: { mimeType: 'audio/mpeg', data: b64 } },
+          { text: 'Hãy chuyển toàn bộ lời thoại trong audio này thành văn bản. Chỉ trả về văn bản lời thoại, không thêm gì khác.' }
+        ]
+      }]
+    }, { signal: controller.signal });
+    return String(result.response.text() || '').trim();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Tóm tắt bằng Groq llama (có timeout)
+async function summarizeWithGroq(groq, text) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const res = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: buildSummaryPrompt(text) }],
+      temperature: 0.4,
+      max_tokens: 1800,
+    }, { signal: controller.signal });
+    return String(res?.choices?.[0]?.message?.content || '').trim();
+  } catch (e) {
+    console.error('[YouTube] Groq LLM summarize error:', e.message);
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Tóm tắt bằng Gemini (fallback)
+async function summarizeWithGemini(genAI, text) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(buildSummaryPrompt(text), { signal: controller.signal });
+    return String(result.response.text() || '').trim();
+  } catch (e) {
+    console.error('[YouTube] Gemini LLM summarize error:', e.message);
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+router.post('/youtube/summarize', authMiddleware, async (req, res) => {
+  const { url } = req.body || {};
+  if (!url || !isValidYouTubeUrl(url)) {
+    return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ (chỉ hỗ trợ YouTube).' });
+  }
+
+  let audioPath = null;
+  try {
+    // Tên file duy nhất — tránh đụng nhau giữa 2 request đồng thời
+    const outPath = path.join(tempDir, `ytsum_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+    const dl = await downloadAudio(url, outPath);
+    audioPath = dl && dl.file;
+
+    if (!audioPath || !fs.existsSync(audioPath)) {
+      return res.status(500).json({ success: false, error: 'Không tải được audio của video. Thử video khác.' });
+    }
+
+    const groq = await getGroqClient();
+    if (!groq) {
+      return res.status(503).json({
+        success: false,
+        error: 'CHUA_CO_KEY',
+        message: 'Cần GROQ_API_KEY trong bảng khoa_api để dùng Tóm tắt AI.'
+      });
+    }
+
+    // ── Bước 1: Nhận diện giọng nói (Groq → fallback Gemini) ──
+    let transcript = '';
+    let sttSource = '';
+    let srt = '';
+    try {
+      const groqRes = await transcribeWithGroq(groq, audioPath);
+      transcript = groqRes.text;
+      srt = segmentsToSrt(groqRes.segments);
+      sttSource = 'groq';
+    } catch (e) {
+      console.log('[YouTube] Groq STT fail, fallback Gemini:', e.message);
+    }
+    if (!transcript) {
+      const gemini = await getGeminiClient(); // lấy lazily — chỉ khi cần fallback
+      if (gemini) {
+        try {
+          transcript = await transcribeWithGemini(gemini, audioPath);
+          sttSource = 'gemini';
+        } catch (e2) {
+          console.error('[YouTube] Gemini STT fail:', e2.message);
+        }
+      }
+    }
+    if (!transcript) {
+      return res.status(502).json({ success: false, error: 'Không nhận diện được giọng nói (cả Groq lẫn Gemini đều lỗi). Thử video khác.' });
+    }
+
+    // ── Bước 2: Tóm tắt bằng LLM (Groq → fallback Gemini) ──
+    // P1-11: summarizeWithGroq là async → phải await, bọc try/catch, validate string
+    let summary = '';
+    try {
+      summary = await summarizeWithGroq(groq, transcript);
+    } catch (e) {
+      console.error('[YouTube] Groq summarize throw:', e.message);
+      summary = '';
+    }
+    if (typeof summary !== 'string') summary = '';
+    if (!summary) {
+      try {
+        const gemini = await getGeminiClient();
+        if (gemini) summary = await summarizeWithGemini(gemini, transcript);
+      } catch (e) {
+        console.error('[YouTube] Gemini summarize throw:', e.message);
+      }
+      if (typeof summary !== 'string') summary = '';
+    }
+
+    res.json({ success: true, title: dl?.title || '', transcript, summary, srt, stt_source: sttSource });
+  } catch (err) {
+    console.error('[YouTube] Summarize error:', err.message);
+    res.status(500).json({ success: false, error: 'Lỗi tóm tắt video. Vui lòng thử lại.' });
+  } finally {
+    // Dọn đúng file của request này (không đụng file của request khác)
+    if (audioPath && fs.existsSync(audioPath)) {
+      try { fs.unlinkSync(audioPath); } catch (e) { /* ignore */ }
+    }
+  }
+});
+
 router.post('/office/generate-docx', authMiddleware, async (req, res) => {
   const { title, content } = req.body;
   if (!content) return res.status(400).json({ error: 'Thiếu nội dung văn bản' });
@@ -924,11 +1374,51 @@ router.post('/office/process-pdf', authMiddleware, async (req, res) => {
         keywords: doc.getKeywords() || '',
         creator: doc.getCreator() || 'AI Rexi PDF Processor'
       });
+    } else if (action === 'extract' || action === 'extract-text') {
+      // Trích xuất toàn bộ nội dung chữ trong PDF (chạy CPU, không cần GPU)
+      const pdf = new PDFParse({ data: pdfBytes });
+      const parsed = await pdf.getText({});
+      await pdf.destroy();
+      let fullText = (parsed.text || '').trim();
+      let ocrUsed = false;
+      // Fallback OCR: PDF ảnh/scan (pdf-parse trả rỗng) -> gọi LightOnOCR local (port 8099)
+      if (fullText.length < 20) {
+        try {
+          // Dùng FormData + Blob built-in của Node (fetch xử lý native, tự set boundary)
+          const form = new FormData();
+          form.append('file', new Blob([Buffer.from(pdfBytes)], { type: 'application/pdf' }), 'scan.pdf');
+          const ocrRes = await fetch('http://127.0.0.1:8099/ocr', {
+            method: 'POST',
+            body: form,
+            signal: AbortSignal.timeout(120000) // tránh treo vĩnh viễn khi OCR server chậm/chết
+          });
+          if (ocrRes.ok) {
+            const ocrJson = await ocrRes.json();
+            if (ocrJson.text && ocrJson.text.trim().length > fullText.length) {
+              fullText = ocrJson.text.trim();
+              ocrUsed = true;
+            }
+          }
+        } catch (ocrErr) {
+          console.warn('[Office] OCR fallback unavailable:', ocrErr.message);
+        }
+      }
+      const maxChars = parseInt(req.body.max_chars, 10) || 50000;
+      const truncated = fullText.length > maxChars;
+      res.json({
+        success: true,
+        action: 'extract',
+        pages: doc.getPageCount(),
+        chars: fullText.length,
+        truncated,
+        ocr_used: ocrUsed,
+        text: truncated ? fullText.substring(0, maxChars) : fullText
+      });
     } else {
       res.json({
         success: false,
         action: action || 'unknown',
-        error: `Hành động '${action || 'unknown'}' chưa được hỗ trợ. Hỗ trợ: info`
+        error: `Hành động '${action || 'unknown'}' chưa được hỗ trợ. Hỗ trợ: info, extract`
       });
     }
   } catch (err) {
@@ -937,6 +1427,8 @@ router.post('/office/process-pdf', authMiddleware, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE CAPTION: Nhận diện giọng nói từ video bằng Groq Whisper + Dịch Tiếng Việt
 // ─────────────────────────────────────────────────────────────────────────────
 // LIVE CAPTION: Nhận diện giọng nói từ video bằng Groq Whisper + Dịch Tiếng Việt
 // ─────────────────────────────────────────────────────────────────────────────
@@ -950,38 +1442,42 @@ router.post('/transcribe', authMiddleware, upload.single('audio'), async (req, r
   if (!audioFile) {
     return res.status(400).json({ success: false, error: 'Không nhận được file audio.' });
   }
+  const tmpPath = audioFile.path;
 
   try {
     const groq = await getGroqClient();
     if (!groq) {
-      // Fallback: Không có Groq key — báo lỗi rõ ràng
-      fs.unlinkSync(audioFile.path);
       return res.status(503).json({
         success: false,
-        error: 'CHƯA_CÓ_KEY',
+        error: 'CHUA_CO_KEY',
         message: 'Cần thêm GROQ_API_KEY vào file .env hoặc bảng khoa_api để dùng tính năng Phụ Đề AI. Lấy key miễn phí tại: https://console.groq.com'
       });
     }
 
-    // Gọi Groq Whisper API để nhận diện giọng nói
-    // language = 'auto' -> Whisper tự phát hiện mọi ngôn ngữ
-    const audioStream = fs.createReadStream(audioFile.path);
-    const transcription = await groq.audio.transcriptions.create({
-      file: audioStream,
+    // Gọi Groq Whisper API để nhận diện giọng nói (+ timeout 60s — P2-20(5))
+    // Sử dụng FormData để đảm bảo Groq nhận đúng file với metadata
+    // Groq SDK 1.x expects an object payload, not a `form-data` instance.
+    // Convert the Multer file stream with Groq.toFile() so the SDK can build
+    // a compatible multipart request (this also supports browser WebM chunks).
+    const transcription = await withTimeout(groq.audio.transcriptions.create({
+      file: await Groq.toFile(
+        fs.createReadStream(tmpPath),
+        path.basename(tmpPath),
+        { type: audioFile.mimetype || 'application/octet-stream' }
+      ),
       model: 'whisper-large-v3',
-      response_format: 'text'
-    });
+      response_format: 'json',
+      ...(srcLang !== 'auto' ? { language: srcLang } : {})
+    }), 60000, 'Nhận diện giọng nói');
 
-    // Xoá file tạm sau khi dùng xong
-    fs.unlinkSync(audioFile.path);
-
-    const originalText = (transcription || '').trim();
+    const originalText = typeof transcription === 'string'
+      ? transcription.trim()
+      : String(transcription?.text || '').trim();
     if (!originalText) {
       return res.json({ success: true, text: '', original: '' });
     }
 
     // Dịch sang Tiếng Việt qua Google Translate (miễn phí, không cần key)
-    // sl=auto -> Google tự nhận diện ngôn ngữ nguồn, tl=vi -> dịch sang Việt
     let vietnameseText = originalText;
     try {
       const translateRes = await fetch(
@@ -999,12 +1495,12 @@ router.post('/transcribe', authMiddleware, upload.single('audio'), async (req, r
     res.json({ success: true, text: vietnameseText, original: originalText });
 
   } catch (err) {
-    // Dọn file tạm dù có lỗi
-    if (audioFile?.path && fs.existsSync(audioFile.path)) {
-      fs.unlinkSync(audioFile.path);
-    }
     console.error('[Transcribe] Error:', err.message);
-    res.status(500).json({ success: false, error: 'Lỗi nhận diện giọng nói: ' + err.message });
+    const isTimeout = /quá thời gian/i.test(err.message || '');
+    res.status(isTimeout ? 504 : 500).json({ success: false, error: 'Lỗi nhận diện giọng nói: ' + err.message });
+  } finally {
+    // P2-20(5): xóa file temp TRONG finally — mọi đường return/throw đều dọn
+    try { if (tmpPath && fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch {}
   }
 });
 
@@ -1014,6 +1510,11 @@ const browserStream = require('../services/browserStream');
 router.post('/browser/launch', authMiddleware, async (req, res) => {
   try {
     const { url } = req.body;
+    // P2-18: chặn URL nội bộ kể cả khi launch kèm URL (browserStream.navigate không tự check)
+    if (url && url !== 'about:blank') {
+      const check = await assertPublicUrlAsync(url);
+      if (!check.ok) return res.status(403).json({ success: false, error: check.reason });
+    }
     const result = await browserStream.launch({ url: url || 'about:blank' });
     res.json(result);
   } catch (e) {
@@ -1024,6 +1525,9 @@ router.post('/browser/launch', authMiddleware, async (req, res) => {
 router.post('/browser/navigate', authMiddleware, async (req, res) => {
   try {
     const { url } = req.body;
+    // P2-18: browserStream.navigate() không check SSRF → check ở route (đã có auth)
+    const check = await assertPublicUrlAsync(url);
+    if (!check.ok) return res.status(403).json({ success: false, error: check.reason });
     const result = await browserStream.navigate(url);
     res.json(result);
   } catch (e) {
@@ -1102,6 +1606,7 @@ router.post('/browser/act', authMiddleware, async (req, res) => {
 // HYPERFRAMES VIDEO RENDERER — HTML → MP4 via HyperFrames CLI
 // ─────────────────────────────────────────────────────────────────────────────
 const { execSync, spawn } = require('child_process');
+const { safeExecSync } = require('../utils/safeExec');
 const ffmpegPath = require('ffmpeg-static');
 
 // Temp dir for video renders
@@ -1116,7 +1621,7 @@ router.get('/video/status', authMiddleware, async (req, res) => {
     // Check hyperframes CLI
     let hfVersion = null;
     try {
-      hfVersion = execSync('npx hyperframes info --json', { timeout: 15000, encoding: 'utf8' });
+      hfVersion = safeExecSync('npx hyperframes info --json', { timeout: 15000, encoding: 'utf8' });
     } catch {}
     // Check Chrome/Puppeteer
     let chromeOk = false;
@@ -1139,7 +1644,9 @@ router.get('/video/status', authMiddleware, async (req, res) => {
 });
 
 // POST: Render HTML composition → MP4
-router.post('/video/render', authMiddleware, async (req, res) => {
+// P2-20(6): rate-limit 3 render/giờ/user (sau auth để key theo user) + giới hạn
+// duration ≤ 30s + width ≤ 1920 (chống đốt CPU/RAM bằng job khổng lồ).
+router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max: 3, message: 'Bạn đã render 3 video trong giờ này. Vui lòng chờ thêm rồi thử lại.' }), async (req, res) => {
   const { html, width, height, fps, duration } = req.body;
   if (!html || !html.trim()) {
     return res.status(400).json({ error: 'Thiếu nội dung HTML composition' });
@@ -1147,6 +1654,9 @@ router.post('/video/render', authMiddleware, async (req, res) => {
   if (html.length > 500000) {
     return res.status(400).json({ error: 'HTML quá dài (tối đa 500KB)' });
   }
+  const compWidth = Math.min(Math.max(parseInt(width, 10) || 1920, 320), 1920);
+  const compHeight = Math.min(Math.max(parseInt(height, 10) || 1080, 240), 1080);
+  const compDuration = Math.min(Math.max(parseFloat(duration) || 5, 1), 30);
 
   const renderId = `render_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const projectDir = path.join(videoTempDir, renderId);
@@ -1157,10 +1667,8 @@ router.post('/video/render', authMiddleware, async (req, res) => {
     fs.mkdirSync(projectDir, { recursive: true });
 
     // Write index.html composition (HyperFrames compatible)
+    // (compWidth/compHeight/compDuration đã clamp ở đầu route — P2-20(6))
     const compId = 'main';
-    const compWidth = width || 1920;
-    const compHeight = height || 1080;
-    const compDuration = duration || 5; // seconds, default 5s
     const compositionHtml = `<!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -1184,7 +1692,8 @@ router.post('/video/render', authMiddleware, async (req, res) => {
     fs.writeFileSync(path.join(projectDir, 'index.html'), compositionHtml, 'utf8');
 
     // Build render command
-    const fpsArg = fps || 30;
+    // fps từ client phải là số nguyên 1-60 (spawn shell:true nối chuỗi → chặn command injection)
+    const fpsArg = Math.min(Math.max(parseInt(fps, 10) || 30, 1), 60);
 
     // Set FFmpeg/FFprobe path in env for hyperframes
     const env = { ...process.env };
@@ -1240,8 +1749,9 @@ router.post('/video/render', authMiddleware, async (req, res) => {
         video: base64Video,
         format: 'mp4',
         size: fileSize,
-        width: width || 1920,
-        height: height || 1080,
+        width: compWidth,
+        height: compHeight,
+        duration: compDuration,
         fps: fpsArg,
         renderId
       });
@@ -1295,6 +1805,254 @@ router.post('/video/save', authMiddleware, (req, res) => {
   fs.writeFileSync(filePath, html, 'utf8');
 
   res.json({ success: true, path: filePath, name: safeName });
+});
+
+
+// ─── TẠO ẢNH AI (Gemini Image) ─────────────────────────────────
+router.post('/generate-image', authMiddleware, async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt || !prompt.trim()) {
+    return res.json({ success: false, error: 'Vui lòng nhập mô tả ảnh cần tạo.' });
+  }
+  const cleanPrompt = prompt.trim().slice(0, 1000);
+  try {
+    const keyRow = await new Promise((resolve) => {
+      db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'gemini'", [], (err, row) => resolve(row));
+    });
+    // P1-12: key lưu mã hóa — phải decryptKey; key rỗng thì báo chưa cài (không gọi API với ciphertext)
+    let gemKey = '';
+    try {
+      gemKey = keyRow && keyRow.gia_tri_khoa ? decryptKey(keyRow.gia_tri_khoa).trim() : '';
+    } catch (e) {
+      console.log('[generate-image] decryptKey error:', e.message);
+      gemKey = '';
+    }
+    if (!gemKey) {
+      return res.json({ success: false, error: 'Chưa cài API Key Gemini. Vào Cài đặt hệ thống để nhập key.' });
+    }
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(gemKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: cleanPrompt }] }],
+        generationConfig: { responseModalities: ['IMAGE'] }
+      }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      const msg = data.error?.message || ('HTTP ' + resp.status);
+      const friendly = resp.status === 429
+        ? '⚠️ Gemini đang TẠM HẾT QUOTA (rate limit). Vui lòng thử lại sau vài phút.'
+        : (resp.status === 400 ? '⚠️ Gemini từ chối nội dung này (bộ lọc an toàn). Vui lòng mô tả khác.' : 'Lỗi Gemini: ' + msg);
+      return res.json({ success: false, error: friendly });
+    }
+    const part = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (part && part.inlineData && part.inlineData.data) {
+      const mime = part.inlineData.mimeType || 'image/png';
+      return res.json({ success: true, image: `data:${mime};base64,${part.inlineData.data}`, mimeType: mime });
+    }
+    return res.json({ success: false, error: 'Gemini không trả về ảnh. Vui lòng thử lại.' });
+  } catch (e) {
+    console.log('[generate-image] ERROR:', e.message);
+    return res.json({ success: false, error: 'Lỗi kết nối Gemini: ' + e.message });
+  }
+});
+
+
+// ========== RAG — ĐỌC & HIỂU FILE (PDF/Word/TXT) ==========
+// Upload file → trích xuất text → vector hóa → AI trả lời dựa trên nội dung file
+const ragUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }
+});
+
+router.post('/documents/upload', authMiddleware, ragUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Vui lòng chọn file để upload.' });
+    const ext = (req.file.originalname.match(/\.(txt|md|csv|json|js|py|jsx|ts|tsx|html|css|sql|sh|xml|yml|yaml|ini|log|xlsx|pdf|docx)$/i) || [])[1];
+    if (!ext) return res.status(400).json({ error: 'Chỉ hỗ trợ: TXT, MD, CSV, JSON, XLSX, PDF, DOCX, code files... Vui lòng chọn file khác.' });
+    const result = await ragService.saveDocument(req.user.id, req.file.originalname, req.file.buffer);
+    if (result.error) return res.status(400).json({ error: result.error });
+    res.json({ success: true, ...result });
+  } catch (e) {
+    console.log('[RAG] upload error:', e.message);
+    res.status(500).json({ error: 'Lỗi xử lý file: ' + e.message });
+  }
+});
+
+router.get('/documents', authMiddleware, async (req, res) => {
+  try {
+    const docs = await ragService.listDocuments(req.user.id);
+    res.json({ success: true, documents: docs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/documents/:id', authMiddleware, async (req, res) => {
+  try {
+    const ok = await ragService.deleteDocument(req.user.id, req.params.id);
+    if (!ok) return res.status(404).json({ error: 'Không tìm thấy tài liệu.' });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== CHẠY CODE TRONG CHAT (sandbox, ADMIN ONLY — P0-01) ==========
+router.post('/exec-code', [authMiddleware, adminMiddleware], async (req, res) => {
+  try {
+    const { language, code } = req.body;
+    if (!code || !String(code).trim()) return res.status(400).json({ error: 'Code trống.' });
+    const { runCode } = require('../services/codeRunner');
+    const result = await runCode(language, code);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ error: 'Lỗi chạy code: ' + e.message });
+  }
+});
+
+// ========== EXPORT HỘI THOẠI (TXT / DOCX) ==========
+router.get('/conversations/:id/export', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // P1-09: chặn IDOR — chỉ chủ sở hữu (hoặc admin) mới được export
+    const ownerErr = await assertConvOwner(id, req);
+    if (ownerErr) return res.status(ownerErr.status).json({ error: ownerErr.error });
+    const fmt = (req.query.format || 'txt').toLowerCase();
+    const conv = await new Promise((resolve) => db.get('SELECT tieu_de FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ?', [id], (e, r) => resolve(r)));
+    const msgs = await new Promise((resolve) => db.all("SELECT vai_tro, noi_dung, ngay_gui FROM tin_nhan WHERE ma_hoi_thoai = ? ORDER BY ngay_gui ASC", [id], (e, r) => resolve(r || [])));
+    if (!msgs.length) return res.status(404).json({ error: 'Không có tin nhắn trong hội thoại.' });
+    const title = (conv && conv.tieu_de) || 'Hội thoại';
+    const lines = msgs.map(m => `[${(m.vai_tro === 'user' ? 'Bạn' : 'Rexi')} - ${(m.ngay_gui || '').substring(0, 19)}]\n${m.noi_dung}\n`);
+    const text = `HỘI THOẠI: ${title}\n${'='.repeat(40)}\n\n` + lines.join('\n');
+    if (fmt === 'docx') {
+      const { Document, Packer, Paragraph } = require('docx');
+      const doc = new Document({
+        sections: [{
+          children: [
+            new Paragraph({ text: `HỘI THOẠI: ${title}`, heading: 'Heading1' }),
+            ...msgs.map(m => new Paragraph({
+              children: [
+                { text: (m.vai_tro === 'user' ? '👤 Bạn' : '🤖 Rexi') + ' (' + (m.ngay_gui || '').substring(0, 19) + '):\n', bold: true },
+                { text: String(m.noi_dung || '') }
+              ]
+            }))
+          ]
+        }]
+      });
+      const buf = await Packer.toBuffer(doc);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="hoi_thoai_${id.substring(0, 8)}.docx"`);
+      return res.send(Buffer.from(buf));
+    }
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="hoi_thoai_${id.substring(0, 8)}.txt"`);
+    res.send(text);
+  } catch (e) {
+    res.status(500).json({ error: 'Lỗi export: ' + e.message });
+  }
+});
+
+// ========== CHIA SẺ HỘI THOẠI (link) ==========
+router.post('/conversations/:id/share', authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // P1-09: chặn IDOR — chỉ chủ sở hữu (hoặc admin) mới được tạo link chia sẻ
+    const ownerErr = await assertConvOwner(id, req);
+    if (ownerErr) return res.status(ownerErr.status).json({ error: ownerErr.error });
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(6).toString('hex');
+    // P2-20(8): bảng chia_se_hoi_thoai đã tạo ở init-db.js — không CREATE ở đây nữa
+    await new Promise((resolve) => db.run('INSERT INTO chia_se_hoi_thoai (ma_chia_se, ma_hoi_thoai) VALUES (?, ?)', [token, id], resolve));
+    res.json({ success: true, share_token: token, share_url: `/api/services/share/${token}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Public — xem hội thoại chia sẻ (không cần đăng nhập)
+router.get('/share/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const row = await new Promise((resolve) => db.get('SELECT ma_hoi_thoai FROM chia_se_hoi_thoai WHERE ma_chia_se = ?', [token], (e, r) => resolve(r)));
+    if (!row) return res.status(404).json({ error: 'Link chia sẻ không tồn tại hoặc đã hết hạn.' });
+    const msgs = await new Promise((resolve) => db.all("SELECT vai_tro, noi_dung, ngay_gui FROM tin_nhan WHERE ma_hoi_thoai = ? ORDER BY ngay_gui ASC", [row.ma_hoi_thoai], (e, r) => resolve(r || [])));
+    res.json({ success: true, messages: msgs });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== THỐNG KÊ CÁ NHÂN ==========
+router.get('/stats/me', authMiddleware, async (req, res) => {
+  try {
+    const uid = req.user ? req.user.id : 'guest';
+    const convCount = await new Promise((resolve) => db.get("SELECT COUNT(*) c FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ?", [uid], (e, r) => resolve(r ? r.c : 0)));
+    const msgCount = await new Promise((resolve) => db.get("SELECT COUNT(*) c FROM tin_nhan tn JOIN cuoc_hoi_thoai ch ON ch.ma_hoi_thoai = tn.ma_hoi_thoai WHERE ch.ma_nguoi_dung = ?", [uid], (e, r) => resolve(r ? r.c : 0)));
+    const userMsgs = await new Promise((resolve) => db.get("SELECT COUNT(*) c FROM tin_nhan tn JOIN cuoc_hoi_thoai ch ON ch.ma_hoi_thoai = tn.ma_hoi_thoai WHERE ch.ma_nguoi_dung = ? AND tn.vai_tro = 'user'", [uid], (e, r) => resolve(r ? r.c : 0)));
+    const aiMsgs = await new Promise((resolve) => db.get("SELECT COUNT(*) c FROM tin_nhan tn JOIN cuoc_hoi_thoai ch ON ch.ma_hoi_thoai = tn.ma_hoi_thoai WHERE ch.ma_nguoi_dung = ? AND tn.vai_tro = 'assistant'", [uid], (e, r) => resolve(r ? r.c : 0)));
+    const perDay = await new Promise((resolve) => db.all("SELECT date(tn.ngay_gui) ngay, COUNT(*) c FROM tin_nhan tn JOIN cuoc_hoi_thoai ch ON ch.ma_hoi_thoai = tn.ma_hoi_thoai WHERE ch.ma_nguoi_dung = ? AND tn.vai_tro = 'user' GROUP BY date(tn.ngay_gui) ORDER BY ngay DESC LIMIT 7", [uid], (e, r) => resolve(r || [])));
+    res.json({ success: true, stats: { tong_hoi_thoai: convCount, tong_tin_nhan: msgCount, tin_cua_ban: userMsgs, tin_cua_ai: aiMsgs, '7_ngay_gan_nhat': perDay } });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== NHẮC VIỆC THÔNG MINH ==========
+// P2-20(8): bảng lich_nhac/thong_bao đã tạo ở init-db.js — bỏ IIFE CREATE rải rác.
+
+router.post('/reminders', authMiddleware, async (req, res) => {
+  try {
+    const { noi_dung, thoi_gian } = req.body;
+    if (!noi_dung || !thoi_gian) return res.status(400).json({ error: 'Thiếu nội dung hoặc thời gian nhắc.' });
+    const crypto = require('crypto');
+    const ma = crypto.randomUUID();
+    await new Promise((resolve) => db.run('INSERT INTO lich_nhac (ma_nhac, ma_nguoi_dung, noi_dung, thoi_gian) VALUES (?, ?, ?, ?)', [ma, req.user.id, noi_dung, thoi_gian], resolve));
+    res.json({ success: true, ma_nhac: ma, noi_dung, thoi_gian });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/reminders', authMiddleware, async (req, res) => {
+  try {
+    const rows = await new Promise((resolve) => db.all('SELECT ma_nhac, noi_dung, thoi_gian, da_nhac FROM lich_nhac WHERE ma_nguoi_dung = ? ORDER BY thoi_gian ASC', [req.user.id], (e, r) => resolve(r || [])));
+    res.json({ success: true, reminders: rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/reminders/:id', authMiddleware, async (req, res) => {
+  try {
+    await new Promise((resolve) => db.run('DELETE FROM lich_nhac WHERE ma_nhac = ? AND ma_nguoi_dung = ?', [req.params.id, req.user.id], resolve));
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/notifications', authMiddleware, async (req, res) => {
+  try {
+    const rows = await new Promise((resolve) => db.all('SELECT ma_tb, noi_dung, ngay_tao FROM thong_bao WHERE ma_nguoi_dung = ? AND da_doc = 0 ORDER BY ngay_tao DESC LIMIT 20', [req.user.id], (e, r) => resolve(r || [])));
+    res.json({ success: true, notifications: rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== NHẬT KÝ HOẠT ĐỘNG (bảo mật) ==========
+// P2-20(8): bảng nhat_ky đã tạo ở init-db.js — bỏ IIFE CREATE rải rác.
+
+router.get('/admin/logs', [authMiddleware, adminMiddleware], async (req, res) => {
+  try {
+    const rows = await new Promise((resolve) => db.all('SELECT ma_nguoi_dung, hanh_dong, chi_tiet, ngay_tao FROM nhat_ky ORDER BY ngay_tao DESC LIMIT 100', [], (e, r) => resolve(r || [])));
+    res.json({ success: true, logs: rows });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Admin IPTV Monitor Routes
  *
  * GET  /api/admin/iptv/status       - Trạng thái scan mới nhất
@@ -20,6 +20,11 @@ const fs = require('fs');
 const { exec } = require('child_process');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth.middleware');
 const db = require('../config/db');
+
+// FIX SECURITY/SQL: escape LIKE wildcard chars
+function escapeLike(str) {
+  return String(str || '').replace(/[\\%_]/g, (m) => '\\' + m);
+}
 
 const dbNow = () => (db.type === 'sqlite' ? "datetime('now')" : 'NOW()');
 
@@ -118,7 +123,7 @@ router.get('/channels', async (req, res) => {
   if (country) { clauses.push('country = ?'); params.push(country.toUpperCase()); }
   if (status) { clauses.push('status = ?'); params.push(status); }
   if (category) { clauses.push('group_name = ?'); params.push(category); }
-  if (search) { clauses.push("channel_name LIKE ?"); params.push(`%${search}%`); }
+  if (search) { clauses.push("channel_name LIKE ? ESCAPE '\\'"); params.push(`%${escapeLike(search)}%`); }
 
   const whereClause = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
   const total = (await getQ(`SELECT COUNT(*) as cnt FROM iptv_channels ${whereClause}`, params).catch(() => ({ cnt: 0 })))?.cnt || 0;
@@ -332,7 +337,7 @@ router.get('/channels/export/:format', async (req, res) => {
   if (country) { clauses.push('country = ?'); params.push(country.toUpperCase()); }
   if (status) { clauses.push('status = ?'); params.push(status); }
   if (category) { clauses.push('group_name = ?'); params.push(category); }
-  if (search) { clauses.push('channel_name LIKE ?'); params.push(`%${search}%`); }
+  if (search) { clauses.push("channel_name LIKE ? ESCAPE '\\'"); params.push(`%${escapeLike(search)}%`); }
   const whereClause = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
   const rows = await allQ(`SELECT * FROM iptv_channels ${whereClause} ORDER BY country, group_name, channel_name`, params).catch(() => []);
 
@@ -413,6 +418,121 @@ router.post('/scan-now', async (req, res) => {
   });
   cp.stdout?.on('data', d => process.stdout.write(d));
   cp.stderr?.on('data', d => process.stderr.write(d));
+});
+
+// ─── Audit logs (bước 2.5) ─────────────────────────────────────
+// GET /api/admin/logs — Xem log request API (audit trail)
+// Filter: ?search=&method=&page=&limit=&from=&to=
+router.get('/logs', async (req, res) => {
+  if (!(await tableExists('audit_log'))) return res.json({ success: true, logs: [], total: 0, no_data: true });
+
+  const { search = '', method = '', page = 1, limit = 50, from = '', to = '' } = req.query;
+  const pg = Math.max(1, parseInt(page) || 1);
+  const lm = Math.min(200, Math.max(1, parseInt(limit) || 50));
+  const offset = (pg - 1) * lm;
+
+  const where = [];
+  const params = [];
+  if (search) {
+    where.push('(duong_dan LIKE ? OR dia_chi_ip LIKE ? OR COALESCE(ma_nguoi_dung,\'\') LIKE ?)');
+    params.push(`%${escapeLike(search)}%`, `%${escapeLike(search)}%`, `%${escapeLike(search)}%`);
+  }
+  if (method) { where.push('phuong_thuc = ?'); params.push(method.toUpperCase()); }
+  if (from) { where.push('thoi_gian >= ?'); params.push(from); }
+  if (to) { where.push('thoi_gian <= ?'); params.push(to); }
+  const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+
+  try {
+    const row = await getQ(`SELECT COUNT(*) AS c FROM audit_log ${whereSql}`, params);
+    const total = row ? (row.c || row.count || 0) : 0;
+    const logs = await allQ(
+      `SELECT id, thoi_gian, phuong_thuc, duong_dan, dia_chi_ip, ma_nguoi_dung, ma_trang_thai, thoi_luong_ms, tai_lieu
+       FROM audit_log ${whereSql} ORDER BY id DESC LIMIT ? OFFSET ?`,
+      [...params, lm, offset]
+    );
+    res.json({ success: true, logs: logs || [], total, page: pg, limit: lm, totalPages: Math.max(1, Math.ceil(total / lm)) });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'Lỗi đọc audit log: ' + e.message });
+  }
+});
+
+// ─── Cleanup (dọn dữ liệu cũ) ─────────────────────────────────────
+// POST /api/admin/cleanup
+// Body: { days?: number } — xóa audit_log, model_scan_cache, _sync_log cũ hơn N ngày (mặc định 30)
+router.post('/cleanup', [authMiddleware, adminMiddleware], async (req, res) => {
+  try {
+    const days = Math.max(1, parseInt(req.body.days || '30', 10));
+    const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+    const results = {};
+    const runQ = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function(err) { err ? reject(err) : resolve(this && this.changes != null ? this.changes : 0); }));
+
+    try { results.audit_log = await runQ('DELETE FROM audit_log WHERE thoi_gian < ?', [cutoff]); } catch (e) { results.audit_log = 'skip'; }
+    try { results.model_scan_cache = await runQ('DELETE FROM model_scan_cache WHERE thoi_gian_quet < ?', [cutoff]); } catch (e) { results.model_scan_cache = 'skip'; }
+    try { results._sync_log = await runQ('DELETE FROM _sync_log WHERE synced_at < ?', [cutoff]); } catch (e) { results._sync_log = 'skip'; }
+
+    res.json({ success: true, days, cutoff, results });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'Cleanup failed: ' + e.message });
+  }
+});
+
+// ─── Import DB (migrate local SQLite → DB mới, vd Postgres trên Render) ─────
+// POST /api/admin/import-sqlite   body: { db_b64 } (file .db base64, <= ~25MB)
+// Idempotent: ON CONFLICT DO NOTHING — chạy lại không nhân bản dữ liệu.
+router.post('/import-sqlite', [authMiddleware, adminMiddleware], async (req, res) => {
+  const fsx = require('fs');
+  const os = require('os');
+  try {
+    const b64 = req.body && req.body.db_b64;
+    if (!b64 || typeof b64 !== 'string') return res.status(400).json({ success: false, error: 'Thiếu db_b64 (file SQLite base64)' });
+    const buf = Buffer.from(b64, 'base64');
+    if (!buf.length || buf.slice(0, 15).toString('latin1').indexOf('SQLite format 3') !== 0) {
+      return res.status(400).json({ success: false, error: 'Base64 không phải file SQLite hợp lệ' });
+    }
+    const tmp = require('path').join(os.tmpdir(), 'rexi_import_' + Date.now() + '.db');
+    fsx.writeFileSync(tmp, buf);
+    const runQ = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function (err) { err ? reject(err) : resolve(this && this.changes != null ? this.changes : 0); }));
+    const allQ = (sql, params = []) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || [])));
+    const sqlite3 = require('sqlite3');
+    const src = new sqlite3.Database(tmp, sqlite3.OPEN_READONLY);
+    const srcAll = (sql, params = []) => new Promise((resolve, reject) => src.all(sql, params, (e, r) => e ? reject(e) : resolve(r || [])));
+    const report = {};
+    try {
+      const tables = (await srcAll("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")).map(r => r.name);
+      const SKIP = new Set(['_sync_queue', '_sync_log', 'sqlite_sequence']);
+      const prio = ['ai_providers', 'nguoi_dung', 'ky_nang', 'app_settings', 'ai_models', 'cuoc_hoi_thoai', 'tin_nhan', 'khoa_api', 'bo_nho_dai_han', 'model_scan_cache', 'provider_scan_log', 'sessions_store'];
+      tables.sort((a, b) => (prio.indexOf(a) + 1 || 99) - (prio.indexOf(b) + 1 || 99));
+      for (const t of tables) {
+        if (SKIP.has(t)) continue;
+        try {
+          const colsSrc = (await srcAll(`PRAGMA table_info("${t}")`)).map(c => c.name);
+          let colsTgt;
+          if (db.type === 'postgresql') {
+            colsTgt = (await allQ("SELECT column_name AS name FROM information_schema.columns WHERE table_name = ? AND table_schema = current_schema()", [t])).map(c => c.name);
+          } else {
+            colsTgt = (await allQ(`PRAGMA table_info("${t}")`)).map(c => c.name);
+          }
+          const common = colsSrc.filter(c => colsTgt.includes(c));
+          if (!common.length) { report[t] = 'skip (không có cột chung)'; continue; }
+          const rows = await srcAll(`SELECT ${common.map(c => `"${c}"`).join(', ')} FROM "${t}"`);
+          let ok = 0, errN = 0, firstErr = null;
+          const collist = common.map(c => `"${c}"`).join(', ');
+          for (const row of rows) {
+            const vals = common.map(c => (row[c] === undefined ? null : row[c]));
+            try { await runQ(`INSERT INTO "${t}" (${collist}) VALUES (${common.map(() => '?').join(', ')}) ON CONFLICT DO NOTHING`, vals); ok++; }
+            catch (e) { errN++; if (!firstErr) firstErr = String(e.message).slice(0, 140); }
+          }
+          report[t] = `${ok}/${rows.length}` + (errN ? ` (lỗi ${errN}: ${firstErr})` : '');
+        } catch (e) { report[t] = 'ERR ' + String(e.message).slice(0, 140); }
+      }
+    } finally {
+      try { src.close(); } catch (_) {}
+      try { fsx.unlinkSync(tmp); } catch (_) {}
+    }
+    res.json({ success: true, target: db.type, report });
+  } catch (e) {
+    res.status(500).json({ success: false, error: String(e.message || e).slice(0, 300) });
+  }
 });
 
 module.exports = router;

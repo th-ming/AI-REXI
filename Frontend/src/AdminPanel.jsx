@@ -6,7 +6,7 @@ import {
   Shield, Users, MessageSquare, Key, Layers, Settings, Home,
   Activity, Trash2, Search, RefreshCw, ChevronLeft, ChevronRight,
   Crown, User as UserIcon, Lock, CheckCircle, XCircle,
-  AlertTriangle, Database, Send,
+  AlertTriangle, Database, Send, Wifi,
   GitBranch, Terminal, X, Clock, Tv, Globe, Radar, PlayCircle, CalendarClock,
   Plus, Pencil, Download, Loader2, Save, Bell, Code
 } from 'lucide-react';
@@ -17,7 +17,7 @@ function codeToTwemojiUrl(code) {
   const c = code.toUpperCase();
   const cp1 = (0x1F1E6 + c.charCodeAt(0) - 65).toString(16);
   const cp2 = (0x1F1E6 + c.charCodeAt(1) - 65).toString(16);
-  return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/svg/${cp1}-${cp2}.svg`;
+  return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.3/assets/svg/${cp1}-${cp2}.svg`;
 }
 
 function FlagImg({ code, size = 16 }) {
@@ -45,6 +45,7 @@ const MENU_ITEMS = [
   { id: 'chat', icon: Send, label: 'Chat với Users', color: 'text-rose-400' },
   { id: 'iptv', icon: Tv, label: 'IPTV Monitor', color: 'text-sky-400' },
   { id: 'github', icon: GithubIcon, label: 'GitHub Trending', color: 'text-purple-400' },
+  { id: 'routing', icon: GitBranch, label: 'Định Tuyến', color: 'text-cyan-400' },
   { id: 'settings', icon: Settings, label: 'Hệ Thống', color: 'text-slate-400' },
 ];
 
@@ -1663,6 +1664,112 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
 // ═══════════════════════════════════════════════════════════
 // MAIN ADMIN PANEL — REXI Harmonized Glassmorphic UI/UX 
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// TAB: ROUTING TELEMETRY — thống kê định tuyến AI
+// ═══════════════════════════════════════════════════════════
+const RoutingTab = memo(function RoutingTab({ token, showToast }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await apiFetch('/chat/routing-stats', token);
+      setData(d);
+    } catch (e) { showToast(e.message, 'error'); }
+    finally { setLoading(false); }
+  }, [token, showToast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (loading && !data) {
+    return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-cyan-400" /></div>;
+  }
+  if (!data) return <div className="text-slate-400 p-8">Không có dữ liệu định tuyến.</div>;
+
+  const { totals, providers, byCategory, recentEvents, uptimeMs } = data;
+  const uptimeMin = Math.round((uptimeMs || 0) / 60000);
+
+  return (
+    <div className="p-5 space-y-5">
+      <div>
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><GitBranch className="w-5 h-5 text-cyan-400" /> Định Tuyến AI — Telemetry</h2>
+        <p className="text-xs text-slate-400 mt-1">Thống kê hệ thống tự chọn model / fallback / provider đang dùng. Uptime: {uptimeMin} phút</p>
+      </div>
+
+      {/* Tổng quan */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Tổng lượt route', value: totals?.routed ?? 0, color: 'text-cyan-300' },
+          { label: 'Fallback', value: totals?.fallbacks ?? 0, color: 'text-amber-300' },
+          { label: 'Lỗi', value: totals?.errors ?? 0, color: 'text-rose-300' },
+          { label: 'Provider hoạt động', value: (providers || []).length, color: 'text-emerald-300' },
+        ].map((c, i) => (
+          <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <div className="text-[10px] uppercase tracking-wider text-slate-500">{c.label}</div>
+            <div className={`text-2xl font-bold mt-1 ${c.color}`}>{(c.value ?? 0).toLocaleString('vi-VN')}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Theo provider */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+        <h3 className="text-sm font-bold text-white mb-3">Theo Provider</h3>
+        <div className="space-y-2">
+          {(providers || []).map(p => (
+            <div key={p.provider} className="flex items-center gap-3 text-xs">
+              <span className="w-28 font-semibold text-slate-200 uppercase">{p.provider}</span>
+              <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((p.count / Math.max(1, (providers[0]?.count || 1))) * 100))}%` }} />
+              </div>
+              <span className="w-10 text-right text-slate-300">{p.count}</span>
+              <span className="w-16 text-right text-slate-500">{p.avgMs}ms</span>
+              <span className={`w-14 text-right ${p.errorRate > 20 ? 'text-rose-400' : 'text-emerald-400'}`}>lỗi {p.errorRate}%</span>
+            </div>
+          ))}
+          {(providers || []).length === 0 && <div className="text-slate-500 text-xs">Chưa có lượt route nào — gõ "Auto" trong chat để bắt đầu.</div>}
+        </div>
+      </div>
+
+      {/* Theo loại câu hỏi */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+        <h3 className="text-sm font-bold text-white mb-3">Theo Loại Câu Hỏi</h3>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(byCategory || {}).map(([cat, cnt]) => (
+            <span key={cat} className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-semibold">
+              {cat} × {cnt}
+            </span>
+          ))}
+          {Object.keys(byCategory || {}).length === 0 && <span className="text-slate-500 text-xs">Chưa có dữ liệu.</span>}
+        </div>
+      </div>
+
+      {/* Sự kiện gần đây */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+        <h3 className="text-sm font-bold text-white mb-3">Sự Kiện Gần Đây</h3>
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {(recentEvents || []).map((ev, i) => (
+            <div key={i} className="flex items-center gap-2 text-[11px] text-slate-400 border-b border-white/5 pb-1">
+              <span className="text-slate-600">{new Date(ev.ts).toLocaleTimeString('vi-VN')}</span>
+              {ev.type === 'fallback' ? <span className="text-amber-400 font-semibold">fallback</span>
+                : ev.type === 'error' ? <span className="text-rose-400 font-semibold">error</span>
+                : <span className="text-cyan-400 font-semibold">route</span>}
+              <span className="uppercase text-slate-300">{ev.provider}</span>
+              {ev.model && <span className="text-slate-500 truncate">{ev.model}</span>}
+              {ev.from && <span className="text-slate-600">← từ {ev.from}</span>}
+            </div>
+          ))}
+          {(recentEvents || []).length === 0 && <div className="text-slate-500 text-xs">Chưa có sự kiện.</div>}
+        </div>
+      </div>
+
+      <button onClick={load} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20">
+        <RefreshCw className="w-3 h-3" /> Làm mới
+      </button>
+    </div>
+  );
+});
+
 export default function AdminPanel({ token, currentUser, onClose }) {
   const [activeTab, setActiveTabState] = useState(() => {
     return localStorage.getItem('rexi_admin_active_tab') || 'users';
@@ -1711,6 +1818,7 @@ export default function AdminPanel({ token, currentUser, onClose }) {
       case 'chat': return <AdminChatTab token={token} showToast={showToast} />;
       case 'iptv': return <IptvTab token={token} showToast={showToast} />;
       case 'github': return <GitHubTrending token={token} />;
+      case 'routing': return <RoutingTab token={token} showToast={showToast} />;
       case 'settings': return <SettingsTab token={token} showToast={showToast} />;
       default: return <UsersTab token={token} currentUser={currentUser} showToast={showToast} stats={stats} statsLoading={statsLoading} fetchStats={fetchStats} />;
     }

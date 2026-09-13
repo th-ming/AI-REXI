@@ -28,8 +28,11 @@ function rateLimitMiddleware(req, res, next) {
     }
   }
 
-  // FIX SECURITY: chỉ tin req.ip từ socket — không đọc X-Forwarded-For client tự đặt (chống bypass rate limit)
-  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  // P1-07: req.ip đã đúng client thật nhờ app.set('trust proxy', 1) (Express chỉ tin XFF từ
+  // proxy hop được trust — client không tự đặt X-Forwarded-For để bypass được khi proxy append IP thật).
+  // Không đọc trực tiếp header X-Forwarded-For ở đây (chống bypass rate limit).
+  // Key theo user đăng nhập nếu có (middleware này chạy trước auth nên thường rơi về IP — đúng như cũ).
+  const ip = (req.user && req.user.id) || req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
   const now = Date.now();
 
   if (!requestCounts.has(ip)) {

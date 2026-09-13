@@ -9,6 +9,8 @@ export default defineConfig({
     tailwindcss()
   ],
   server: {
+    host: true,  // Allow network access
+    port: 5173,
     historyApiFallback: true,
     watch: {
       ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**']

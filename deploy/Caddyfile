@@ -1,0 +1,38 @@
+# ═══════════════════════════════════════════════════════════════
+# AI REXI — Caddyfile (HTTPS miễn phí tự động + reverse proxy)
+# $DOMAIN được thay bởi biến môi trường khi chạy container.
+# ═══════════════════════════════════════════════════════════════
+
+{$DOMAIN} {
+	# Nén
+	encode gzip zstd
+
+	# Frontend SPA (file tĩnh)
+	root * /srv
+	try_files {path} /index.html
+
+	# ── API Backend (giữ nguyên prefix /api — backend mount routes ở /api) ──
+	handle /api/* {
+		reverse_proxy backend:5000
+	}
+
+	# ── OpenCut Editor (Next.js standalone) ──
+	handle /opencut/* {
+		reverse_proxy opencut:3000
+	}
+
+	# ── WebSocket / SSE: Caddy 2.x reverse_proxy xử lý upgrade tự động ──
+
+	# Header an toàn
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Frame-Options
+	}
+
+	# Log chuẩn
+	log {
+		output stdout
+		format console
+	}
+}
