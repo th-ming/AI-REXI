@@ -48,8 +48,11 @@ function getFlag(code) {
   return String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0)));
 }
 
-router.use(authMiddleware);
-router.use(adminMiddleware);
+// /import-sqlite: BỎ QUA gate toàn router — route tự có importBootstrapGate (empty-DB bootstrap) rồi mới tới auth.
+router.use((req, res, next) => {
+  if (req.path === '/import-sqlite') return next();
+  authMiddleware(req, res, () => adminMiddleware(req, res, next));
+});
 
 // ─── Trạng thái scan ─────────────────────────────────────────
 router.get('/status', async (req, res) => {
@@ -485,13 +488,17 @@ const importBootstrapGate = (req, res, next) => {
   getQ('SELECT COUNT(*) AS n FROM nguoi_dung')
     .then((row) => {
       const n = Number(row && row.n != null ? row.n : (Object.values(row || {})[0] || 0));
+      console.log('[IMPORT-gate] nguoi_dung count =', n);
       if (!n && req.body && req.body.bootstrap_key && req.body.bootstrap_key === (process.env.ADMIN_PASSWORD || '').trim()) {
         console.log('[IMPORT] Bootstrap mode: DB trống + bootstrap_key hop le — bo qua admin auth.');
         return next();
       }
       return authMiddleware(req, res, () => adminMiddleware(req, res, next));
     })
-    .catch(() => authMiddleware(req, res, () => adminMiddleware(req, res, next)));
+    .catch((e) => {
+      console.warn('[IMPORT-gate] COUNT fail:', e && e.message);
+      return authMiddleware(req, res, () => adminMiddleware(req, res, next));
+    });
 };
 router.post('/import-sqlite', importBootstrapGate, async (req, res) => {
   const fsx = require('fs');
