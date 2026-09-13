@@ -479,7 +479,21 @@ router.post('/cleanup', [authMiddleware, adminMiddleware], async (req, res) => {
 // ─── Import DB (migrate local SQLite → DB mới, vd Postgres trên Render) ─────
 // POST /api/admin/import-sqlite   body: { db_b64 } (file .db base64, <= ~25MB)
 // Idempotent: ON CONFLICT DO NOTHING — chạy lại không nhân bản dữ liệu.
-router.post('/import-sqlite', [authMiddleware, adminMiddleware], async (req, res) => {
+// Bootstrap: DB chưa có user nào (PG mới tinh) → cho import khi body.bootstrap_key
+// trùng ADMIN_PASSWORD (chưa seed admin trên PG được vì ensure-admin skip non-SQLite — chống trứng-gà).
+const importBootstrapGate = (req, res, next) => {
+  getQ('SELECT COUNT(*) AS n FROM nguoi_dung')
+    .then((row) => {
+      const n = Number(row && row.n != null ? row.n : (Object.values(row || {})[0] || 0));
+      if (!n && req.body && req.body.bootstrap_key && req.body.bootstrap_key === (process.env.ADMIN_PASSWORD || '').trim()) {
+        console.log('[IMPORT] Bootstrap mode: DB trống + bootstrap_key hop le — bo qua admin auth.');
+        return next();
+      }
+      return authMiddleware(req, res, () => adminMiddleware(req, res, next));
+    })
+    .catch(() => authMiddleware(req, res, () => adminMiddleware(req, res, next)));
+};
+router.post('/import-sqlite', importBootstrapGate, async (req, res) => {
   const fsx = require('fs');
   const os = require('os');
   try {
