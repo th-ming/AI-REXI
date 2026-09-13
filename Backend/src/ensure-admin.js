@@ -41,17 +41,17 @@ function ensureAdmin() {
             console.log('[ADMIN-SEED] Skipped: no seed config');
             return resolve();
         }
-        // Lấy adapter thực tế (có thể là SQLite/SQLServer/PostgreSQL)
-        const dbInstance = db.constructor.name === 'SQLiteAdapter' ? db.db : db;
+        // FIX PROD: dùng api get()/run() tổng của db — hợp cả SQLite VÀ PostgreSQL adapter
+        // (trước đây skip non-SQLite → Render PG không bao giờ có admin seed).
+        const dbInstance = db;
 
-        // Kiểm tra đối tượng DB có method get không (SQLite)
+        // Kiểm tra đối tượng DB có method get không
         const query = typeof dbInstance.get === 'function'
             ? dbInstance.get.bind(dbInstance)
             : null;
 
         if (!query) {
-            // Fallback: nếu không phải SQLite, dùng Promise nhưng không chặn startup
-            console.log('[ADMIN-SEED] Skipped: non-SQLite DB detected');
+            console.log('[ADMIN-SEED] Skipped: adapter không hỗ trợ get()');
             return resolve();
         }
 
@@ -131,7 +131,8 @@ const GUEST_EMAIL = 'guest@rexi.local';
 
 function ensureGuestUser() {
     return new Promise((resolve) => {
-        const dbInstance = db.constructor.name === 'SQLiteAdapter' ? db.db : db;
+        // FIX PROD: dùng api get()/run() tổng — PG cũng seed được guest
+        const dbInstance = db;
         const query = typeof dbInstance.get === 'function' ? dbInstance.get.bind(dbInstance) : null;
         if (!query) return resolve();
 
