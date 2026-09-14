@@ -571,4 +571,64 @@ router.post('/import-sqlite', importBootstrapGate, async (req, res) => {
   }
 });
 
+// ========== EXPORT DATABASE: prod (PG) -> file SQLite -> tai duoc bang chinh route /import-sqlite ==========
+router.get('/export-db', [authMiddleware, adminMiddleware], async (req, res) => {
+  let tmpPath = null;
+  try {
+    const path = require('path');
+    const os = require('os');
+    const fsx2 = require('fs');
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+    const fname = 'rexi_backup_' + stamp + '.db';
+    if (db.type !== 'postgresql') {
+      const p = db.path || process.env.DB_PATH || path.join(__dirname, '..', '..', 'Database', 'tro_ly_ai.db');
+      if (!fsx2.existsSync(p)) return res.status(500).json({ success: false, error: 'Khong tim thay file SQLite: ' + p });
+      return res.download(p, fname);
+    }
+    const { DatabaseSync } = require('node:sqlite');
+    tmpPath = path.join(os.tmpdir(), fname);
+    const sq = new DatabaseSync(tmpPath);
+    const tables = (await allQ("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")).map(r => r.tablename ?? Object.values(r)[0]);
+    const mapType = (t) =>
+      /^(smallint|integer|bigint|smallserial|serial|bigserial)$/i.test(t) ? 'INTEGER' :
+      /^(numeric|real|double precision)$/i.test(t) ? 'NUMERIC' : 'TEXT';
+    const summary = [];
+    for (const t of tables) {
+      const cols = await allQ('SELECT column_name, data_type FROM information_schema.columns WHERE table_schema=? AND table_name=? ORDER BY ordinal_position', ['public', t]);
+      if (!cols.length) continue;
+      sq.exec('DROP TABLE IF EXISTS "' + t + '"');
+      sq.exec('CREATE TABLE "' + t + '" (' + cols.map(c => '"' + c.column_name + '" ' + mapType(c.data_type)).join(',') + ')');
+      const rows = await allQ('SELECT * FROM "' + t + '"');
+      const colNames = cols.map(c => c.column_name);
+      const stmt = sq.prepare('INSERT INTO "' + t + '" (' + colNames.map(c => '"' + c + '"').join(',') + ') VALUES (' + colNames.map(() => '?').join(',') + ')');
+      let n = 0;
+      for (const row of rows) {
+        const vals = colNames.map(c => {
+          const v = row[c];
+          if (v === undefined) return null;
+          if (v === null) return null;
+          if (v instanceof Date) return v.toISOString();
+          if (typeof v === 'boolean') return v ? 1 : 0;
+          if (typeof v === 'object') return JSON.stringify(v);
+          if (typeof v === 'bigint') return Number(v);
+          return v;
+        });
+        stmt.run(...vals); n++;
+      }
+      summary.push({ table: t, rows: n });
+    }
+    sq.close();
+    const size = fsx2.statSync(tmpPath).size;
+    res.setHeader('X-REXI-Export', JSON.stringify(summary).slice(0, 900));
+    const buf = fsx2.readFileSync(tmpPath);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', 'attachment; filename="' + fname + '"');
+    res.send(buf);
+  } catch (e) {
+    if (!res.headersSent) res.status(500).json({ success: false, error: String(e.message || e).slice(0, 300) });
+  } finally {
+    if (tmpPath) { try { require('fs').unlinkSync(tmpPath); } catch (_) {} }
+  }
+});
+
 module.exports = router;
