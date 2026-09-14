@@ -353,7 +353,7 @@ async function generateRepoSummaries(repos) {
       try {
         const prompt = 'You are a tech-savvy assistant. Given this GitHub repo info, write a SHORT Vietnamese summary (2-3 sentences max) explaining what this project does and why it is trending. Be concise and practical.\n\nRepo: ' + repo.full_name + '\nDescription: ' + (repo.description || 'No description') + '\nLanguage: ' + (repo.language || 'Unknown') + '\nStars: ' + (repo.stars || 0) + '\nTopics: ' + ((repo.topics || []).join(', ') || 'None') + '\n\nWrite ONLY the summary text, no prefix or formatting:';
         const response = await groq.chat.completions.create({
-          model: 'llama-3.1-8b-instant',
+          model: process.env.GROQ_SUMMARY_MODEL || 'openai/gpt-oss-20b',
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 150,
           temperature: 0.3,
