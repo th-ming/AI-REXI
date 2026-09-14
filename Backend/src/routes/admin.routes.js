@@ -514,9 +514,9 @@ router.post('/import-sqlite', importBootstrapGate, async (req, res) => {
     fsx.writeFileSync(tmp, buf);
     const runQ = (sql, params = []) => new Promise((resolve, reject) => db.run(sql, params, function (err) { err ? reject(err) : resolve(this && this.changes != null ? this.changes : 0); }));
     const allQ = (sql, params = []) => new Promise((resolve, reject) => db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || [])));
-    const sqlite3 = require('sqlite3');
-    const src = new sqlite3.Database(tmp, sqlite3.OPEN_READONLY);
-    const srcAll = (sql, params = []) => new Promise((resolve, reject) => src.all(sql, params, (e, r) => e ? reject(e) : resolve(r || [])));
+    const { openReadOnlySqlite } = require('../utils/readOnlySqlite');
+    const src = openReadOnlySqlite(tmp);
+    const srcAll = (sql, params = []) => src.all(sql, params);
     const report = {};
     try {
       const tables = (await srcAll("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")).map(r => r.name);
