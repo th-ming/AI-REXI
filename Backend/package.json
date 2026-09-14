@@ -35,7 +35,6 @@
     "hyperframes": "^0.7.94",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.12.1",
-    "msnodesqlv8": "^5.2.3",
     "mssql": "^12.7.0",
     "multer": "^2.2.0",
     "node-powershell": "^5.0.1",
@@ -48,5 +47,11 @@
     "sqlite3": "^6.0.1",
     "vntk": "^1.4.4",
     "ws": "^8.21.1"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "optionalDependencies": {
+    "msnodesqlv8": "^5.2.3"
   }
 }

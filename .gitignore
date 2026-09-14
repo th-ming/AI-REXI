@@ -68,3 +68,5 @@ backend.log
 
 skills/
 tts_demo/
+
+package-lock.json

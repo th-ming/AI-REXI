@@ -2,7 +2,7 @@
   "name": "ai-rexi",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": { "node": "24.x" },
   "scripts": {
     "build": "cd Backend && npm install --omit=dev && cd ../Frontend && npm install && npm run build",
     "start": "cd Backend && node server.js"
