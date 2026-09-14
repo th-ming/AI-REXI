@@ -70,3 +70,5 @@ skills/
 tts_demo/
 
 package-lock.json
+
+Database/backups/
