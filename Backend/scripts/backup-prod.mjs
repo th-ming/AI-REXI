@@ -40,7 +40,7 @@ async function main() {
   const buf = Buffer.from(await r.arrayBuffer());
   const magic = buf.slice(0, 15).toString();
   if (!magic.startsWith('SQLite format 3')) throw new Error('Khong phai file SQLite (magic="' + magic + '")');
-  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
   const file = path.join(OUT_DIR, 'rexi_backup_' + stamp + '.db');
   fs.writeFileSync(file, buf);
   let report = { file: path.basename(file), bytes: buf.length };
