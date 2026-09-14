@@ -538,10 +538,25 @@ router.post('/import-sqlite', importBootstrapGate, async (req, res) => {
           const rows = await srcAll(`SELECT ${common.map(c => `"${c}"`).join(', ')} FROM "${t}"`);
           let ok = 0, errN = 0, firstErr = null;
           const collist = common.map(c => `"${c}"`).join(', ');
-          for (const row of rows) {
-            const vals = common.map(c => (row[c] === undefined ? null : row[c]));
-            try { await runQ(`INSERT INTO "${t}" (${collist}) VALUES (${common.map(() => '?').join(', ')}) ON CONFLICT DO NOTHING`, vals); ok++; }
-            catch (e) { errN++; if (!firstErr) firstErr = String(e.message).slice(0, 140); }
+          const ph = () => '(' + common.map(() => '?').join(', ') + ')';
+          // Import qua WAN (Render o Oregon, DB o khac region) — INSERT tung dong = 1 RTT/dong → rat cham.
+          // BATCH: nhiều dòng 1 câu INSERT (giữ giới hạn 65k tham số của PostgreSQL).
+          const CHUNK = Math.max(1, Math.min(500, Math.floor(50000 / Math.max(1, common.length))));
+          for (let i = 0; i < rows.length; i += CHUNK) {
+            const chunk = rows.slice(i, i + CHUNK);
+            const vals = [];
+            const flat = chunk.map(r => common.map(c => (r[c] === undefined ? null : r[c])));
+            for (const fv of flat) vals.push(...fv);
+            try {
+              await runQ(`INSERT INTO "${t}" (${collist}) VALUES ${flat.map(() => ph()).join(', ')} ON CONFLICT DO NOTHING`, vals);
+              ok += chunk.length;
+            } catch (eFirst) {
+              errN++; if (!firstErr) firstErr = String(eFirst.message).slice(0, 140);
+              for (const fv of flat) { // fallback từng dòng để giữ report chính xác ok/err
+                try { await runQ(`INSERT INTO "${t}" (${collist}) VALUES ${ph()} ON CONFLICT DO NOTHING`, fv); ok++; }
+                catch (e) { errN++; if (!firstErr) firstErr = String(e.message).slice(0, 140); }
+              }
+            }
           }
           report[t] = `${ok}/${rows.length}` + (errN ? ` (lỗi ${errN}: ${firstErr})` : '');
         } catch (e) { report[t] = 'ERR ' + String(e.message).slice(0, 140); }
