@@ -200,7 +200,12 @@ class PostgreSQLAdapter {
     let lastErr = null;
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
-        const { Pool } = require('pg');
+        const { Pool, types } = require('pg');
+        // PG mặc định trả JS Date cho cột timestamp → mọi code path kiểu SQLite
+        // (ngay_gui.substring(...), so sánh chuỗi, JSON) vỡ (export 500 v.v.).
+        // Giữ nguyên text như SQLite từng trả.
+        types.setTypeParser(1114, (v) => v); // timestamp
+        types.setTypeParser(1184, (v) => v); // timestamptz
         // Đóng pool cũ (nếu retry) trước khi tạo mới — tránh rò rỉ connection
         if (this.pool) { try { await this.pool.end(); } catch (_) {} this.pool = null; }
         this.pool = new Pool({
