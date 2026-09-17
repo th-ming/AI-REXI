@@ -111,6 +111,29 @@ function buildOpenAIContent(noiDung) {
   return parts;
 }
 
+// ─── VISION: tách ảnh markdown trong tin nhắn → Gemini parts (inlineData) ───
+// QA 17/9: nhánh Gemini chỉ gửi parts [{ text }] nên ảnh KHÔNG bao giờ tới model
+// (vision trả lời nhảm, ví dụ ảnh chữ "REXI 7391" → "MAI"). Google nhận ảnh qua
+// inlineData (base64 + mimeType), không phải image_url kiểu OpenAI.
+function buildGeminiParts(noiDung) {
+  const text = String(noiDung || '');
+  const parts = [];
+  const imgRe = /!\[[^\]]*\]\((data:image\/[^)\s]+)\)/g;
+  let last = 0;
+  let m;
+  let buf = '';
+  while ((m = imgRe.exec(text)) !== null) {
+    buf += text.slice(last, m.index);
+    if (buf.trim()) { parts.push({ text: buf.trim() }); buf = ''; }
+    const dm = /^data:([^;,]+);base64,(.+)$/s.exec(m[1]);
+    if (dm) parts.push({ inlineData: { mimeType: dm[1], data: dm[2].replace(/\s+/g, '') } });
+    last = m.index + m[0].length;
+  }
+  buf += text.slice(last);
+  if (buf.trim() || parts.length === 0) parts.push({ text: buf.trim() || '...' });
+  return parts;
+}
+
 // ─── AI REXI BRAIN INTEGRATION ────────────────────────────────
 const brain = require('../services/brain/intelligence/intelligence');
 const { extractEntities } = require('../services/brain/nlp/entity-extractor');
@@ -914,7 +937,8 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
             }
             const contents = history.map(h => ({
               role: h.vai_tro === 'user' ? 'user' : 'model',
-              parts: [{ text: h.noi_dung }]
+              // QA 17/9: ảnh data-URL phải chuyển thành inlineData, không phải text thuần
+              parts: h.vai_tro === 'user' ? buildGeminiParts(h.noi_dung) : [{ text: h.noi_dung }]
             }));
             
             // CHỈ gửi thinkingConfig khi user chọn thinking_level = 'deep'.
@@ -1502,7 +1526,8 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
         let model;
         try { model = tempGenAI.getGenerativeModel({ model: selectedModel || 'gemini-2.5-flash' }); }
         catch (e) { model = tempGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); }
-        const contents = history.map(h => ({ role: h.vai_tro === 'user' ? 'user' : 'model', parts: [{ text: h.noi_dung }] }));
+        // QA 17/9: ảnh data-URL → inlineData (trước đây chỉ gửi text → vision mù)
+        const contents = history.map(h => ({ role: h.vai_tro === 'user' ? 'user' : 'model', parts: h.vai_tro === 'user' ? buildGeminiParts(h.noi_dung) : [{ text: h.noi_dung }] }));
         // CHỈ gửi thinkingConfig khi thinking_level = 'deep' (xem ghi chú BUG 400 INVALID_ARGUMENT)
         const genConfig = thinking_level === 'deep' ? { thinkingConfig: { thinkingBudget: 8192 } } : {};
         const stream = await model.generateContentStream({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });

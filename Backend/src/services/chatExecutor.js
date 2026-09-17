@@ -65,6 +65,25 @@ function buildOpenAIContent(noiDung) {
   return parts;
 }
 
+// Gemini nhận ảnh qua inlineData (base64 + mimeType), KHÔNG phải image_url kiểu OpenAI.
+// QA 17/9: thiếu hàm này nên nhánh Gemini của auto-router luôn gửi text thuần → vision mù.
+function buildGeminiParts(noiDung) {
+  const text = String(noiDung || '');
+  const parts = [];
+  const imgRe = /!\[[^\]]*\]\((data:image\/[^)\s]+)\)/g;
+  let last = 0, m, buf = '';
+  while ((m = imgRe.exec(text)) !== null) {
+    buf += text.slice(last, m.index);
+    if (buf.trim()) { parts.push({ text: buf.trim() }); buf = ''; }
+    const dm = /^data:([^;,]+);base64,(.+)$/s.exec(m[1]);
+    if (dm) parts.push({ inlineData: { mimeType: dm[1], data: dm[2].replace(/\s+/g, '') } });
+    last = m.index + m[0].length;
+  }
+  buf += text.slice(last);
+  if (buf.trim() || parts.length === 0) parts.push({ text: buf.trim() || '...' });
+  return parts;
+}
+
 // ─── RETRY BACKOFF: lỗi tạm thời (429/5xx/network) → thử lại trước khi bỏ ───
 const RETRYABLE = [408, 429, 500, 502, 503, 504];
 const RETRY_DELAYS = [1200, 3000]; // chờ 1.2s → 3s
@@ -122,7 +141,7 @@ async function callOnce(candidate, { systemPrompt, history, thinkingLevel }) {
     const gmodel = genAI.getGenerativeModel({ model: finalModel });
     const contents = (history || []).map(h => ({
       role: h.vai_tro === 'user' ? 'user' : 'model',
-      parts: [{ text: h.noi_dung }],
+      parts: h.vai_tro === 'user' ? buildGeminiParts(h.noi_dung) : [{ text: h.noi_dung }],
     }));
     const genConfig = thinkingLevel === 'deep' ? { thinkingConfig: { thinkingBudget: 8192 } } : {};
     const result = await gmodel.generateContent({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });
