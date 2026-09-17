@@ -36,7 +36,9 @@ import {
   MonitorPlay,
   Gamepad2,
   FileText,
-  Languages
+  Languages,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { getLang, setLang, t } from './i18n';
 import Hls from 'hls.js';
@@ -1618,14 +1620,29 @@ useEffect(() => {
               )}
             </div>
 
-            <select
-              value={currentTheme}
-              onChange={e => setCurrentTheme(e.target.value)}
-              className="bg-[#131417] text-xs text-slate-300 border border-white/10 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
+            <button
+              type="button"
+              onClick={() => setCurrentTheme(prev => (prev === 'dark' ? 'light' : 'dark'))}
+              title={currentTheme === 'dark' ? 'Chuyển sang Light' : 'Chuyển sang Dark'}
+              className="group relative w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 bg-[#131417] text-slate-300 hover:text-white hover:border-white/20 transition-all active:scale-90"
             >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
+              <Sun
+                size={15}
+                className={`absolute transition-all duration-300 ease-out ${
+                  currentTheme === 'dark'
+                    ? 'opacity-0 rotate-90 scale-50'
+                    : 'opacity-100 rotate-0 scale-100 text-[#f59e0b]'
+                }`}
+              />
+              <Moon
+                size={15}
+                className={`absolute transition-all duration-300 ease-out ${
+                  currentTheme === 'dark'
+                    ? 'opacity-100 rotate-0 scale-100 text-[#a78bfa]'
+                    : 'opacity-0 -rotate-90 scale-50'
+                }`}
+              />
+            </button>
           </div>
         </header>
         )}
