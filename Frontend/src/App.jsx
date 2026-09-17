@@ -342,7 +342,7 @@ export default function App() {
   const [agentEngine, setAgentEngine] = useState('auto'); // 'auto' | 'opencode' | 'dsh'
   const [chatModeOpen, setChatModeOpen] = useState(false);
   const [thinkingLevel, setThinkingLevel] = useState('standard'); // 'standard' | 'deep'
-  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('rexi_theme_v2') || 'storeify');
+  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('rexi_theme_v2') || 'light');
 
   // Workspace Files State
   const [fileTree, setFileTree] = useState([]);
@@ -1623,13 +1623,8 @@ useEffect(() => {
               onChange={e => setCurrentTheme(e.target.value)}
               className="bg-[#131417] text-xs text-slate-300 border border-white/10 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
             >
-              <option value="tokyo-night">Tokyo Night</option>
-              <option value="dracula">Dracula</option>
-              <option value="catppuccin">Catppuccin</option>
-              <option value="cyberpunk">Cyberpunk</option>
-              <option value="nord">Nord</option>
-              <option value="storeify">Storeify</option>
               <option value="light">Light</option>
+              <option value="dark">Dark</option>
             </select>
           </div>
         </header>

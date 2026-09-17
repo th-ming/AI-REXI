@@ -198,7 +198,7 @@ export default function Sidebar({
                 {currentUser.ten_day_du ? currentUser.ten_day_du[0].toUpperCase() : 'U'}
               </div>
               <div className="truncate max-w-[110px]">
-                <p className="text-xs font-semibold text-white truncate">{currentUser.ten_day_du}</p>
+                <p className="text-xs font-semibold text-slate-200 truncate">{currentUser.ten_day_du}</p>
                 <p className="text-[10px] text-emerald-400 font-medium">● Connected</p>
               </div>
             </button>
@@ -223,7 +223,7 @@ export default function Sidebar({
             <div className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center">
               <User size={14} className="text-white/70" />
             </div>
-            <span className="text-xs font-medium text-white/70">Đăng nhập</span>
+            <span className="text-xs font-medium text-slate-400">Đăng nhập</span>
           </button>
         )}
         <div className="flex items-center gap-1">

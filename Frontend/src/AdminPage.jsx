@@ -296,7 +296,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f1014] text-white font-sans flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col">
       {/* ── TOPBAR ─────────────────────────────────────────── */}
       <header className="sticky top-0 z-20 bg-[#181920]/95 backdrop-blur border-b border-amber-500/20 flex items-center justify-between px-6 py-3 shadow-xl">
         <div className="flex items-center gap-3">

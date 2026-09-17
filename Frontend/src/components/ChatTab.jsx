@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2 } from 'lucide-react';
+import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare } from 'lucide-react';
 import { sanitizeMarkdown } from '../utils/sanitize';
 
 export default function ChatTab({
@@ -259,7 +259,7 @@ export default function ChatTab({
               className="flex items-center gap-1 bg-[#13141c] border border-white/20 hover:border-cyan-500/40 rounded-lg px-2.5 py-1 cursor-pointer text-[11px] font-semibold justify-between text-cyan-300 shadow-sm w-[110px] shrink-0 select-none transition-colors"
             >
               <div className="flex items-center gap-1 overflow-hidden">
-                <span className="text-cyan-400 text-xs shrink-0">{executionMode === 'agent' ? '⚡' : '💬'}</span>
+                <span className="text-cyan-400 text-xs shrink-0">{executionMode === 'agent' ? <Zap size={12} /> : <MessageSquare size={12} />}</span>
                 <span className="truncate">{executionMode === 'agent' ? 'Agent Mode' : 'Chat AI'}</span>
               </div>
               <span className="text-slate-400 text-[9px] ml-1 shrink-0">▾</span>
@@ -277,7 +277,7 @@ export default function ChatTab({
                       executionMode !== 'agent' ? 'bg-[#1b1c2e] border border-white/10' : 'hover:bg-white/5 border border-transparent'
                     }`}
                   >
-                    <span className="text-xs shrink-0 mt-0.5">💬</span>
+                    <span className="text-xs shrink-0 mt-0.5"><MessageSquare size={12} /></span>
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] font-bold text-slate-100">Chat AI</div>
                       <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Trò chuyện AI thông thường</div>
@@ -291,7 +291,7 @@ export default function ChatTab({
                       executionMode === 'agent' ? 'bg-[#2b1845] border border-purple-500/40 shadow-sm' : 'hover:bg-white/5 border border-transparent'
                     }`}
                   >
-                    <span className="text-xs shrink-0 mt-0.5 text-purple-300">⚡</span>
+                    <span className="text-xs shrink-0 mt-0.5 text-purple-300"><Zap size={12} /></span>
                     <div className="flex-1 min-w-0">
                       <div className="text-[11px] font-bold text-purple-200">Agent Mode</div>
                       <div className="text-[10px] text-purple-300/80 mt-0.5 leading-tight">Tự động thực thi code & tác vụ</div>
@@ -336,7 +336,7 @@ export default function ChatTab({
                           agentEngine === 'dsh' ? 'bg-[#1b1c2e] border border-purple-500/40' : 'hover:bg-white/5 border border-transparent'
                         }`}
                       >
-                        <span className="text-xs shrink-0 mt-0.5">⚡</span>
+                        <span className="text-xs shrink-0 mt-0.5"><Zap size={12} /></span>
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-bold text-purple-200">DeepSeek Harness</div>
                           <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm)</div>
@@ -367,7 +367,7 @@ export default function ChatTab({
             className={`relative p-2 rounded-lg transition-all ${reasoning ? "text-purple-300 bg-purple-500/15 border border-purple-500/40" : "text-slate-400 hover:text-purple-400 hover:bg-white/5"}`}
             title="Suy luận sâu: bật để câu hỏi khó được xử lý bằng model reasoning (DeepSeek) — chậm hơn nhưng thông minh hơn"
           >
-            <span className="text-base leading-none">🧠</span>
+            <span className="text-base leading-none"><Brain size={16} /></span>
           </button>
           <button
             onClick={startVoice}

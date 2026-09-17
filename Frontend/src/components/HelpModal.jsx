@@ -5,7 +5,7 @@ const SECTIONS = [
   {
     id: 'chat',
     icon: <MessageSquare size={16} className="text-cyan-400" />,
-    title: '💬 Chat AI',
+    title: 'Chat AI',
     steps: [
       'Gõ câu hỏi vào ô chat ở giữa màn hình, rồi bấm Enter (hoặc nút gửi ➤) để gửi.',
       'Muốn đổi "bộ não" AI (Gemini, Claude, DeepSeek...): bấm ô chọn model ở góc trên bên trái.',
@@ -16,7 +16,7 @@ const SECTIONS = [
   {
     id: 'agent',
     icon: <Zap size={16} className="text-purple-400" />,
-    title: '⚡ Agent Mode (AI tự làm việc)',
+    title: 'Agent Mode (AI tự làm việc)',
     steps: [
       'Ở ô nhập chat, bấm nút "💬 Chat AI" → chọn "⚡ Agent Mode".',
       'Agent Mode cho phép AI tự chạy code, đọc file, làm tác vụ thay bạn.',
@@ -123,8 +123,8 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#16171c] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{backgroundColor:'rgba(0,0,0,.10)', transition:'background-color .2s'}}>
+      <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-gradient-to-r from-cyan-500/10 via-indigo-500/10 to-purple-500/10">
           <div className="flex items-center gap-3">
@@ -132,11 +132,11 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
               <BookOpen size={18} className="text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">Trung Tâm Trợ Giúp</h2>
-              <p className="text-[10px] text-slate-400">Hướng dẫn sử dụng AI Rexi từ A đến Z</p>
+              <h2 className="text-sm font-bold text-slate-800">Trung Tâm Trợ Giúp</h2>
+              <p className="text-[10px] text-slate-500">Hướng dẫn sử dụng AI Rexi từ A đến Z</p>
             </div>
           </div>
-          <button onClick={() => setHelpOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+          <button onClick={() => setHelpOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -145,13 +145,13 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
         <div className="flex gap-1 px-5 pt-3">
           <button
             onClick={() => setActiveTab('guide')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'guide' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'guide' ? 'bg-cyan-50 text-cyan-600 border border-cyan-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
             📖 Hướng dẫn tính năng
           </button>
           <button
             onClick={() => setActiveTab('faq')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'faq' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30' : 'text-slate-400 hover:text-white'}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'faq' ? 'bg-cyan-50 text-cyan-600 border border-cyan-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
             ❓ Câu hỏi thường gặp
           </button>
@@ -162,20 +162,20 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
           {activeTab === 'guide' ? (
             <div className="space-y-2">
               {SECTIONS.map(section => (
-                <div key={section.id} className="rounded-xl border border-white/5 bg-[#131417] overflow-hidden">
+                <div key={section.id} className="rounded-xl border border-slate-200 bg-slate-50 overflow-hidden">
                   <button
                     onClick={() => setOpenSection(openSection === section.id ? '' : section.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-100 transition-colors"
                   >
                     <span className="shrink-0">{section.icon}</span>
-                    <span className="flex-1 text-xs font-bold text-slate-200">{section.title}</span>
-                    <ChevronDown size={14} className={`text-slate-500 transition-transform ${openSection === section.id ? 'rotate-180' : ''}`} />
+                    <span className="flex-1 text-xs font-bold text-slate-700">{section.title}</span>
+                    <ChevronDown size={14} className={`text-slate-400 transition-transform ${openSection === section.id ? 'rotate-180' : ''}`} />
                   </button>
                   {openSection === section.id && (
                     <div className="px-4 pb-4 pt-1 space-y-2">
                       {section.steps.map((step, i) => (
-                        <div key={i} className="flex gap-2.5 text-[11px] text-slate-400 leading-relaxed">
-                          <span className="shrink-0 w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[9px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                        <div key={i} className="flex gap-2.5 text-[11px] text-slate-600 leading-relaxed">
+                          <span className="shrink-0 w-4 h-4 rounded-full bg-cyan-100 text-cyan-600 text-[9px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
                           <span>{step}</span>
                         </div>
                       ))}
@@ -187,9 +187,9 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
           ) : (
             <div className="space-y-2">
               {FAQS.map((faq, i) => (
-                <div key={i} className="rounded-xl border border-white/5 bg-[#131417] p-4">
-                  <p className="text-xs font-bold text-slate-200 mb-1.5">❓ {faq.q}</p>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">{faq.a}</p>
+                <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-bold text-slate-700 mb-1.5">❓ {faq.q}</p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">{faq.a}</p>
                 </div>
               ))}
             </div>
@@ -197,11 +197,11 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/5 flex items-center justify-between bg-[#131417]">
+        <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between bg-white">
           <p className="text-[10px] text-slate-500">Vẫn thắc mắc? Gõ câu hỏi vào chat, AI Rexi sẽ hướng dẫn bạn.</p>
           <button
             onClick={() => setHelpOpen(false)}
-            className="px-4 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-medium hover:bg-cyan-500/30 transition-colors"
+            className="px-4 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-600 text-xs font-medium hover:bg-cyan-100 transition-colors"
           >
             Đã hiểu 👍
           </button>

@@ -84,7 +84,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={handleOverlayClick}
     >
       <div className="bg-[#1a1b24] border border-white/10 rounded-2xl p-6 w-full max-w-3xl max-h-[85vh] overflow-y-auto shadow-2xl">

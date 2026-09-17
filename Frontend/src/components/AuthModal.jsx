@@ -16,22 +16,22 @@ export default function AuthModal({
   const [forgotMsg, setForgotMsg] = useState('');
   if (!authModalOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => { setAuthModalOpen(false); setShowForgot(false); }}>
-      <div className="bg-[#1a1b24] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{backgroundColor:'rgba(0,0,0,.10)', transition:'background-color .2s'}} onClick={() => { setAuthModalOpen(false); setShowForgot(false); }}>
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-sm shadow-xl" onClick={e => e.stopPropagation()} style={{animation:'rx-press .15s ease'}}>
         {showForgot ? (
           <>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <Lock size={16} className="text-cyan-400" /> Quên Mật Khẩu
+              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                <Lock size={16} className="text-blue-600" /> Quên Mật Khẩu
               </h2>
-              <button onClick={() => setShowForgot(false)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white"><X size={16} /></button>
+              <button onClick={() => setShowForgot(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"><X size={16} /></button>
             </div>
             {forgotStep === 'email' && (
               <div className="space-y-3">
-                <p className="text-xs text-slate-400">Nhập tài khoản email của bạn để nhận OTP đặt lại mật khẩu.</p>
+                <p className="text-xs text-slate-500">Nhập tài khoản email của bạn để nhận OTP đặt lại mật khẩu.</p>
                 <input type="email" value={forgotEmail} onChange={e => setForgotEmail(e.target.value)}
-                  placeholder="Nhập email" className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
-                {forgotMsg && <p className="text-xs text-emerald-400">{forgotMsg}</p>}
+                  placeholder="Nhập email" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500/50" />
+                {forgotMsg && <p className="text-xs text-emerald-600">{forgotMsg}</p>}
                 <button onClick={async () => {
                   try {
                     const res = await fetch(`${API_BASE}/auth/forgot-password`, {
@@ -47,11 +47,11 @@ export default function AuthModal({
             )}
             {forgotStep === 'otp' && (
               <div className="space-y-3">
-                <p className="text-xs text-slate-400">Nhập OTP và mật khẩu mới.</p>
+                <p className="text-xs text-slate-500">Nhập OTP và mật khẩu mới.</p>
                 <input type="text" value={otpCode} onChange={e => setOtpCode(e.target.value)}
-                  placeholder="Nhập OTP" className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                  placeholder="Nhập OTP" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500/50" />
                 <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Mật khẩu mới" className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                  placeholder="Mật khẩu mới" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500/50" />
                 <button onClick={async () => {
                   try {
                     const res = await fetch(`${API_BASE}/auth/reset-password`, {
@@ -69,27 +69,27 @@ export default function AuthModal({
         ) : (
           <>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                {authMode === 'login' ? <Lock size={16} className="text-cyan-400" /> : <UserPlus size={16} className="text-emerald-400" />}
+              <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                {authMode === 'login' ? <Lock size={16} className="text-blue-600" /> : <UserPlus size={16} className="text-emerald-600" />}
                 {authMode === 'login' ? 'Đăng Nhập' : 'Tạo Tài Khoản'}
               </h2>
-              <button onClick={() => setAuthModalOpen(false)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white"><X size={16} /></button>
+              <button onClick={() => setAuthModalOpen(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"><X size={16} /></button>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); handleAuthSubmit(); }} className="space-y-3">
               {authMode === 'register' && (
                 <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAuthSubmit()}
-                  placeholder="Họ và tên" className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                  placeholder="Họ và tên" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500/50" />
               )}
               <input type="text" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAuthSubmit()}
-                placeholder="Tài khoản (email)" className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                placeholder="Tài khoản (email)" className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500/50" />
               <div className="relative">
                 <input type={showPassword ? 'text' : 'password'} value={authPassword} onChange={e => setAuthPassword(e.target.value)}
                   placeholder="Mật khẩu" onKeyDown={e => e.key === 'Enter' && handleAuthSubmit()}
-                  className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50 pr-10" />
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-500/50 pr-10" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
@@ -99,13 +99,13 @@ export default function AuthModal({
               </button>
             </form>
             <div className="mt-4 text-center">
-              <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="text-xs text-cyan-400 hover:text-cyan-300">
+              <button onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')} className="text-xs text-blue-600 hover:text-blue-700">
                 {authMode === 'login' ? 'Chưa có tài khoản? Đăng ký' : 'Đã có tài khoản? Đăng nhập'}
               </button>
             </div>
             {authMode === 'login' && (
               <div className="mt-2 text-center">
-                <button onClick={() => setShowForgot(true)} className="text-[10px] text-cyan-400/70 hover:text-cyan-300 transition-colors">
+                <button onClick={() => setShowForgot(true)} className="text-[10px] text-slate-400 hover:text-blue-600 transition-colors">
                   Quên Mật Khẩu?
                 </button>
               </div>
