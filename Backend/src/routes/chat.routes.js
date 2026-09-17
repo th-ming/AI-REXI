@@ -731,7 +731,7 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
       }
 
       let selectedProvider = provider || 'gemini';
-      let selectedModel = model_name || 'gemini-1.5-flash';
+      let selectedModel = model_name || 'gemini-2.5-flash'; // gemini-1.5-flash đã bị Google khai tử (404)
       let keyToUse = client_api_key;
       
       if (client_api_key && client_api_key.trim()) {
@@ -1165,7 +1165,7 @@ async function autoSmartChat(systemPrompt, history, noiDung, thinkingLevel, opts
 // Tách logic lấy API key / fallback provider ra khỏi route để tái sử dụng
 async function resolveProviderAndKey(req, provider, model_name, client_api_key) {
   let selectedProvider = provider || 'gemini';
-  let selectedModel = model_name || 'gemini-1.5-flash';
+  let selectedModel = model_name || 'gemini-2.5-flash'; // gemini-1.5-flash đã bị Google khai tử (404)
   let keyToUse = null;
   let baseUrl = null;
 
