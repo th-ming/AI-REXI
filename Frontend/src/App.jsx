@@ -120,13 +120,13 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
 
   const getProviderBadge = (providerName) => {
     const p = (providerName || '').toLowerCase();
-    if (p.includes('gemini') || p.includes('google')) return { bg: 'bg-blue-500/10 border-blue-500/30 text-blue-400', icon: '🤖' };
-    if (p.includes('groq')) return { bg: 'bg-amber-500/10 border-amber-500/30 text-amber-400', icon: '⚡' };
-    if (p.includes('deepseek')) return { bg: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400', icon: '🧠' };
-    if (p.includes('kira')) return { bg: 'bg-rose-500/10 border-rose-500/30 text-rose-400', icon: '🔑' };
-    if (p.includes('opencode')) return { bg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400', icon: '⚙️' };
-    if (p.includes('openai') || p.includes('gpt')) return { bg: 'bg-purple-500/10 border-purple-500/30 text-purple-400', icon: '🔮' };
-    return { bg: 'bg-slate-500/10 border-slate-500/30 text-slate-300', icon: '✨' };
+    if (p.includes('gemini') || p.includes('google')) return { bg: 'bg-blue-500/10 border-blue-500/30 text-blue-400', IconComp: Bot };
+    if (p.includes('groq')) return { bg: 'bg-amber-500/10 border-amber-500/30 text-amber-400', IconComp: Zap };
+    if (p.includes('deepseek')) return { bg: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400', IconComp: Cpu };
+    if (p.includes('kira')) return { bg: 'bg-rose-500/10 border-rose-500/30 text-rose-400', IconComp: Shield };
+    if (p.includes('opencode')) return { bg: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400', IconComp: Settings };
+    if (p.includes('openai') || p.includes('gpt')) return { bg: 'bg-purple-500/10 border-purple-500/30 text-purple-400', IconComp: Sparkles };
+    return { bg: 'bg-slate-500/10 border-slate-500/30 text-slate-300', IconComp: Sparkles };
   };
 
   return (
@@ -134,13 +134,13 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#181a20] via-[#15161c] to-[#121318] border border-cyan-500/30 hover:border-cyan-400/70 shadow-lg shadow-cyan-950/20 text-xs font-medium text-slate-200 transition-all cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#181a20] via-[#15161c] to-[#121318] border border-blue-500/40 hover:border-blue-400/70 shadow-lg text-xs font-medium text-slate-200 transition-all cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
       >
         <span className="flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-[240px]">
-          <span className="text-cyan-400 text-sm">⚡</span>
+          <Zap size={14} className="text-cyan-400" />
           <span className="font-bold text-cyan-100 truncate">{activeModelObj.name || activeModelObj.id}</span>
           {(activeModelObj.status === 'needs_balance' || activeModelObj.type === 'paid') && (
-            <span className="text-[9px] font-extrabold rounded-md bg-amber-500/20 text-amber-300 uppercase border border-amber-500/30 shrink-0" title="Model tồn tại nhưng key hiện tại thiếu tiền/quyền">🔒</span>
+            <span className="text-[9px] font-extrabold rounded-md bg-amber-500/20 text-amber-300 uppercase border border-amber-500/30 shrink-0" title="Model tồn tại nhưng key hiện tại thiếu tiền/quyền"><Lock size={10} /></span>
           )}
           <span className="px-1.5 py-0.5 text-[9px] font-extrabold rounded-md bg-cyan-500/20 text-cyan-300 uppercase border border-cyan-500/30 shrink-0">
             {(activeModelObj.provider || 'AI').toUpperCase()}
@@ -197,7 +197,7 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
                 return (
                   <div key={providerGroup} className="space-y-1">
                     <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      <span>{badge.icon}</span>
+                      <badge.IconComp size={12} />
                       <span className="text-slate-300">{providerGroup}</span>
                       <span className="ml-auto text-[9px] opacity-60">({models.length})</span>
                     </div>
@@ -264,14 +264,14 @@ const FabItem = ({ item, activeTab, onPick }) => (
     onClick={onPick}
     className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
       activeTab === item.tab
-        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-md font-bold'
-        : 'text-slate-300 hover:text-white hover:bg-white/10'
+        ? 'bg-cyan-50 text-cyan-600 border border-cyan-200 shadow-sm font-bold'
+        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
     }`}
   >
     <span className={item.color}>{item.icon}</span>
     <div className="flex flex-col items-start whitespace-nowrap">
       <span>{item.label}</span>
-      {item.desc && <span className="text-[9px] text-slate-500 font-normal">{item.desc}</span>}
+      {item.desc && <span className="text-[9px] text-slate-400 font-normal">{item.desc}</span>}
     </div>
   </button>
 );
@@ -280,12 +280,12 @@ const FabItem = ({ item, activeTab, onPick }) => (
 
 
 const AI_SPECIALTIES = [
-  { id: 'general', name: '🧠 Trợ Lý Toàn Năng' },
-  { id: 'business', name: '💼 Doanh Nghiệp & Hợp Đồng' },
-  { id: 'marketing', name: '📢 Content Marketing' },
-  { id: 'education', name: '📚 Phân Tích Chuyên Sâu' },
-  { id: 'health', name: '🥗 Sức Khỏe & Dinh Dưỡng' },
-  { id: 'coder', name: '💻 Lập Trình & Architect' }
+  { id: 'general', name: 'Trợ Lý Toàn Năng' },
+  { id: 'business', name: 'Doanh Nghiệp & Hợp Đồng' },
+  { id: 'marketing', name: 'Content Marketing' },
+  { id: 'education', name: 'Phân Tích Chuyên Sâu' },
+  { id: 'health', name: 'Sức Khỏe & Dinh Dưỡng' },
+  { id: 'coder', name: 'Lập Trình & Architect' }
 ];
 
 
@@ -311,7 +311,7 @@ export default function App() {
   const [forgotStep, setForgotStep] = useState('login');
   const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
   const [forgotMessage, setForgotMessage] = useState('');
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('rexi_activeTab') || 'chat'); // 'chat' | 'code' | 'files' | 'iptv' | 'desktop'
+  const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || localStorage.getItem('rexi_activeTab') || 'chat'); // 'chat' | 'code' | 'files' | 'iptv' | 'desktop'
   const handleSetActiveTab = (tab) => { setActiveTab(tab); localStorage.setItem('rexi_activeTab', tab); };
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -323,11 +323,13 @@ export default function App() {
   const [modelName, setModelName] = useState(() => localStorage.getItem('rexi_model') || 'mistralai/mistral-small-2603');
   const lastAutoSwapRef = useRef(''); // chống toast đúp khi nhiều nguồn refresh model cùng lúc
   const [apiKey, setApiKey] = useState(() => {
-    const saved = localStorage.getItem('rexi_api_key') || '';
+    // P2-23: key KHÔNG nằm localStorage (plaintext + XSS đọc được) — chỉ sessionStorage (đóng tab là mất)
+    const saved = sessionStorage.getItem('rexi_api_key') || '';
     const token = localStorage.getItem('rexi_token') || '';
     // Tự động dọn dẹp key hỏng/key nhầm JWT token để luôn luôn tự cập nhật theo Key chuẩn của Admin từ CSDL
     if (saved && (saved.startsWith('AQ..') || saved === token || saved.length > 200)) {
-      localStorage.removeItem('rexi_api_key');
+      sessionStorage.removeItem('rexi_api_key');
+      localStorage.removeItem('rexi_api_key'); // dọn sót từ bản cũ (trước P2-23)
       return '';
     }
     return saved;
@@ -340,7 +342,7 @@ export default function App() {
   const [agentEngine, setAgentEngine] = useState('auto'); // 'auto' | 'opencode' | 'dsh'
   const [chatModeOpen, setChatModeOpen] = useState(false);
   const [thinkingLevel, setThinkingLevel] = useState('standard'); // 'standard' | 'deep'
-  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('rexi_theme') || 'tokyo-night');
+  const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('rexi_theme_v2') || 'storeify');
 
   // Workspace Files State
   const [fileTree, setFileTree] = useState([]);
@@ -365,6 +367,7 @@ export default function App() {
     const saved = localStorage.getItem('rexi_tts_mode');
     return saved === 'server' && !!localStorage.getItem('rexi_token');
   });
+  const ttsServerBrokenRef = useRef(false); // P3: server TTS lỗi tạm thời → fallback browser cho phiên, KHÔNG ghi đè setting user
 
   // Skills List from Database
   const [dbSkills, setDbSkills] = useState([]);
@@ -607,7 +610,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', currentTheme);
-    localStorage.setItem('rexi_theme', currentTheme);
+    localStorage.setItem('rexi_theme_v2', currentTheme);
   }, [currentTheme]);
 
   // Đóng FAB menu overlay khi đổi tab
@@ -1220,7 +1223,7 @@ useEffect(() => {
       window.speechSynthesis.cancel();
     }
 
-    const useServerTTS = ttsUsingServer && cleanText.length <= 2000;
+    const useServerTTS = ttsUsingServer && !ttsServerBrokenRef.current && cleanText.length <= 2000;
 
     if (useServerTTS) {
       // Dùng Backend TTS (edge-tts, chất lượng cao)
@@ -1252,8 +1255,8 @@ useEffect(() => {
           }
         })
         .catch(err => {
-          console.warn('[TTS] Server failed, falling back to browser:', err.message);
-          setTtsUsingServer(false);
+          console.warn('[TTS] Server failed, falling back to browser (setting user giữ nguyên):', err.message);
+          ttsServerBrokenRef.current = true; // tạm tắt server TTS cho phiên này, không ghi đè localStorage
           speakBrowser(cleanText, id);
         });
     } else {
@@ -1489,24 +1492,24 @@ useEffect(() => {
         
         {/* Guest Mode Banner */}
         {!currentUser && (
-          <div className="bg-gradient-to-r from-amber-900/40 via-amber-800/30 to-amber-900/40 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between">
+          <div className="bg-blue-500/10 border-b border-blue-500/25 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 text-xs text-amber-200/80">
-                <span className="text-amber-400">👤</span>
-                <span className="font-semibold text-amber-300">Chế độ Khách</span>
+              <span className="flex items-center gap-1.5 text-xs text-blue-200/90">
+                <span className="text-blue-400">👤</span>
+                <span className="font-semibold text-blue-300">Chế độ Khách</span>
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">{guestLimits.messages.remaining}</span>
-                <span className="text-amber-200/60">/ {guestLimits.messages.limit} tin nhắn</span>
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.messages.remaining}</span>
+                <span className="text-blue-200/60">/ {guestLimits.messages.limit} tin nhắn</span>
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold">{guestLimits.agentTasks.remaining}</span>
-                <span className="text-amber-200/60">/ {guestLimits.agentTasks.limit} Agent tasks</span>
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.agentTasks.remaining}</span>
+                <span className="text-blue-200/60">/ {guestLimits.agentTasks.limit} Agent tasks</span>
               </span>
             </div>
             <button 
               onClick={() => setAuthModalOpen(true)}
-              className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all"
+              className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-all"
             >
               Đăng nhập →
 
@@ -1553,10 +1556,10 @@ useEffect(() => {
               <select
                 value={thinkingLevel}
                 onChange={e => setThinkingLevel(e.target.value)}
-                className="bg-[#131417] text-xs text-amber-300 border border-amber-500/30 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
+                className="bg-[#131417] text-xs text-slate-300 border border-white/10 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
               >
-                <option value="standard">⚡ Nhanh (Standard)</option>
-                <option value="deep">🧠 Suy Luận Sâu (Deep Think)</option>
+                <option value="standard">Nhanh (Standard)</option>
+                <option value="deep">Suy Luận Sâu (Deep Think)</option>
               </select>
             </div>
           </div>
@@ -1620,12 +1623,13 @@ useEffect(() => {
               onChange={e => setCurrentTheme(e.target.value)}
               className="bg-[#131417] text-xs text-slate-300 border border-white/10 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
             >
-              <option value="tokyo-night">🌃 Tokyo Night</option>
-              <option value="dracula">🧛 Dracula</option>
-              <option value="catppuccin">🐱 Catppuccin</option>
-              <option value="cyberpunk">⚡ Cyberpunk</option>
-              <option value="nord">❄️ Nord</option>
-              <option value="light">☀️ Light</option>
+              <option value="tokyo-night">Tokyo Night</option>
+              <option value="dracula">Dracula</option>
+              <option value="catppuccin">Catppuccin</option>
+              <option value="cyberpunk">Cyberpunk</option>
+              <option value="nord">Nord</option>
+              <option value="storeify">Storeify</option>
+              <option value="light">Light</option>
             </select>
           </div>
         </header>
@@ -1826,7 +1830,7 @@ useEffect(() => {
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 text-xs">
               {/* Terminal Exec */}
               <div className="space-y-2 bg-[#131417] p-3 rounded-xl border border-white/5">
-                <h4 className="font-bold text-slate-200 flex items-center gap-1.5"><Terminal size={14} className="text-cyan-400" /> ⚡ Terminal Exec</h4>
+                <h4 className="font-bold text-slate-200 flex items-center gap-1.5"><Terminal size={14} className="text-cyan-400" /> Terminal Exec</h4>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1877,7 +1881,7 @@ useEffect(() => {
 
               {/* Long-term Memory */}
               <div className="space-y-2 bg-[#131417] p-3 rounded-xl border border-white/5">
-                <h4 className="font-bold text-slate-200 flex items-center gap-1.5"><Database size={14} className="text-purple-400" /> 🧠 Bộ Nhớ Dài Hạn AI</h4>
+                <h4 className="font-bold text-slate-200 flex items-center gap-1.5"><Database size={14} className="text-purple-400" /> Bộ Nhớ Dài Hạn AI</h4>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1989,24 +1993,24 @@ useEffect(() => {
                   <span className="text-xs text-white/50 font-semibold tracking-widest mt-1">AI Rexi</span>
                 </div>
 
-                <div className="flex bg-[#1e1f28] rounded-xl p-1 mb-5">
-                  <button
-                    onClick={() => setAuthMode('login')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                      authMode === 'login' ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Đăng Nhập
-                  </button>
-                  <button
-                    onClick={() => setAuthMode('register')}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                      authMode === 'register' ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Đăng Ký
-                  </button>
-                </div>
+<div className="flex bg-white border border-slate-200 rounded-xl p-1 mb-5">
+                   <button
+                     onClick={() => setAuthMode('login')}
+                     className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                       authMode === 'login' ? 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                     }`}
+                   >
+                     Đăng Nhập
+                   </button>
+                   <button
+                     onClick={() => setAuthMode('register')}
+                     className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                       authMode === 'register' ? 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                     }`}
+                   >
+                     Đăng Ký
+                   </button>
+                 </div>
 
                 <form onSubmit={(e) => { e.preventDefault(); handleAuthSubmit(); }} className="space-y-3 text-xs">
                   {authMode === 'register' && (
@@ -2016,46 +2020,46 @@ useEffect(() => {
                     </div>
                   )}
                   <div>
-                    <label className="block text-slate-400 font-medium mb-1">Tài Khoản</label>
-                    <input type="text" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Nhập tài khoản" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
+<label className="block text-slate-500 font-medium mb-1">Tài Khoản</label>
+                     <input type="text" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Nhập tài khoản" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none" />
                   </div>
                   <div>
-                    <label className="block text-slate-400 font-medium mb-1">Mật Khẩu</label>
-                    <div className="relative">
-                      <input type={showPassword ? 'text' : 'password'} required value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="••••••••" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none pr-10" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
-                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    </div>
+<label className="block text-slate-500 font-medium mb-1">Mật Khẩu</label>
+                     <div className="relative">
+                       <input type={showPassword ? 'text' : 'password'} required value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none pr-10" />
+                       <button type="button" onClick={() => setShowPassword(!showPassword)}
+                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                       </button>
+                     </div>
                   </div>
 
-                  <div className="flex justify-end mt-1">
-                    <button type="button" onClick={() => { setForgotStep('request'); setForgotMessage(''); }} className="text-[10px] text-slate-500 hover:text-cyan-400 transition-colors">
-                      Quên Mật Khẩu?
-                    </button>
-                  </div>
+<div className="flex justify-end mt-1">
+                     <button type="button" onClick={() => { setForgotStep('request'); setForgotMessage(''); }} className="text-[10px] text-slate-500 hover:text-slate-600 transition-colors">
+                       Quên Mật Khẩu?
+                     </button>
+                   </div>
 
-                  <button type="submit" className="w-full py-3 mt-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/25 transition-all">
-                    {authMode === 'login' ? 'Đăng Nhập' : 'Đăng Ký'}
-                  </button>
+<button type="submit" className="w-full py-3 mt-4 rounded-xl bg-[#4a7dff] hover:bg-[#3d6ae6] text-white font-bold text-xs shadow-lg shadow-[#4a7dff]/20 transition-all">
+                     {authMode === 'login' ? 'Đăng Nhập' : 'Đăng Ký'}
+                   </button>
                 </form>
 
-                <div className="relative flex items-center my-4">
-                  <div className="flex-1 h-px bg-white/5"></div>
-                  <span className="px-3 text-[10px] text-slate-500 font-medium">hoặc</span>
-                  <div className="flex-1 h-px bg-white/5"></div>
-                </div>
+<div className="relative flex items-center my-4">
+                   <div className="flex-1 h-px bg-slate-200"></div>
+                   <span className="px-3 text-[10px] text-slate-500 font-medium">hoặc</span>
+                   <div className="flex-1 h-px bg-slate-200"></div>
+                 </div>
 
-                <button type="button" onClick={openGoogleOAuth} className="w-full py-2.5 rounded-xl bg-[#242530] hover:bg-[#2a2b38] text-white text-xs font-medium flex items-center justify-center gap-2 border border-white/5 transition-all">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                  </svg>
-                  Đăng nhập với Google
-                </button>
+                 <button type="button" onClick={openGoogleOAuth} className="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium flex items-center justify-center gap-2 border border-slate-200 transition-all">
+                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
+                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                   </svg>
+                   Đăng nhập với Google
+                 </button>
               </div>
             )}
           </div>
@@ -2077,7 +2081,8 @@ useEffect(() => {
         <>
           {fabOpen && (
             <div
-              className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300"
+              className="fixed inset-0 z-40 transition-opacity duration-300"
+              style={{backgroundColor:'rgba(0,0,0,.08)'}}
               onClick={() => setFabOpen(false)}
             />
           )}
@@ -2085,15 +2090,15 @@ useEffect(() => {
           <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
             {/* Danh sách các công cụ hiện lên khi bấm mở (Có hỗ trợ cuộn nếu có nhiều tính năng) */}
             <div className={`
-              flex flex-col gap-2 p-2 bg-[#181922]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl transition-all duration-300 origin-bottom-right
+              flex flex-col gap-1 p-2 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all duration-300 origin-bottom-right
               max-h-[70vh] overflow-y-auto pr-1.5 scrollbar-thin
               ${fabOpen
-                ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto shadow-cyan-500/10'
+                ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                 : 'opacity-0 scale-75 translate-y-6 pointer-events-none'
               }
             `}>
               {/* Nhóm AI */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600 px-3 pt-1 pb-1">🧠 Trí Tuệ AI</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">Trí Tuệ AI</p>
               {[
                 { tab: 'chat', icon: <MessageSquare size={17} />, label: 'Chat AI', color: 'text-cyan-400', desc: 'Trò chuyện với AI' },
                 { tab: 'code', icon: <Code size={17} />, label: 'Editor & Preview', color: 'text-blue-400', desc: 'Code + xem trước HTML' },
@@ -2103,7 +2108,7 @@ useEffect(() => {
               ))}
 
               {/* Nhóm Sáng Tạo */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600 px-3 pt-2 pb-1">🎨 Sáng Tạo</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">🎨 Sáng Tạo</p>
               {[
                 { tab: 'tts', icon: <Mic size={17} />, label: 'TTS Studio', color: 'text-cyan-400', desc: 'Chữ → giọng nói MP3' },
                 { tab: 'documents', icon: <FileText size={17} />, label: 'Đọc & Hiểu File', color: 'text-emerald-400', desc: 'AI hiểu nội dung PDF/Word/TXT' },
@@ -2116,7 +2121,7 @@ useEffect(() => {
               ))}
 
               {/* Nhóm Giải Trí & Hệ Thống */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600 px-3 pt-2 pb-1">📺 Giải Trí & Hệ Thống</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">📺 Giải Trí & Hệ Thống</p>
               {[
                 { tab: 'iptv', icon: <Tv size={17} />, label: 'IPTV Truyền Hình', color: 'text-rose-400', desc: 'Xem TV trực tuyến' },
                 { tab: 'files', icon: <Folder size={17} />, label: 'Workspace Files', color: 'text-amber-400', desc: 'Quản lý file dự án' },
@@ -2168,19 +2173,19 @@ useEffect(() => {
               </button>
             </div>
 
-            {/* Nút FAB chính chỉ mũi tên lên/xuống kèm animation xoay */}
+            {/* Nút FAB chính - biểu tượng công cụ */}
             <button
               onClick={() => setFabOpen(!fabOpen)}
               className={`
-                pointer-events-auto w-[52px] h-[52px] p-3.5 rounded-2xl flex items-center justify-center shadow-2xl transition-all duration-300
+                pointer-events-auto w-[48px] h-[48px] flex items-center justify-center rounded-full shadow-md transition-all duration-200
                 ${fabOpen
-                  ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/30 rotate-180'
-                  : 'bg-gradient-to-tr from-cyan-500 via-indigo-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-cyan-500/30'
+                  ? 'bg-[#3d6ae6] hover:bg-[#2c52b2] text-white shadow-[#4a7dff]/30 scale-105'
+                  : 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white shadow-[#4a7dff]/20'
                 }
               `}
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
-              <ChevronUp size={24} className={`transition-transform duration-300 ${fabOpen ? 'rotate-180' : ''}`} />
+              <Zap size={20} className={`transition-all duration-200 ${fabOpen ? 'scale-110' : ''}`} />
             </button>
           </div>
         </>

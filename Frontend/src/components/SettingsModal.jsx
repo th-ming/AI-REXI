@@ -54,12 +54,16 @@ export default function SettingsModal({
     setBaseUrl(nextBase);
     localStorage.setItem('rexi_base_url', nextBase);
 
+    // P2-23: khi đổi provider, key cũ (session) thuộc provider khác → xóa để tránh gửi nhầm key sang provider mới
+    try { sessionStorage.removeItem('rexi_api_key'); } catch {}
+
     // KHÔNG gợi ý model mẫu — để hệ thống tự chọn model working đầu tiên của provider
   };
 
   const handleClearKey = () => {
     setApiKey('');
     try { localStorage.removeItem('rexi_api_key'); } catch {}
+    try { sessionStorage.removeItem('rexi_api_key'); } catch {}
   };
 
   if (!settingsOpen) return null;
@@ -75,33 +79,33 @@ export default function SettingsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setSettingsOpen(false)}>
-      <div className="bg-[#1a1b24] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <Settings size={18} className="text-cyan-400" /> Cài Đặt Hệ Thống AI Rexi
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{backgroundColor:'rgba(0,0,0,.10)', transition:'background-color .2s'}} onClick={() => setSettingsOpen(false)}>
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+            <Settings size={18} className="text-cyan-500" /> Cài Đặt Hệ Thống AI Rexi
           </h2>
           <div className="flex items-center gap-2">
-            <button onClick={fetchProviders} title="Tải lại danh sách Provider" className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">
-              <RefreshCw size={14} className={loadingProviders ? 'animate-spin text-cyan-400' : ''} />
+            <button onClick={fetchProviders} title="Tải lại danh sách Provider" className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700">
+              <RefreshCw size={14} className={loadingProviders ? 'animate-spin text-cyan-500' : ''} />
             </button>
-            <button onClick={() => setSettingsOpen(false)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white"><X size={16} /></button>
+            <button onClick={() => setSettingsOpen(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"><X size={16} /></button>
           </div>
         </div>
 
         <div className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-slate-400">Nhà cung cấp AI (Tự động cập nhật)</label>
+              <label className="text-xs font-medium text-slate-500">Nhà cung cấp AI (Tự động cập nhật)</label>
               {loadingProviders && <span className="text-[10px] text-cyan-400 animate-pulse">Đang cập nhật...</span>}
             </div>
             <select
               value={provider}
               onChange={e => handleProviderChange(e.target.value)}
-              className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white outline-none focus:border-cyan-500/50 cursor-pointer"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 outline-none focus:border-cyan-400 cursor-pointer"
             >
               {providerList.map(p => (
-                <option key={p.key} value={p.key} className="bg-[#1e1f20] text-slate-200">
+                <option key={p.key} value={p.key} className="bg-white text-slate-800">
                   {p.name}
                 </option>
               ))}
@@ -109,35 +113,35 @@ export default function SettingsModal({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-slate-400 mb-1 block">Model AI (Mô hình)</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">Model AI (Mô hình)</label>
             <input
               type="text"
               value={modelName}
               onChange={e => { setModelName(e.target.value); localStorage.setItem('rexi_model', e.target.value); }}
               placeholder="vd: tên model có trong danh sách..."
-              className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50 font-mono"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 font-mono"
             />
           </div>
 
           {provider !== 'opencode' && (
             <div>
-              <label className="text-xs font-medium text-slate-400 mb-1 block">API Key</label>
+              <label className="text-xs font-medium text-slate-500 mb-1 block">API Key</label>
               <div className="relative">
                 <input
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
-                  onChange={e => { setApiKey(e.target.value); localStorage.setItem('rexi_api_key', e.target.value); }}
+                  onChange={e => { setApiKey(e.target.value); try { sessionStorage.setItem('rexi_api_key', e.target.value); } catch {} }}
                   placeholder={currentInfo.placeholder || 'Nhập API Key...'}
-                  className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50 pr-10"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 pr-10"
                 />
                 <button type="button" onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700">
                   {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {apiKey ? (
                 <button type="button" onClick={handleClearKey}
-                  className="mt-1 text-[10px] text-rose-400/80 hover:text-rose-300">
+                  className="mt-1 text-[10px] text-rose-500 hover:text-rose-600">
                   Xóa key đã lưu khỏi máy này
                 </button>
               ) : null}
@@ -145,7 +149,7 @@ export default function SettingsModal({
           )}
 
           <div>
-            <label className="text-xs font-medium text-slate-400 mb-1 block">Base URL Endpoint (Địa chỉ API)</label>
+            <label className="text-xs font-medium text-slate-500 mb-1 block">Base URL Endpoint (Địa chỉ API)</label>
             <input
               type="text"
               value={baseUrl}
@@ -156,7 +160,7 @@ export default function SettingsModal({
                 : provider === 'opencode' ? 'Internal engine — không cần URL'
                 : 'https://api.openai.com/v1'
               }
-              className="w-full px-3 py-2.5 bg-[#0d0e11] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50 font-mono"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 font-mono"
             />
             {(provider === 'gemini' || provider === 'claude' || provider === 'opencode') && (
               <p className="text-[10px] text-slate-500 mt-1">Provider này dùng API Key trực tiếp, không cần Base URL</p>
