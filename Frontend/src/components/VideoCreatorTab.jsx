@@ -28,7 +28,7 @@ const EASY_TEMPLATES = [
   <h1 id="ts-title" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
     style="font-size:72px;font-weight:800;background:linear-gradient(90deg,#00d2ff,#3a7bd5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0 0 24px;">
     ${escapeHtml(f.title)}</h1>
-  <p id="ts-sub" class="clip" data-start="0.4" data-duration="${dur - 0.4}" data-track-index="0"
+  <p id="ts-sub" class="clip" data-start="0.4" data-duration="${dur - 0.4}" data-track-index="1"
     style="font-size:28px;color:#94a3b8;letter-spacing:2px;margin:0;">
     ${escapeHtml(f.subtitle)}</p>
 </div>
@@ -76,9 +76,9 @@ const EASY_TEMPLATES = [
 <div style="width:100%;height:100%;background:radial-gradient(circle at 50% 30%,#1e1b4b,#0a0a0a);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;text-align:center;padding:60px;">
   <h1 id="tr-l1" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
     style="font-size:56px;font-weight:800;color:#fff;margin:0 0 16px;">${escapeHtml(f.line1)}</h1>
-  <h2 id="tr-l2" class="clip" data-start="0.5" data-duration="${dur - 0.5}" data-track-index="0"
+  <h2 id="tr-l2" class="clip" data-start="0.5" data-duration="${dur - 0.5}" data-track-index="1"
     style="font-size:40px;font-weight:600;color:#60a5fa;margin:0 0 16px;">${escapeHtml(f.line2)}</h2>
-  <p id="tr-l3" class="clip" data-start="1" data-duration="${dur - 1}" data-track-index="0"
+  <p id="tr-l3" class="clip" data-start="1" data-duration="${dur - 1}" data-track-index="2"
     style="font-size:24px;color:#94a3b8;margin:0;">${escapeHtml(f.line3)}</p>
 </div>
 <script>
@@ -111,12 +111,12 @@ const EASY_TEMPLATES = [
       <h3 style="color:#fff;font-size:24px;margin:0 0 8px;">${escapeHtml(f.card1)}</h3>
       <p style="color:#94a3b8;font-size:14px;margin:0;">${escapeHtml(f.card1d)}</p>
     </div>
-    <div id="cg-c2" class="clip" data-start="0.2" data-duration="${dur - 0.2}" data-track-index="0"
+    <div id="cg-c2" class="clip" data-start="0.2" data-duration="${dur - 0.2}" data-track-index="1"
       style="background:linear-gradient(135deg,#1e3a5f,#0f172a);border-radius:20px;padding:40px;width:280px;text-align:center;border:1px solid #334155;">
       <h3 style="color:#fff;font-size:24px;margin:0 0 8px;">${escapeHtml(f.card2)}</h3>
       <p style="color:#94a3b8;font-size:14px;margin:0;">${escapeHtml(f.card2d)}</p>
     </div>
-    <div id="cg-c3" class="clip" data-start="0.4" data-duration="${dur - 0.4}" data-track-index="0"
+    <div id="cg-c3" class="clip" data-start="0.4" data-duration="${dur - 0.4}" data-track-index="2"
       style="background:linear-gradient(135deg,#1e3a5f,#0f172a);border-radius:20px;padding:40px;width:280px;text-align:center;border:1px solid #334155;">
       <h3 style="color:#fff;font-size:24px;margin:0 0 8px;">${escapeHtml(f.card3)}</h3>
       <p style="color:#94a3b8;font-size:14px;margin:0;">${escapeHtml(f.card3d)}</p>
@@ -147,7 +147,7 @@ const EASY_TEMPLATES = [
     <div id="cd-num" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
       style="font-size:200px;font-weight:900;background:linear-gradient(135deg,#00d2ff,#3a7bd5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">
       ${escapeHtml(f.number)}</div>
-    <div id="cd-msg" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="0"
+    <div id="cd-msg" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="1"
       style="font-size:36px;color:#fff;font-weight:700;letter-spacing:4px;margin-top:20px;">
       ${escapeHtml(f.message)}</div>
   </div>
@@ -176,7 +176,7 @@ const EASY_TEMPLATES = [
     style="padding:40px 60px 20px;">
     <h1 style="font-size:48px;font-weight:900;color:#fff;margin:0;">${escapeHtml(f.headline)}</h1>
   </div>
-  <div id="nt-bar" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="0"
+  <div id="nt-bar" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="1"
     style="background:#dc2626;padding:16px 0;overflow:hidden;margin:0 60px;border-radius:8px;">
     <div id="nt-ticker" style="font-size:24px;color:#fff;font-weight:600;letter-spacing:1px;white-space:nowrap;display:inline-block;">
       ${escapeHtml(f.ticker)}&nbsp;&nbsp;&nbsp;&nbsp;${escapeHtml(f.ticker)}&nbsp;&nbsp;&nbsp;&nbsp;${escapeHtml(f.ticker)}</div>
@@ -205,10 +205,10 @@ const EASY_TEMPLATES = [
   <div style="max-width:800px;text-align:center;">
     <div id="qc-mark" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
       style="font-size:120px;color:rgba(255,255,255,0.15);line-height:1;margin-bottom:-30px;">\u201C</div>
-    <p id="qc-text" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="0"
+    <p id="qc-text" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="1"
       style="font-size:32px;color:#fff;font-style:italic;line-height:1.5;margin:0 0 24px;">
       ${escapeHtml(f.quote)}</p>
-    <p id="qc-author" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="0"
+    <p id="qc-author" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="2"
       style="font-size:20px;color:rgba(255,255,255,0.7);font-weight:600;margin:0;">
       — ${escapeHtml(f.author)}</p>
   </div>
@@ -372,20 +372,20 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#0a0b0f] overflow-hidden">
+    <div className="flex flex-col h-full w-full bg-white overflow-hidden">
       {/* Header */}
       <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-            <Video size={18} className="text-white" />
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-white">Tạo Video</h1>
-            <p className="text-[10px] text-slate-500">Tạo video HTML animation đẹp mắt</p>
-          </div>
+<div className="w-9 h-9 rounded-xl border border-slate-200 flex items-center justify-center">
+             <Video size={18} className="text-[#4a7dff]" />
+           </div>
+           <div>
+             <h1 className="text-sm font-bold text-slate-800">Tạo Video</h1>
+             <p className="text-[10px] text-slate-500">Tạo video HTML animation đẹp mắt</p>
+           </div>
         </div>
         {/* Format Selector */}
-        <div className="flex items-center gap-1 p-1 bg-[#12131a] rounded-xl border border-white/5">
+        <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-200">
           {FORMATS.map(f => {
             const Icon = f.icon;
             return (
@@ -394,8 +394,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 onClick={() => setFormat(f.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                   format === f.id
-                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                    : 'text-slate-500 hover:text-white hover:bg-white/5'
+                    ? 'bg-[#4a7dff]/20 text-[#4a7dff] border border-[#4a7dff]/30'
+                    : 'text-slate-800 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 <Icon size={12} />
@@ -405,15 +405,15 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
           })}
         </div>
         {/* Duration Selector */}
-        <div className="flex items-center gap-1 p-1 bg-[#12131a] rounded-xl border border-white/5">
+        <div className="flex items-center gap-1 p-1 bg-slate-50 rounded-xl border border-slate-200">
           {[5, 10, 15, 30].map(d => (
             <button
               key={d}
               onClick={() => setDuration(d)}
               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
                 duration === d
-                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                  : 'text-slate-500 hover:text-white hover:bg-white/5'
+                  ? 'bg-[#4a7dff]/20 text-[#4a7dff] border border-[#4a7dff]/30'
+                  : 'text-slate-800 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
               {d}s
@@ -422,41 +422,41 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         </div>
       </div>
 
-      {/* Step Indicator */}
-      <div className="flex items-center justify-center gap-1 px-4 py-2.5 border-b border-white/5 bg-[#0d0e12]">
-        {STEPS.map((s, i) => {
-          return (
-            <React.Fragment key={s.n}>
-              {i > 0 && <div className={`w-8 h-px ${step > s.n ? 'bg-purple-500/60' : 'bg-white/10'}`} />}
-              <button
-                onClick={() => s.n < step && setStep(s.n)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                  step === s.n
-                    ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                    : step > s.n
-                      ? 'text-emerald-400 hover:bg-white/5'
-                      : 'text-slate-600'
-                }`}
-                title={s.n < step ? 'Quay lại bước này' : s.label}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
-                  step > s.n ? 'bg-emerald-500 text-white' : step === s.n ? 'bg-purple-500 text-white' : 'bg-white/10 text-slate-500'
-                }`}>
-                  {step > s.n ? '✓' : s.n}
-                </span>
-                <span className="hidden sm:inline">{s.label}</span>
-              </button>
-            </React.Fragment>
-          );
-        })}
-      </div>
+{/* Step Indicator */}
+        <div className="flex items-center justify-center gap-1 px-4 py-2.5 border-b border-slate-200 bg-slate-50">
+          {STEPS.map((s, i) => {
+            return (
+              <React.Fragment key={s.n}>
+                {i > 0 && <div className={`w-8 h-px ${step > s.n ? 'bg-[#4a7dff]/60' : 'bg-slate-200/10'}`} />}
+                <button
+                  onClick={() => s.n < step && setStep(s.n)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                    step === s.n
+                      ? 'bg-[#4a7dff]/15 text-[#4a7dff] border border-[#4a7dff]/30'
+                      : step > s.n
+                        ? 'text-emerald-400 hover:bg-slate-100'
+                        : 'text-slate-600'
+                  }`}
+                  title={s.n < step ? 'Quay lại bước này' : s.label}
+                >
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                    step > s.n ? 'bg-emerald-500 text-white' : step === s.n ? 'bg-[#4a7dff] text-white' : 'bg-slate-200/10 text-slate-500'
+                  }`}>
+                    {step > s.n ? '✓' : s.n}
+                  </span>
+                  <span className="hidden sm:inline">{s.label}</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
+        </div>
 
       {/* Status Warning */}
       {status && !ready && (
         <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-2">
           <Info size={13} className="text-amber-400 shrink-0 mt-0.5" />
           <p className="text-[10px] text-amber-200/80 leading-relaxed">
-            Chưa cấu hình render video. Chạy <code className="bg-black/30 px-1 py-0.5 rounded font-mono text-[9px]">npx hyperframes doctor</code> trong Backend. Bạn vẫn xem được preview.
+            Chưa cấu hình render video (thiếu ffmpeg hoặc Chrome/Chromium). Trên server: chạy <code className="bg-black/30 px-1 py-0.5 rounded font-mono text-[9px]">npx playwright install chromium</code> trong Backend. Bạn vẫn xem được preview.
           </p>
         </div>
       )}
@@ -481,8 +481,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                     onClick={() => setCategory(c.id)}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-medium transition-all ${
                       category === c.id
-                        ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                        : 'bg-[#12131a] text-slate-400 border border-white/5 hover:text-white hover:border-white/15'
+                        ? 'bg-[#4a7dff]/15 text-[#4a7dff] border border-[#4a7dff]/30'
+                        : 'bg-slate-50 text-slate-800 border border-slate-200 hover:text-slate-900 hover:border-slate-300'
                     }`}
                   >
                     <Icon size={12} />
@@ -503,8 +503,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                     onClick={() => openPreview(t)}
                     className={`group rounded-2xl overflow-hidden border transition-all text-left active:scale-[0.98] ${
                       selectedTemplate.id === t.id
-                        ? 'border-purple-500/60 ring-2 ring-purple-500/30 shadow-lg shadow-purple-500/10'
-                        : 'border-white/10 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5'
+                        ? 'border-[#4a7dff]/60 ring-2 ring-[#4a7dff]/30 shadow-lg shadow-[#4a7dff]/10'
+                        : 'border-slate-200 hover:border-[#4a7dff]/40 hover:shadow-lg hover:shadow-[#4a7dff]/5'
                     }`}
                   >
                     {/* Video Preview */}
@@ -517,21 +517,21 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                         title={t.name}
                       />
                       {/* Play Button Overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/30">
                         <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-xl">
                           <Play size={24} className="text-gray-900 ml-1" fill="currentColor" />
                         </div>
                       </div>
                       {/* Duration Badge */}
-                      <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/75 rounded text-[10px] text-white font-medium">0:{String(duration).padStart(2, '0')}</span>
+                      <span className="absolute bottom-2 right-2 px-2 py-0.5 bg-slate-900/75 rounded text-[10px] text-white font-medium">0:{String(duration).padStart(2, '0')}</span>
                       {/* Selected Badge */}
                       {selectedTemplate.id === t.id && (
-                        <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-purple-500 text-white text-xs font-bold flex items-center justify-center shadow-lg">✓</span>
+                        <span className="absolute top-2 right-2 w-6 h-6 rounded-full bg-[#4a7dff] text-white text-xs font-bold flex items-center justify-center shadow-lg">✓</span>
                       )}
                     </div>
                     {/* Info */}
-                    <div className="px-4 py-3 bg-[#12131a]">
-                      <p className="text-xs font-bold text-slate-100">{t.name}</p>
+                    <div className="px-4 py-3 bg-slate-50">
+                      <p className="text-xs font-bold text-slate-800">{t.name}</p>
                       <p className="text-[10px] text-slate-500 mt-0.5">{t.desc}</p>
                     </div>
                   </button>
@@ -539,219 +539,219 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
               })}
             </div>
 
-            <div className="flex justify-center mt-6">
-              <button
-                onClick={() => setStep(2)}
-                className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white font-bold text-sm shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2 active:scale-95"
-              >
-                Chọn mẫu này <ArrowRight size={16} />
-              </button>
-            </div>
+<div className="flex justify-center mt-6">
+               <button
+                 onClick={() => setStep(2)}
+                 className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white font-bold text-sm shadow-lg shadow-[4a7dff]/20 transition-all flex items-center gap-2 active:scale-95"
+               >
+                 Chọn mẫu này <ArrowRight size={16} />
+               </button>
+             </div>
           </div>
         )}
 
         {/* Step 2: Edit Fields */}
         {step === 2 && (
           <div className="p-5 max-w-2xl mx-auto">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-bold text-white">Nhập nội dung</h2>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Mẫu: <span className="text-purple-300">{selectedTemplate.name}</span>
-                </p>
-              </div>
-              <button onClick={() => setStep(1)} className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                <ArrowLeft size={12} /> Đổi mẫu
-              </button>
-            </div>
+<div className="flex items-center justify-between mb-4">
+               <div>
+                 <h2 className="text-base font-bold text-slate-800">Nhập nội dung</h2>
+                 <p className="text-[11px] text-slate-500 mt-0.5">
+                   Mẫu: <span className="text-[#4a7dff]">{selectedTemplate.name}</span>
+                 </p>
+               </div>
+               <button onClick={() => setStep(1)} className="text-[11px] text-slate-400 hover:text-slate-800 flex items-center gap-1 transition-colors">
+                 <ArrowLeft size={12} /> Đổi mẫu
+               </button>
+             </div>
             <div className="space-y-3">
-              {selectedTemplate.fields.map(f => (
-                <div key={f.key} className="space-y-1.5">
-                  <label className="text-[11px] font-semibold text-slate-300">{f.label}</label>
-                  <input
-                    type="text"
-                    value={fields[f.key] ?? f.default}
-                    onChange={e => updateField(f.key, e.target.value)}
-                    placeholder={f.placeholder}
-                    className="w-full px-4 py-3 bg-[#12131a] border border-white/10 rounded-xl text-sm text-white placeholder-slate-600 outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/10 transition-all"
-                  />
-                </div>
-              ))}
+{selectedTemplate.fields.map(f => (
+                 <div key={f.key} className="space-y-1.5">
+                   <label className="text-[11px] font-semibold text-slate-600">{f.label}</label>
+                   <input
+                     type="text"
+                     value={fields[f.key] ?? f.default}
+                     onChange={e => updateField(f.key, e.target.value)}
+                     placeholder={f.placeholder}
+                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-500 outline-none focus:border-[#4a7dff]/50 focus:ring-2 focus:ring-[4a7dff]/10 transition-all"
+                   />
+                 </div>
+               ))}
             </div>
-            <div className="flex justify-between mt-6">
-              <button onClick={() => setStep(1)} className="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-all flex items-center gap-2 active:scale-95">
-                <ArrowLeft size={14} /> Quay lại
-              </button>
-              <button onClick={() => setStep(3)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-purple-500/20 transition-all flex items-center gap-2 active:scale-95">
-                Xem trước <ArrowRight size={14} />
-              </button>
-            </div>
+<div className="flex justify-between mt-6">
+               <button onClick={() => setStep(1)} className="px-5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-all flex items-center gap-2 active:scale-95">
+                 <ArrowLeft size={14} /> Quay lại
+               </button>
+               <button onClick={() => setStep(3)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white text-xs font-bold shadow-lg shadow-[4a7dff]/20 transition-all flex items-center gap-2 active:scale-95">
+                 Xem trước <ArrowRight size={14} />
+               </button>
+             </div>
           </div>
         )}
 
         {/* Step 3: Preview & Render */}
         {step === 3 && (
           <div className="p-5 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-base font-bold text-white">Xem trước video</h2>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  {selectedFormat.label} • {selectedFormat.w}×{selectedFormat.h}
-                </p>
-              </div>
-              <button onClick={() => setStep(2)} className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                <ArrowLeft size={12} /> Sửa nội dung
-              </button>
-            </div>
+<div className="flex items-center justify-between mb-3">
+               <div>
+                 <h2 className="text-base font-bold text-slate-800">Xem trước video</h2>
+                 <p className="text-[11px] text-slate-500 mt-0.5">
+                   {selectedFormat.label} • {selectedFormat.w}×{selectedFormat.h}
+                 </p>
+               </div>
+               <button onClick={() => setStep(2)} className="text-[11px] text-slate-400 hover:text-slate-800 flex items-center gap-1 transition-colors">
+                 <ArrowLeft size={12} /> Sửa nội dung
+               </button>
+             </div>
 
-            {/* Preview */}
-            <div className="rounded-2xl overflow-hidden bg-black border border-white/10 shadow-2xl">
-              <div style={{ aspectRatio: `${selectedFormat.w}/${selectedFormat.h}` }}>
-                <iframe
-                  src={previewSrc}
-                  className="w-full h-full border-0"
-                  sandbox="allow-scripts"
-                  title="Preview"
-                  style={{ pointerEvents: 'none' }}
-                />
-              </div>
-            </div>
+{/* Preview */}
+             <div className="rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 shadow-2xl">
+               <div style={{ aspectRatio: `${selectedFormat.w}/${selectedFormat.h}` }}>
+                 <iframe
+                   src={previewSrc}
+                   className="w-full h-full border-0"
+                   sandbox="allow-scripts"
+                   title="Preview"
+                   style={{ pointerEvents: 'none' }}
+                 />
+               </div>
+             </div>
 
-            {/* Render Controls */}
-            <div className="mt-4 p-4 bg-[#12131a] rounded-2xl border border-white/10">
-              {renderProgress ? (
-                <div className="flex items-center gap-3">
-                  <Loader2 size={18} className="animate-spin text-purple-400" />
-                  <span className="text-sm text-purple-300">{renderProgress}</span>
-                </div>
-              ) : videoUrl ? (
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-10 rounded-lg overflow-hidden bg-black border border-white/10 shrink-0">
-                    <video src={videoUrl} className="w-full h-full object-cover" muted />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-emerald-300">Video đã render xong!</p>
-                    <p className="text-[10px] text-slate-500">{selectedFormat.label} • {selectedFormat.w}×{selectedFormat.h} • {(videoSize / 1024 / 1024).toFixed(1)}MB</p>
-                  </div>
-                  <button onClick={handleDownload} className="px-5 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/30 transition-all active:scale-95">
-                    <Download size={14} /> Tải MP4
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <p className="text-[11px] text-slate-400">Sẵn sàng render. Bấm nút để tạo file MP4 (mất 30-60 giây).</p>
-                  <button
-                    onClick={handleRender}
-                    disabled={rendering}
-                    className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white font-bold text-sm shadow-lg shadow-purple-500/20 disabled:opacity-50 transition-all flex items-center gap-2 active:scale-95"
-                  >
-                    {rendering ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
-                    {rendering ? 'Đang render...' : 'Render MP4'}
-                  </button>
-                </div>
-              )}
-            </div>
+{/* Render Controls */}
+             <div className="mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+               {renderProgress ? (
+                 <div className="flex items-center gap-3">
+                   <Loader2 size={18} className="animate-spin text-[4a7dff]" />
+                   <span className="text-sm text-[4a7dff]">{renderProgress}</span>
+                 </div>
+               ) : videoUrl ? (
+                 <div className="flex items-center gap-4">
+                   <div className="w-16 h-10 rounded-lg overflow-hidden bg-slate-50 border border-slate-200 shrink-0">
+                     <video src={videoUrl} className="w-full h-full object-cover" muted />
+                   </div>
+                   <div className="flex-1 min-w-0">
+                     <p className="text-sm font-bold text-emerald-300">Video đã render xong!</p>
+                     <p className="text-[10px] text-slate-500">{selectedFormat.label} • {selectedFormat.w}×{selectedFormat.h} • {(videoSize / 1024 / 1024).toFixed(1)}MB</p>
+                   </div>
+                   <button onClick={handleDownload} className="px-5 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/30 transition-all active:scale-95">
+                     <Download size={14} /> Tải MP4
+                   </button>
+                 </div>
+               ) : (
+                 <div className="flex items-center justify-between flex-wrap gap-3">
+                   <p className="text-[11px] text-slate-500">Sẵn sàng render. Bấm nút để tạo file MP4 (mất 30-60 giây).</p>
+                   <button
+                     onClick={handleRender}
+                     disabled={rendering}
+                     className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white font-bold text-sm shadow-lg shadow-[4a7dff]/20 disabled:opacity-50 transition-all flex items-center gap-2 active:scale-95"
+                   >
+                     {rendering ? <Loader2 size={16} className="animate-spin" /> : <Video size={16} />}
+                     {rendering ? 'Đang render...' : 'Render MP4'}
+                   </button>
+                 </div>
+               )}
+             </div>
           </div>
         )}
 
-        {/* Step 4: Done */}
-        {step === 4 && (
-          <div className="p-8 max-w-md mx-auto text-center">
-            <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mb-4">
-              <Check size={32} className="text-emerald-400" />
-            </div>
-            <h2 className="text-lg font-bold text-white">Video đã xong!</h2>
-            <p className="text-[11px] text-slate-500 mt-1.5">
-              Bấm nút bên dưới để tải file MP4 về thư mục Downloads.
-            </p>
-            <div className="mt-5 space-y-2.5">
-              <button
-                onClick={handleDownload}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
-              >
-                <Download size={16} /> Tải video MP4
-              </button>
-              <button
-                onClick={startOver}
-                className="w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-all active:scale-95"
-              >
-                Tạo video khác
-              </button>
-            </div>
-          </div>
-        )}
+{/* Step 4: Done */}
+         {step === 4 && (
+           <div className="p-8 max-w-md mx-auto text-center">
+             <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mb-4">
+               <Check size={32} className="text-emerald-400" />
+             </div>
+             <h2 className="text-lg font-bold text-slate-800">Video đã xong!</h2>
+             <p className="text-[11px] text-slate-500 mt-1.5">
+               Bấm nút bên dưới để tải file MP4 về thư mục Downloads.
+             </p>
+             <div className="mt-5 space-y-2.5">
+               <button
+                 onClick={handleDownload}
+                 className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+               >
+                 <Download size={16} /> Tải video MP4
+               </button>
+               <button
+                 onClick={startOver}
+                 className="w-full py-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-all active:scale-95"
+               >
+                 Tạo video khác
+               </button>
+             </div>
+           </div>
+         )}
       </div>
 
-      {/* Footer - Advanced HTML */}
-      <div className="border-t border-white/5 bg-[#0d0e12]">
-        <button
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
-        >
-          <Code size={11} /> {showAdvanced ? 'Ẩn code' : 'Chế độ code (nâng cao)'}
-        </button>
-        {showAdvanced && (
-          <div className="px-4 pb-3 flex gap-2">
-            <div className="flex-1">
-              <textarea
-                value={advHtml || html}
-                onChange={e => { setAdvHtml(e.target.value); }}
-                rows={6}
-                className="w-full p-3 bg-[#0a0b0e] text-green-300 font-mono text-[11px] leading-relaxed outline-none resize-none border border-white/10 rounded-xl placeholder-slate-600"
-                placeholder="Dán HTML của bạn vào đây..."
-                spellCheck={false}
-              />
-            </div>
-            <button
-              onClick={() => { if (advHtml.trim()) setHtml(advHtml); setStep(3); }}
-              className="self-end px-4 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-bold hover:bg-cyan-500/30 transition-all active:scale-95"
-            >
-              Dùng code này
-            </button>
-          </div>
-        )}
-      </div>
+{/* Footer - Advanced HTML */}
+       <div className="border-t border-slate-200 bg-slate-50">
+         <button
+           onClick={() => setShowAdvanced(!showAdvanced)}
+           className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-slate-800 hover:text-slate-600 transition-colors"
+         >
+           <Code size={11} /> {showAdvanced ? 'Ẩn code' : 'Chế độ code (nâng cao)'}
+         </button>
+         {showAdvanced && (
+           <div className="px-4 pb-3 flex gap-2">
+             <div className="flex-1">
+               <textarea
+                 value={advHtml || html}
+                 onChange={e => { setAdvHtml(e.target.value); }}
+                 rows={6}
+                 className="w-full p-3 bg-slate-900 text-green-300 font-mono text-[11px] leading-relaxed outline-none resize-none border border-slate-200 rounded-xl placeholder-slate-500"
+                 placeholder="Dán HTML của bạn vào đây..."
+                 spellCheck={false}
+               />
+             </div>
+             <button
+               onClick={() => { if (advHtml.trim()) setHtml(advHtml); setStep(3); }}
+               className="self-end px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white text-xs font-bold shadow-lg shadow-[4a7dff]/20 transition-all active:scale-95"
+             >
+               Dùng code này
+             </button>
+           </div>
+         )}
+       </div>
 
-      {/* Preview Modal */}
-      {previewTemplate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setPreviewTemplate(null)}>
-          <div className="bg-[#12131a] rounded-2xl border border-white/10 shadow-2xl w-[90vw] max-w-4xl overflow-hidden" onClick={e => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b border-white/5">
-              <div>
-                <h3 className="text-sm font-bold text-white">{previewTemplate.name}</h3>
-                <p className="text-[10px] text-slate-500">{previewTemplate.desc}</p>
-              </div>
-              <button onClick={() => setPreviewTemplate(null)} className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all">
-                ✕
-              </button>
-            </div>
-            {/* Preview Area */}
-            <div className="p-5">
-              <div className="rounded-xl overflow-hidden bg-black border border-white/5" style={{ aspectRatio: '16/9' }}>
-                <iframe
-                  src={`data:text/html;base64,${utf8ToBase64(previewTemplate.build(previewTemplate.fields.reduce((a, f) => ({ ...a, [f.key]: f.default }), {}), duration))}`}
-                  className="w-full h-full border-0"
-                  sandbox="allow-scripts"
-                  title={previewTemplate.name}
-                />
-              </div>
-            </div>
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between px-5 py-3 border-t border-white/5">
-              <p className="text-[10px] text-slate-500">Thời lượng: {duration}s • {selectedFormat.label} ({selectedFormat.w}×{selectedFormat.h})</p>
-              <div className="flex gap-2">
-                <button onClick={() => setPreviewTemplate(null)} className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-all">
-                  Đóng
-                </button>
-                <button onClick={() => pickTemplate(previewTemplate)} className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-purple-500/20 transition-all flex items-center gap-1.5">
-                  Chọn mẫu này <ArrowRight size={14} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+{/* Preview Modal */}
+       {previewTemplate && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50" style={{transition:'background-color .2s'}} onClick={() => setPreviewTemplate(null)}>
+           <div className="bg-slate-50 rounded-2xl border border-slate-200 shadow-2xl w-[90vw] max-w-4xl overflow-hidden" onClick={e => e.stopPropagation()}>
+             {/* Modal Header */}
+             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+               <div>
+                 <h3 className="text-sm font-bold text-slate-800">{previewTemplate.name}</h3>
+                 <p className="text-[10px] text-slate-500">{previewTemplate.desc}</p>
+               </div>
+               <button onClick={() => setPreviewTemplate(null)} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-800 transition-all">
+                 ✕
+               </button>
+             </div>
+             {/* Preview Area */}
+             <div className="p-5">
+               <div className="rounded-xl overflow-hidden bg-slate-50 border border-slate-200" style={{ aspectRatio: '16/9' }}>
+                 <iframe
+                   src={`data:text/html;base64,${utf8ToBase64(previewTemplate.build(previewTemplate.fields.reduce((a, f) => ({ ...a, [f.key]: f.default }), {}), duration))}`}
+                   className="w-full h-full border-0"
+                   sandbox="allow-scripts"
+                   title={previewTemplate.name}
+                 />
+               </div>
+             </div>
+             {/* Modal Footer */}
+             <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200">
+               <p className="text-[10px] text-slate-500">Thời lượng: {duration}s • {selectedFormat.label} ({selectedFormat.w}×{selectedFormat.h})</p>
+               <div className="flex gap-2">
+                 <button onClick={() => setPreviewTemplate(null)} className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-300 text-xs font-semibold transition-all">
+                   Đóng
+                 </button>
+                 <button onClick={() => pickTemplate(previewTemplate)} className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white text-xs font-bold shadow-lg shadow-[4a7dff]/20 transition-all flex items-center gap-1.5">
+                   Chọn mẫu này <ArrowRight size={14} />
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 }

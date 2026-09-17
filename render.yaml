@@ -17,7 +17,9 @@ services:
     region: oregon
     healthCheckPath: /api/health
     rootDir: ""
-    buildCommand: "cd Backend && npm install --omit=dev && cd ../Frontend && npm install --include=dev && npm run build"
+    # QA 17/9: thêm `npx playwright install chromium` để render video (videoRenderer)
+    # chạy được trên cloud — trước đây không cài browser nên tính năng video là local-only.
+    buildCommand: "cd Backend && npm install --omit=dev && npx playwright install chromium && cd ../Frontend && npm install --include=dev && npm run build"
     startCommand: "cd Backend && node server.js"
     envVars:
       - key: NODE_ENV

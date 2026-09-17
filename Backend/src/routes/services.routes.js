@@ -19,6 +19,7 @@ const { generateEdgeTTSNode } = require('../services/edgeTTS');
 const { searchVideos, getVideoStream, downloadAudio } = require('../services/ytdlpService');
 const { PDFParse } = require('pdf-parse');
 const ragService = require('../services/ragService');
+const videoRenderer = require('../services/videoRenderer');
 
 // Multer: Lưu file audio tạm thời vào thư mục temp
 const upload = multer({
@@ -1625,13 +1626,29 @@ router.get('/video/status', authMiddleware, async (req, res) => {
       chromeOk = fs.existsSync(puppeteerCache);
     } catch {}
 
+    // QA 17/9: engine render chính giờ là Playwright + ffmpeg (videoRenderer).
+    // Kiểm tra thật bằng cách launch browser thử, không đoán theo thư mục cache.
+    let playwrightOk = false;
+    let playwrightBrowser = null;
+    let playwrightError = null;
+    if (videoRenderer.isAvailable()) {
+      try {
+        const probe = await videoRenderer.probeBrowser();
+        playwrightOk = true;
+        playwrightBrowser = probe.label;
+      } catch (e) { playwrightError = String(e.message || e).slice(0, 200); }
+    }
     res.json({
       success: true,
+      engine: playwrightOk ? 'playwright' : 'hyperframes',
       ffmpeg: ffmpegOk,
       ffmpegPath: ffmpegPath || null,
       hyperframes: !!hfVersion,
       chrome: chromeOk,
-      ready: ffmpegOk && chromeOk
+      playwright: playwrightOk,
+      playwrightBrowser,
+      playwrightError,
+      ready: ffmpegOk && playwrightOk
     });
   } catch (err) {
     res.json({ success: false, error: err.message });
@@ -1656,6 +1673,34 @@ router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max:
   const renderId = `render_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const projectDir = path.join(videoTempDir, renderId);
   const outputFile = path.join(projectDir, 'output.mp4');
+  const fpsArgMain = Math.min(Math.max(parseInt(fps, 10) || 30, 1), 60);
+
+  // ─── ĐƯỜNG CHÍNH (QA 17/9): renderer Playwright + ffmpeg của mình ───
+  // `hyperframes render` cần browser riêng và chết ở phase capture (Network.enable timeout).
+  if (videoRenderer.isAvailable()) {
+    try {
+      const out = await videoRenderer.renderComposition({
+        html, width: compWidth, height: compHeight, fps: fpsArgMain, duration: compDuration,
+      });
+      console.log(`[Video Render] playwright OK — ${out.frames} frames / ${(out.ms / 1000).toFixed(1)}s (${out.browser})`);
+      return res.json({
+        success: true,
+        video: out.buffer.toString('base64'),
+        format: 'mp4',
+        size: out.buffer.length,
+        width: compWidth,
+        height: compHeight,
+        duration: compDuration,
+        fps: fpsArgMain,
+        frames: out.frames,
+        renderMs: out.ms,
+        engine: 'playwright',
+        renderId,
+      });
+    } catch (eRender) {
+      console.error('[Video Render] playwright engine lỗi → thử hyperframes:', eRender.message);
+    }
+  }
 
   try {
     // Create project directory
@@ -1664,11 +1709,23 @@ router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max:
     // Write index.html composition (HyperFrames compatible)
     // (compWidth/compHeight/compDuration đã clamp ở đầu route — P2-20(6))
     const compId = 'main';
+    // QA 17/9: hyperframes lint báo missing_gsap_script vì <script src> của template
+    // nằm trong <body>; đồng thời timeline_id_mismatch vì template tự đăng ký
+    // window.__timelines['<id-template>'] trong khi composition id là 'main'.
+    // → hoist script CDN (https) lên <head> và gán lại timeline cho 'main'.
+    let bodyHtml = html;
+    const hoisted = [];
+    bodyHtml = html.replace(/<script\s+src="(https:\/\/[^"\s>]+)"\s*>\s*<\/script>/gi, (m, src) => {
+      hoisted.push(src);
+      return '';
+    });
+    const headScripts = hoisted.map(src => `  <script src="${src}"></script>`).join('\n');
     const compositionHtml = `<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+${headScripts}
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { width: ${compWidth}px; height: ${compHeight}px; overflow: hidden; background: #000; }
@@ -1676,11 +1733,14 @@ router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max:
 </head>
 <body>
   <div data-composition-id="${compId}" data-width="${compWidth}" data-height="${compHeight}" data-start="0" data-duration="${compDuration}">
-    ${html}
+    ${bodyHtml}
   </div>
   <script>
     window.__timelines = window.__timelines || {};
-    window.__timelines["${compId}"] = { compositions: [] };
+    (function () {
+      var own = Object.keys(window.__timelines).filter(function (k) { return k !== '${compId}'; });
+      window.__timelines['${compId}'] = own.length ? window.__timelines[own[0]] : { compositions: [] };
+    })();
   </script>
 </body>
 </html>`;
@@ -1804,6 +1864,25 @@ router.post('/video/save', authMiddleware, (req, res) => {
 
 
 // ─── TẠO ẢNH AI (Gemini Image) ─────────────────────────────────
+// ─── Provider ảnh DỰ PHÒNG miễn phí (không cần API key) ───
+// QA 17/9: quota Gemini cạn là tính năng tạo ảnh chết hẳn. Pollinations (Flux)
+// trả ảnh trực tiếp qua URL, không cần key → dùng làm đường lui cho /generate-image.
+async function generateImageFallback(prompt, size = 1024) {
+  try {
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(prompt).slice(0, 800))}?width=${size}&height=${size}&nologo=true&model=flux`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(120000) });
+    if (!r.ok) return { success: false, error: `Provider dự phòng HTTP ${r.status}` };
+    const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+    if (!mime.startsWith('image/')) return { success: false, error: 'Provider dự phòng không trả ảnh' };
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (!buf.length) return { success: false, error: 'Provider dự phòng trả ảnh rỗng' };
+    return { success: true, image: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'pollinations' };
+  } catch (e) {
+    console.log('[generate-image] fallback error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 router.post('/generate-image', authMiddleware, async (req, res) => {
   const { prompt } = req.body;
   if (!prompt || !prompt.trim()) {
@@ -1823,7 +1902,9 @@ router.post('/generate-image', authMiddleware, async (req, res) => {
       gemKey = '';
     }
     if (!gemKey) {
-      return res.json({ success: false, error: 'Chưa cài API Key Gemini. Vào Cài đặt hệ thống để nhập key.' });
+      // QA 17/9: không có key Gemini → dùng provider ảnh miễn phí (không cần key)
+      const fb = await generateImageFallback(cleanPrompt);
+      return res.json(fb);
     }
     const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(gemKey)}`, {
       method: 'POST',
@@ -1837,19 +1918,30 @@ router.post('/generate-image', authMiddleware, async (req, res) => {
     const data = await resp.json();
     if (!resp.ok) {
       const msg = data.error?.message || ('HTTP ' + resp.status);
-      const friendly = resp.status === 429
-        ? '⚠️ Gemini đang TẠM HẾT QUOTA (rate limit). Vui lòng thử lại sau vài phút.'
-        : (resp.status === 400 ? '⚠️ Gemini từ chối nội dung này (bộ lọc an toàn). Vui lòng mô tả khác.' : 'Lỗi Gemini: ' + msg);
+      // QA 17/9: 429 = hết quota key free → tự chuyển provider ảnh miễn phí thay vì
+      // trả lỗi cứng (trước đây tính năng tạo ảnh chết hẳn khi quota Gemini cạn).
+      if (resp.status === 429 || resp.status === 503) {
+        const fb = await generateImageFallback(cleanPrompt);
+        if (fb.success) return res.json(fb);
+        return res.json({ success: false, error: '⚠️ Gemini đang TẠM HẾT QUOTA (rate limit) và provider dự phòng cũng lỗi: ' + String(fb.error || '').slice(0, 120) });
+      }
+      const friendly = resp.status === 400
+        ? '⚠️ Gemini từ chối nội dung này (bộ lọc an toàn). Vui lòng mô tả khác.'
+        : (resp.status === 429 ? '⚠️ Gemini đang TẠM HẾT QUOTA (rate limit). Vui lòng thử lại sau vài phút.' : 'Lỗi Gemini: ' + msg);
       return res.json({ success: false, error: friendly });
     }
     const part = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
     if (part && part.inlineData && part.inlineData.data) {
       const mime = part.inlineData.mimeType || 'image/png';
-      return res.json({ success: true, image: `data:${mime};base64,${part.inlineData.data}`, mimeType: mime });
+      return res.json({ success: true, image: `data:${mime};base64,${part.inlineData.data}`, mimeType: mime, provider: 'gemini' });
     }
-    return res.json({ success: false, error: 'Gemini không trả về ảnh. Vui lòng thử lại.' });
+    // Gemini trả rỗng (bộ lọc/khoá model) → vẫn còn đường dự phòng
+    const fbEmpty = await generateImageFallback(cleanPrompt);
+    return res.json(fbEmpty);
   } catch (e) {
     console.log('[generate-image] ERROR:', e.message);
+    const fb = await generateImageFallback(cleanPrompt);
+    if (fb.success) return res.json(fb);
     return res.json({ success: false, error: 'Lỗi kết nối Gemini: ' + e.message });
   }
 });
