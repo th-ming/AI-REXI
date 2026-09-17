@@ -87,7 +87,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
+      scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'], // P3: bỏ unpkg (không dùng); giữ jsdelivr cho GSAP (VideoCreator)
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.jsdelivr.net'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],

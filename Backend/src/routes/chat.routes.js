@@ -143,7 +143,7 @@ setInterval(async () => {
 
 // --- CACHING FOR MODELS ---
 const modelCache = new Map();
-const CACHE_TTL = 6 * 60 * 60 * 1000; // Cache models for 6 hours
+const CACHE_TTL = 60 * 60 * 1000; // P3: thống nhất cache models 1h (trước 6h — lệch với modelRouter)
 
 // Cleanup cache định kỳ để tránh memory leak
 setInterval(() => {
@@ -592,6 +592,20 @@ function cleanAIThinkingProcess(text) {
   return cleaned || text;
 }
 
+// P3: tổng dung lượng ảnh data-URL trong 1 tin nhắn ≤ 5MB (base64 phình ~33% → giữ payload < express.json 10mb)
+function validateImageAttachments(noiDung) {
+  if (!noiDung || typeof noiDung !== 'string') return null;
+  const imgRe = /!\[[^\]]*\]\((data:image\/[^)\s]+)\)/g;
+  let total = 0, m, count = 0;
+  while ((m = imgRe.exec(noiDung)) !== null) {
+    total += m[1].length;
+    count++;
+  }
+  if (count > 4) return 'Tối đa 4 ảnh mỗi tin nhắn.';
+  if (total > 5 * 1024 * 1024) return 'Tổng dung lượng ảnh quá lớn (tối đa ~5MB). Hãy nén hoặc giảm số ảnh gửi kèm.';
+  return null;
+}
+
 function saveAIMessageAndRespond(maHoiThoai, content, res) {
   const cleanContent = cleanAIThinkingProcess(content);
   const maTinNhanAI = crypto.randomUUID();
@@ -625,6 +639,10 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
   // Ép 'user' — chỉ POST /admin/.../reply mới được tạo vai_tro='admin'.
   const { vai_tro: _roleIgnored, noi_dung, provider, client_api_key, model_name, base_url, mode, execution_mode, thinking_level, skill_id } = req.body;
   const vai_tro = 'user';
+
+  // P3: chặn data-URL ảnh quá lớn — 1 ảnh base64 ~7MB + express.json 10mb → payload 10.5MB bị 413 ẩn
+  const oversizeErr = validateImageAttachments(noi_dung);
+  if (oversizeErr) return res.status(413).json({ error: oversizeErr });
 
   // P1-09: chặn IDOR — chỉ chủ sở hữu (hoặc admin) mới được nhắn vào hội thoại này
   const ownerErr = await assertConvOwner(id, req);
@@ -1355,6 +1373,10 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
   // P2-19a: ép vai_tro='user' (xem route non-stream) — chống bubble admin giả.
   const { vai_tro: _roleIgnored, noi_dung, provider, client_api_key, model_name, base_url, mode, execution_mode, thinking_level, user_location } = req.body;
   const vai_tro = 'user';
+
+  // P3: chặn data-URL ảnh quá lớn (bản stream) — lỗi trả qua SSE thay vì res.status (header SSE đã gửi)
+  const oversizeErrSse = validateImageAttachments(noi_dung);
+  if (oversizeErrSse) { sendSSE({ type: 'error', message: oversizeErrSse }); return endStream(); }
 
   // Headers SSE — tắt buffering ở mọi tầng (Express, proxy, nginx)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');

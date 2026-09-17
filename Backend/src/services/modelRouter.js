@@ -121,9 +121,9 @@ const PATTERNS = {
 
 const COMPLEX_HINTS = /(tai sao|vi sao|giai thich|phan tich|so sanh|danh gia|tong hop|huong dan chi tiet|neu ro|trinh bay|luan giai|chung minh|y nghia|tại sao|vì sao|giải thích|phân tích|so sánh|đánh giá|tổng hợp)/i;
 
-// Cache danh sách model + key có sẵn (refresh mỗi 10 phút)
+// Cache danh sách model + key có sẵn (refresh mỗi 1h — P3 thống nhất với chat.routes)
 let _cache = { models: null, keys: null, ts: 0 };
-const CACHE_TTL = 10 * 60 * 1000;
+const CACHE_TTL = 60 * 60 * 1000; // P3: thống nhất cache models 1h (trước 10m, lệch với chat.routes 6h)
 
 // ─── Latency: tốc độ thật từng provider (đo từ health check / request) ───
 const _latency = {}; // provider -> { avgMs, count, ts }
