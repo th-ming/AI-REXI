@@ -18,6 +18,41 @@ const { spawn } = require('child_process');
 let ffmpegPath = null;
 try { ffmpegPath = require('ffmpeg-static'); } catch (e) { ffmpegPath = null; }
 
+// Dò mọi Chrome/Chromium có sẵn trong các thư mục cache của Playwright/browser tải sẵn.
+// (QA 17/9: trên Render lỗi chỉ nói thiếu chromium_headless_shell — có thể bản full
+//  chromium đã có nhưng Playwright lại muốn headless-shell; quét thẳng ổ đĩa cho chắc.)
+function scanBrowserDirs() {
+  const roots = [];
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) roots.push(process.env.PLAYWRIGHT_BROWSERS_PATH);
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  if (home) roots.push(path.join(home, '.cache', 'ms-playwright'));
+  roots.push('/opt/render/.cache/ms-playwright', '/root/.cache/ms-playwright', '/ms-playwright');
+  roots.push(path.join(__dirname, '..', '..', 'node_modules', 'playwright-core', '.local-browsers'));
+
+  const found = [];
+  const inner = [
+    'chrome-linux/chrome',
+    'chrome-linux/headless_shell',
+    'chrome-headless-shell-linux64/chrome-headless-shell',
+    'chrome-linux64/chrome',
+    'chrome-win64/chrome.exe',
+    'chrome-headless-shell-win64/chrome-headless-shell.exe',
+  ];
+  for (const root of roots) {
+    let entries = [];
+    try { entries = fs.readdirSync(root); } catch (e) { continue; }
+    for (const name of entries) {
+      for (const rel of inner) {
+        const p = path.join(root, name, rel);
+        if (fs.existsSync(p)) found.push(p);
+      }
+    }
+  }
+  // Ưu tiên bản full chrome (render ổn định hơn headless-shell), rồi tới headless shell
+  found.sort((a, b) => (a.includes('headless') ? 1 : 0) - (b.includes('headless') ? 1 : 0));
+  return [...new Set(found)];
+}
+
 const CHROME_CANDIDATES_WIN = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -37,6 +72,8 @@ function launchCandidates() {
   const list = [{ label: 'playwright-chromium' }];
   const envPath = process.env.VIDEO_CHROME_PATH || process.env.CHROME_PATH || '';
   if (envPath && fs.existsSync(envPath)) list.push({ label: 'env-chrome', executablePath: envPath });
+  // Browser tải sẵn (playwright install / cache) — dùng executablePath trực tiếp
+  for (const p of scanBrowserDirs()) list.push({ label: 'cache:' + path.basename(path.dirname(p)) + '/' + path.basename(p), executablePath: p });
   for (const p of (process.platform === 'win32' ? CHROME_CANDIDATES_WIN : CHROME_CANDIDATES_POSIX)) {
     if (fs.existsSync(p)) list.push({ label: 'system:' + path.basename(p), executablePath: p });
   }
