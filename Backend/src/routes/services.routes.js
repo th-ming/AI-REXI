@@ -314,18 +314,13 @@ router.get('/external/stocks/:symbol', authMiddleware, async (req, res) => {
   }
 });
 
-// Vietnamese TTS API - dùng edge-tts (Python) qua spawn để chống injection
+// Vietnamese TTS API - Edge TTS WebSocket thuần Node (fallback Python edge-tts)
+// VERIFY 17/9/2026 (voices/list thật của Microsoft): vi-VN chỉ còn 2 giọng — 8 giọng cũ
+// (DuyAnh, HaSanh, MinhAnh, ThuyMinh, ThiTuyet, VanHanh, VanMinh, CaoViet) đã bị MS rút
+// khỏi Edge TTS → WS đóng ngay 'No audio chunks' → rơi fallback Python chết trên Render.
 const VIETNAMESE_TTS_VOICES = [
   { id: 'vi-VN-HoaiMyNeural', label: 'Hoài Mỹ (Nữ, Bắc)', gender: 'Nữ', region: 'Bắc' },
-  { id: 'vi-VN-NamMinhNeural', label: 'Nam Minh (Nam, Nam)', gender: 'Nam', region: 'Nam' },
-  { id: 'vi-VN-DuyAnhNeural', label: 'Duy Anh (Nam, Bắc)', gender: 'Nam', region: 'Bắc' },
-  { id: 'vi-VN-HaSanhNeural', label: 'Đà Sanh (Nữ, Nam)', gender: 'Nữ', region: 'Nam' },
-  { id: 'vi-VN-MinhAnhNeural', label: 'Minh Anh (Nữ, Bắc)', gender: 'Nữ', region: 'Bắc' },
-  { id: 'vi-VN-ThuyMinhNeural', label: 'Thùy Minh (Nữ, Nam)', gender: 'Nữ', region: 'Nam' },
-  { id: 'vi-VN-ThiTuyetNeural', label: 'Thị Tuyết (Nữ, Bắc)', gender: 'Nữ', region: 'Bắc' },
-  { id: 'vi-VN-VanHanhNeural', label: 'Vân Hân (Nữ, Nam)', gender: 'Nữ', region: 'Nam' },
-  { id: 'vi-VN-VanMinhNeural', label: 'Văn Minh (Nam, Bắc)', gender: 'Nam', region: 'Bắc' },
-  { id: 'vi-VN-CaoVietNeural', label: 'Cao Việt (Nam, Nam)', gender: 'Nam', region: 'Nam' }
+  { id: 'vi-VN-NamMinhNeural', label: 'Nam Minh (Nam, Nam)', gender: 'Nam', region: 'Nam' }
 ];
 const VALID_TTS_VOICES = VIETNAMESE_TTS_VOICES.map(v => v.id);
 
