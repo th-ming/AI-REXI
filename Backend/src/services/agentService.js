@@ -179,10 +179,7 @@ async function executeTool(toolName, args) {
       // FIX PROD: dùng Edge TTS Thuần Node.js (WebSocket tới Microsoft) — KHÔNG cần Python,
       // chạy được cả trên Render (trước đây dùng python3 trên Linux → lỗi trên server).
       const VALID_TTS_VOICES = [
-        'vi-VN-HoaiMyNeural', 'vi-VN-NamMinhNeural', 'vi-VN-DuyAnhNeural',
-        'vi-VN-HaSanhNeural', 'vi-VN-MinhAnhNeural', 'vi-VN-ThuyMinhNeural',
-        'vi-VN-ThiTuyetNeural', 'vi-VN-VanHanhNeural', 'vi-VN-VanMinhNeural',
-        'vi-VN-CaoVietNeural'
+        'vi-VN-HoaiMyNeural', 'vi-VN-NamMinhNeural'
       ];
       const voiceName = VALID_TTS_VOICES.includes(args.voice) ? args.voice : 'vi-VN-HoaiMyNeural';
       const validRate = args.rate && /^[+-]\d+%$/.test(args.rate) ? args.rate : '+0%';
@@ -208,7 +205,28 @@ async function executeTool(toolName, args) {
 // Tìm kiếm web không cần API key:
 //  1. DuckDuckGo Instant Answer API (api.duckduckgo.com — JSON, free, no key)
 //  2. Fallback: scrape kết quả html.duckduckgo.com (đỡ rủi ro IA trả rỗng)
+//  3. Fallback 2 (QA 17/9): Bing HTML — DDG chặn IP datacenter Render (403/anomaly)
+//  4. Fallback 3 (QA 17/9): Google News RSS — JSON-free, gần như không chặn IP
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+async function googleNewsRss(query, limit = 8) {
+  const rssRes = await fetch('https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=vi&gl=VN&ceid=VN:vi',
+    { headers: { 'User-Agent': UA } });
+  if (!rssRes.ok) return [];
+  const xml = await rssRes.text();
+  const out = [];
+  const itemRe = /<item>([\s\S]*?)<\/item>/g;
+  let im;
+  while ((im = itemRe.exec(xml)) !== null && out.length < limit) {
+    const item = im[1];
+    const title = (item.match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '';
+    const link = (item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
+    const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
+    const source = (item.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1] || '';
+    if (title) out.push({ type: 'news', title: title.trim(), url: link.trim(), snippet: (source.trim() + ' — ' + pubDate.trim()).replace(/^ — /, ''), source: 'google-news-rss' });
+  }
+  return out;
+}
 
 async function searchWebTool(query) {
   if (!query || !String(query).trim()) return { results: [] };
@@ -243,24 +261,58 @@ async function searchWebTool(query) {
   try {
     // 2) Fallback: HTML scrape html.duckduckgo.com
     const htmlRes = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: { 'User-Agent': UA } });
-    if (!htmlRes.ok) return { results: [] };
-    const html = await htmlRes.text();
-    const out = [];
-    const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-    let m;
-    while ((m = re.exec(html)) !== null && out.length < 8) {
-      out.push({
-        type: 'result',
-        title: m[2].replace(/<[^>]+>/g, '').trim(),
-        snippet: m[3].replace(/<[^>]+>/g, '').trim(),
-        url: m[1]
-      });
+    if (htmlRes.ok) {
+      const html = await htmlRes.text();
+      const out = [];
+      const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+      let m;
+      while ((m = re.exec(html)) !== null && out.length < 8) {
+        out.push({
+          type: 'result',
+          title: m[2].replace(/<[^>]+>/g, '').trim(),
+          snippet: m[3].replace(/<[^>]+>/g, '').trim(),
+          url: m[1]
+        });
+      }
+      if (out.length) return { results: out, source: 'duckduckgo-html' };
     }
-    return { results: out, source: 'duckduckgo-html' };
   } catch (e) {
     console.warn('[Agent][search] DDG HTML fail:', e.message);
-    return { results: [] };
   }
+
+  try {
+    // 3) Fallback 2: Bing HTML (DDG thường chặn IP datacenter — QA 17/9 Render trả rỗng)
+    const bingRes = await fetch('https://www.bing.com/search?q=' + encodeURIComponent(q) + '&setlang=vi',
+      { headers: { 'User-Agent': UA, 'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8' } });
+    if (bingRes.ok) {
+      const bingHtml = await bingRes.text();
+      const outB = [];
+      const reB = /<li class="b_algo"[\s\S]*?<h2><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a><\/h2>([\s\S]*?)<\/li>/g;
+      let mb;
+      while ((mb = reB.exec(bingHtml)) !== null && outB.length < 8) {
+        const snip = (mb[3].match(/<p[^>]*>([\s\S]*?)<\/p>/) || [])[1] || '';
+        outB.push({
+          type: 'result',
+          title: mb[2].replace(/<[^>]+>/g, '').trim(),
+          snippet: snip.replace(/<[^>]+>/g, '').trim(),
+          url: mb[1]
+        });
+      }
+      if (outB.length) return { results: outB, source: 'bing-html' };
+    }
+  } catch (e) {
+    console.warn('[Agent][search] Bing fail:', e.message);
+  }
+
+  try {
+    // 4) Fallback 3: Google News RSS (hầu như không chặn IP)
+    const news = await googleNewsRss(q);
+    if (news.length) return { results: news, source: 'google-news-rss' };
+  } catch (e) {
+    console.warn('[Agent][search] GoogleNews fail:', e.message);
+  }
+
+  return { results: [] };
 }
 
 // ========== CALL AI ==========

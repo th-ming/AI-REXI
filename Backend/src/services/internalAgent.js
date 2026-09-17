@@ -12,6 +12,16 @@ const AGENT_MODEL = process.env.AGENT_MODEL || 'qwen3.8-flash';
 const MAX_STEPS = parseInt(process.env.AGENT_MAX_STEPS || '6');
 const TOTAL_DEADLINE_MS = 4 * 60 * 1000;
 
+// QA 17/9/2026: provider default (bai) hết credit → agent chết 400 không failover.
+// Chain failover: thử lần lượt các provider OpenAI-compatible CÓ key trong khoa_api.
+const FALLBACK_PROVIDERS = [
+  { provider: 'bai', model: 'qwen3.8-flash' },
+  { provider: 'groq', model: 'openai/gpt-oss-120b' },
+  { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct' },
+  { provider: 'mistral', model: 'mistral-small-latest' },
+  { provider: 'openrouter', model: 'google/gemma-2-9b-it:free' },
+];
+
 async function getKey(provider) {
   const rows = await new Promise((res) => db.all(
     "SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = ? AND gia_tri_khoa IS NOT NULL AND TRIM(gia_tri_khoa) <> '' LIMIT 1",
@@ -83,6 +93,25 @@ async function callModel(baseUrl, key, model, messages) {
 }
 
 async function runInternalAgent(prompt, { provider = AGENT_PROVIDER, model = AGENT_MODEL, onEvent } = {}) {
+  // Chain: provider được chỉ định trước, sau đó fallback các provider còn lại có key
+  const chain = [{ provider, model }]
+    .concat(FALLBACK_PROVIDERS.filter(f => f.provider !== provider));
+  let lastErr = null;
+  for (const cand of chain) {
+    try {
+      return await runAgentLoop(prompt, cand.provider, cand.model, onEvent);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      // Chỉ failover khi lỗi provider (credit/hết quota/model chết/key), không retry lỗi logic
+      if (!/LLM (400|401|402|403|404|429|5\d\d)|chưa có API key|Không biết chat endpoint/i.test(msg)) throw e;
+      if (onEvent) onEvent({ failover: cand.provider, error: msg.slice(0, 160) });
+    }
+  }
+  throw lastErr || new Error('Không có provider AI khả dụng');
+}
+
+async function runAgentLoop(prompt, provider, model, onEvent) {
   const key = await getKey(provider);
   if (!key) throw new Error(`Provider ${provider} chưa có API key trong khoa_api (env AGENT_PROVIDER/AGENT_MODEL để đổi)`);
   const baseUrl = chatUrl(provider);
