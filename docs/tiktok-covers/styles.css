@@ -1,0 +1,69 @@
+/* ============================================================
+   REXI · TikTok Cover System — design tokens (v3, benchmark build)
+   KHÔNG dùng Google Fonts / URL ngoài — chỉ font hệ thống Windows.
+   Mỗi file cover tự chứa <style> riêng (self-contained để headless
+   render ổn định); file này là nguồn tham chiếu token chung.
+   ============================================================ */
+:root {
+  /* nền tối (02, 03) */
+  --bg: #0a0b0e;
+  --bg2: #101216;
+  /* nền sáng (01 nghiame) */
+  --paper: #f4f6f8;
+  --ink: #16181d;
+  /* chữ tối */
+  --txt: #f2f5f9;
+  --sub: #9aa6b6;
+  --dim: #5b6675;
+  /* viền kính & panel */
+  --hair: rgba(255, 255, 255, 0.1);
+  --glass: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.02));
+  /* accent ngữ nghĩa */
+  --accent: #22d3ee;
+  --lime: #c8ff2e;
+  --red: #ff5a63;
+  --green: #2fdd8f;
+  /* ĐA SẮC DUY NHẤT — dùng cho ring / hairline / dot active (định nghĩa 1 lần) */
+  --conic: conic-gradient(from 120deg, #7b5cff, #1ed760, #17c3d4, #e879f9, #7b5cff);
+  /* font hệ thống — NO Google Fonts */
+  --font-display: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, "Courier New", monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* QUY TẮC SỐNG CÒN cho headless screenshot (đã từng vỡ vì .stage co 0px):
+   html,body PHẢI có đúng kích thước + cùng background với .stage */
+html, body {
+  width: 1080px;
+  height: 1920px;
+  overflow: hidden;
+  background: var(--bg); /* bản sáng: dùng --paper */
+}
+
+.stage {
+  position: relative;
+  width: 1080px;
+  height: 1920px;
+  overflow: hidden;
+  font-family: var(--font-display);
+  color: var(--txt);
+  background:
+    radial-gradient(900px 520px at 88% -4%, rgba(123, 92, 255, 0.07), transparent 60%),
+    radial-gradient(780px 500px at 4% 102%, rgba(23, 195, 212, 0.06), transparent 60%),
+    var(--bg);
+}
+
+/* khung an toàn TikTok: chữ phía trên kết thúc trước y=200, dưới bắt đầu sau y=1580 */
+.frame {
+  position: absolute;
+  top: 200px;
+  bottom: 340px;
+  left: 90px;
+  right: 90px;
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+}
+
+/* thang co chu: hero 96–140 · h 34–40 · body 20–26 · micro-caps 17–20 ls .08–.16em */
