@@ -17,7 +17,6 @@ const TOTAL_DEADLINE_MS = 4 * 60 * 1000;
 const FALLBACK_PROVIDERS = [
   { provider: 'bai', model: 'qwen3.8-flash' },
   { provider: 'groq', model: 'openai/gpt-oss-120b' },
-  { provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct' },
   { provider: 'mistral', model: 'mistral-small-latest' },
   { provider: 'openrouter', model: 'google/gemma-2-9b-it:free' },
 ];
