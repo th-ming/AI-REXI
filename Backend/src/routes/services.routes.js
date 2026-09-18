@@ -21,6 +21,45 @@ const { PDFParse } = require('pdf-parse');
 const ragService = require('../services/ragService');
 const videoRenderer = require('../services/videoRenderer');
 
+// QA 18/9: tạo ảnh qua OpenRouter (models image-output:free) — chen giữa Gemini và
+// provider miễn phí trong chain của /generate-image. Trả { success, image, provider }.
+async function generateImageOpenRouter(prompt) {
+  try {
+    const keyRows = await new Promise((resolve) => {
+      db.all("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'openrouter' AND gia_tri_khoa IS NOT NULL AND TRIM(gia_tri_khoa) <> ''", [], (e, rows) => resolve(rows || []));
+    });
+    if (!keyRows.length) return { success: false, error: 'Không có key OpenRouter trong DB' };
+    let orKey = '';
+    try { orKey = decryptKey(keyRows[0].gia_tri_khoa).trim(); } catch (e) { orKey = ''; }
+    if (!orKey) return { success: false, error: 'Giải mã key OpenRouter thất bại' };
+    const MODELS = ['google/gemini-2.5-flash-image-preview:free', 'qwen/qwen-2.5-vl-72b-instruct:free'];
+    let lastErr = '';
+    for (const model of MODELS) {
+      try {
+        const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${orKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model, messages: [{ role: 'user', content: `Generate an image: ${prompt}` }] }),
+          signal: AbortSignal.timeout(120000)
+        });
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok) { lastErr = `HTTP ${resp.status}: ${String(data?.error?.message || '').slice(0, 120)}`; continue; }
+        const msg = data?.choices?.[0]?.message || {};
+        const content = Array.isArray(msg.content) ? msg.content : [];
+        const imgPart = content.find(p => (p.type === 'image_url' && p.image_url?.url));
+        const b64 = msg.images?.[0]?.image_url?.url || imgPart?.image_url?.url || null;
+        if (b64 && /^data:image\//.test(b64)) {
+          return { success: true, image: b64, mimeType: b64.slice(5, b64.indexOf(';')), provider: 'openrouter' };
+        }
+        lastErr = `${model} không trả ảnh${typeof msg.content === 'string' ? ' (trả text)' : ''}`;
+      } catch (e) { lastErr = e.message; }
+    }
+    return { success: false, error: lastErr || 'OpenRouter không trả ảnh' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
 // Multer: Lưu file audio tạm thời vào thư mục temp
 const upload = multer({
   storage: multer.diskStorage({
@@ -1902,7 +1941,9 @@ router.post('/generate-image', authMiddleware, async (req, res) => {
       gemKey = '';
     }
     if (!gemKey) {
-      // QA 17/9: không có key Gemini → dùng provider ảnh miễn phí (không cần key)
+      // QA 18/9: không có key Gemini → thử OpenRouter (image free) rồi tới provider miễn phí
+      const or1 = await generateImageOpenRouter(cleanPrompt);
+      if (or1.success) return res.json(or1);
       const fb = await generateImageFallback(cleanPrompt);
       return res.json(fb);
     }
@@ -1921,9 +1962,12 @@ router.post('/generate-image', authMiddleware, async (req, res) => {
       // QA 17/9: 429 = hết quota key free → tự chuyển provider ảnh miễn phí thay vì
       // trả lỗi cứng (trước đây tính năng tạo ảnh chết hẳn khi quota Gemini cạn).
       if (resp.status === 429 || resp.status === 503) {
+        // QA 18/9: hết quota Gemini → thử OpenRouter (image free) trước khi rơi provider miễn phí
+        const or2 = await generateImageOpenRouter(cleanPrompt);
+        if (or2.success) return res.json(or2);
         const fb = await generateImageFallback(cleanPrompt);
         if (fb.success) return res.json(fb);
-        return res.json({ success: false, error: '⚠️ Gemini đang TẠM HẾT QUOTA (rate limit) và provider dự phòng cũng lỗi: ' + String(fb.error || '').slice(0, 120) });
+        return res.json({ success: false, error: '⚠️ Gemini hết quota, OpenRouter và provider dự phòng cũng lỗi (OR: ' + String(or2.error || '').slice(0, 80) + ' | FB: ' + String(fb.error || '').slice(0, 80) + ')' });
       }
       const friendly = resp.status === 400
         ? '⚠️ Gemini từ chối nội dung này (bộ lọc an toàn). Vui lòng mô tả khác.'
@@ -1935,11 +1979,15 @@ router.post('/generate-image', authMiddleware, async (req, res) => {
       const mime = part.inlineData.mimeType || 'image/png';
       return res.json({ success: true, image: `data:${mime};base64,${part.inlineData.data}`, mimeType: mime, provider: 'gemini' });
     }
-    // Gemini trả rỗng (bộ lọc/khoá model) → vẫn còn đường dự phòng
+    // Gemini trả rỗng (bộ lọc/khoá model) → thử OpenRouter rồi tới đường dự phòng
+    const orEmpty = await generateImageOpenRouter(cleanPrompt);
+    if (orEmpty.success) return res.json(orEmpty);
     const fbEmpty = await generateImageFallback(cleanPrompt);
     return res.json(fbEmpty);
   } catch (e) {
     console.log('[generate-image] ERROR:', e.message);
+    const orErr = await generateImageOpenRouter(cleanPrompt);
+    if (orErr.success) return res.json(orErr);
     const fb = await generateImageFallback(cleanPrompt);
     if (fb.success) return res.json(fb);
     return res.json({ success: false, error: 'Lỗi kết nối Gemini: ' + e.message });
