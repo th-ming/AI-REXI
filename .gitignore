@@ -52,7 +52,10 @@ screen_*.png
 *.db-wal
 *.db-shm
 
-# Local junk / heavy dirs — never commit
+# Runtime session data
+Backend/Database/sessions.json
+
+# Local junk / heavy dirs ï¿½ never commit
 ocr_venv/
 Backend/ocr_venv/
 .pw-tmp*/
