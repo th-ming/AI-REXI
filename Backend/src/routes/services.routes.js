@@ -17,6 +17,7 @@ const Groq = require('groq-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { generateEdgeTTSNode } = require('../services/edgeTTS');
 const { searchVideos, getVideoStream, downloadAudio } = require('../services/ytdlpService');
+const ytdlp = require('../services/ytdlpService');
 const { PDFParse } = require('pdf-parse');
 const ragService = require('../services/ragService');
 const videoRenderer = require('../services/videoRenderer');
@@ -364,17 +365,81 @@ const VIETNAMESE_TTS_VOICES = [
 ];
 const VALID_TTS_VOICES = VIETNAMESE_TTS_VOICES.map(v => v.id);
 
+// ── VieNeu-TTS v3 Turbo (20/9/2026) ─────────────────────────────────────────
+// Engine OpenAI-compatible tự host (máy local có model): VIENEU_BASE_URL trỏ tới
+// `python -m apps.openai_speech` (port 8000). 25 preset giọng Việt 48kHz + cloning.
+// Không cấu hình env → app tự dùng edge-tts như cũ. Render free không chạy nổi model.
+const VIENEU_BASE_URL = (process.env.VIENEU_BASE_URL || '').trim().replace(/\/$/, '');
+const VIENEU_API_KEY = (process.env.VIENEU_API_KEY || 'not-needed').trim();
+const VIENEU_TIMEOUT_MS = Number(process.env.VIENEU_TIMEOUT_MS || 120000);
+
+// Preset voices của VieNeu v3 Turbo (GET /v1/voices) — dùng khi server không gọi được /v1/voices
+const VIENEU_PRESET_VOICES = [
+  'Adam bựa', 'Trúc Ly', 'Anh Khôi', 'Mai Anh', 'Minh Quân Pro', 'Thùy Dung', 'Thiền Tâm Đức',
+  'Ngọc Huyền', 'Quang Sơn', 'Ngọc Trân',
+  'Minh Đức', 'Phạm Tuyên', 'Xuân Vĩnh', 'Thanh Bình', 'Ngọc Linh', 'Đoan Trang', 'Quỳnh Anh', 'Mạnh Dũng',
+  'Thái Sơn', 'Thục Đoan', 'Minh Triết', 'Mỹ Duyên', 'Đức Trí', 'Kim Thanh', 'Adam'
+];
+const VIENEU_DEFAULT_VOICE = 'Minh Quân Pro';
+
+async function fetchVieNeuVoices() {
+  try {
+    const res = await fetch(`${VIENEU_BASE_URL}/v1/voices`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (Array.isArray(data?.data) && data.data.length) return data.data.map(v => String(v.id || v.name));
+  } catch {}
+  return null;
+}
+
+// Gọi VieNeu OpenAI-compatible POST /v1/audio/speech → Buffer WAV
+async function generateVieNeuTTS(text, voice, { sampleRate } = {}) {
+  const body = {
+    model: 'vieneu-v3-turbo',
+    voice: voice || VIENEU_DEFAULT_VOICE,
+    input: String(text || ''),
+    response_format: 'wav',
+  };
+  if (sampleRate) body.sample_rate = sampleRate;
+  const res = await fetch(`${VIENEU_BASE_URL}/v1/audio/speech`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(VIENEU_API_KEY && VIENEU_API_KEY !== 'not-needed' ? { Authorization: `Bearer ${VIENEU_API_KEY}` } : {}),
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(VIENEU_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`VieNeu HTTP ${res.status}${detail ? ': ' + detail.substring(0, 200) : ''}`);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (!buf.length) throw new Error('VieNeu trả về audio rỗng');
+  return buf;
+}
+
+// Map voice Edge cũ (user đã lưu trong localStorage) → giọng VieNeu gần tương đương
+const VIENEU_VOICE_ALIAS = {
+  'vi-VN-HoaiMyNeural': 'Trúc Ly',
+  'vi-VN-NamMinhNeural': 'Minh Quân Pro',
+};
+
 // GET: Lấy danh sách giọng nói TTS tiếng Việt
-router.get('/tts/voices', (req, res) => {
+// VieNeu active (env VIENEU_BASE_URL) → trả 25 preset giọng v3 Turbo; ngược lại 2 giọng Edge.
+router.get('/tts/voices', async (req, res) => {
   const { lang } = req.query;
-  if (lang === 'vi' || !lang) {
+  if (lang && lang !== 'vi') return res.json({ success: true, voices: [], default: null });
+  if (VIENEU_BASE_URL) {
+    const ids = (await fetchVieNeuVoices()) || VIENEU_PRESET_VOICES;
     return res.json({
       success: true,
-      voices: VIETNAMESE_TTS_VOICES,
-      default: 'vi-VN-HoaiMyNeural'
+      engine: 'vieneu',
+      voices: ids.map(id => ({ id, label: id })),
+      default: ids.includes(VIENEU_DEFAULT_VOICE) ? VIENEU_DEFAULT_VOICE : ids[0],
     });
   }
-  res.json({ success: true, voices: [], default: null });
+  return res.json({ success: true, engine: 'edge-tts', voices: VIETNAMESE_TTS_VOICES, default: 'vi-VN-HoaiMyNeural' });
 });
 
 // GET: Kiểm tra trạng thái TTS service
@@ -434,21 +499,46 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), authMiddleware, asy
     return res.status(400).json({ error: 'Văn bản không được để trống' });
   }
 
-  const voiceName = VALID_TTS_VOICES.includes(voice) ? voice : 'vi-VN-HoaiMyNeural';
-  const validRate = rate && /^[+-]\d+%$/.test(rate) ? rate : '+0%';
-  const validPitch = pitch && /^[+-]\d+Hz$/.test(pitch) ? pitch : '+0Hz';
   const maxLength = 1000;
   const trimmedText = text.trim().substring(0, maxLength);
+  const voiceInput = String(voice || '').trim();
+
+  // Ưu tiên số 1 khi cấu hình: VieNeu v3 Turbo (tự host, 48kHz) — voice là tên preset có dấu
+  // (nhận cả voice Edge cũ qua alias, cả giọng clone đã enroll trên server VieNeu)
+  if (VIENEU_BASE_URL) {
+    try {
+      const vnVoice = VIENEU_VOICE_ALIAS[voiceInput]
+        || (voiceInput && !VALID_TTS_VOICES.includes(voiceInput) ? voiceInput : VIENEU_DEFAULT_VOICE);
+      const wavBuffer = await generateVieNeuTTS(trimmedText, vnVoice);
+      const base64Audio = wavBuffer.toString('base64');
+      return res.json({
+        success: true,
+        audio: base64Audio,
+        format: 'wav',
+        engine: 'vieneu',
+        voice: vnVoice,
+        voice_label: vnVoice,
+        text_length: trimmedText.length
+      });
+    } catch (vnErr) {
+      console.warn('[TTS] VieNeu failed, falling back to Edge TTS:', vnErr.message);
+    }
+  }
+
+  // Edge TTS (Microsoft) — 2 giọng còn sống; voice lạ → Hoài Mỹ
+  const voiceName = VALID_TTS_VOICES.includes(voiceInput) ? voiceInput : 'vi-VN-HoaiMyNeural';
+  const validRate = rate && /^[+-]\d+%$/.test(rate) ? rate : '+0%';
+  const validPitch = pitch && /^[+-]\d+Hz$/.test(pitch) ? pitch : '+0Hz';
 
   try {
     let audioBuffer;
 
-    // 1. Ưu tiên số 1: Gọi trực tiếp Edge TTS WebSocket thuần Node.js (Siêu nhanh 300ms, không cần Python)
+    // Gọi trực tiếp Edge TTS WebSocket thuần Node.js (Siêu nhanh 300ms, không cần Python)
     try {
       audioBuffer = await generateEdgeTTSNode(voiceName, trimmedText, validRate, validPitch);
     } catch (wsErr) {
       console.warn('[TTS] Pure Node.js WebSocket failed, trying Python fallback:', wsErr.message);
-      // 2. Dự phòng: Thử gọi Python nếu WebSocket gặp sự cố
+      // Dự phòng: Thử gọi Python nếu WebSocket gặp sự cố
       const tempFile = path.join(__dirname, '..', '..', `tts_${Date.now()}.mp3`);
       await runEdgeTtsPython(voiceName, trimmedText, validRate, validPitch, tempFile);
       if (fs.existsSync(tempFile)) {
@@ -463,6 +553,7 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), authMiddleware, asy
         success: true,
         audio: base64Audio,
         format: 'mp3',
+        engine: 'edge-tts',
         voice: voiceName,
         voice_label: VIETNAMESE_TTS_VOICES.find(v => v.id === voiceName)?.label || voiceName,
         rate: validRate,
@@ -853,39 +944,22 @@ router.get('/iptv/countries', async (req, res) => {
 
 // POST /api/office/generate-docx - Tạo file Word từ text (Markdown -> DOCX)
 // ─────────────────────────────────────────────────────────────────────────────
-// YOUTUBE FREE: Xem YouTube không quảng cáo (yt-dlp) — như Premium free
+// YOUTUBE FREE: Xem YouTube không quảng cáo — như Premium free
 // ─────────────────────────────────────────────────────────────────────────────
-// P2-20(12): kiểm tra python + yt_dlp + ffmpeg có sẵn sàng không.
-// Chỉ CHECK (exec --version), KHÔNG cài thêm gì.
+// 20/9/2026: engine đã đổi sang youtube-dl-exec (npm, binary yt-dlp tự tải lúc
+// npm install) — KHÔNG cần Python nữa. Sửa lỗi "YouTube chết trên Render free".
 router.get('/youtube/status', authMiddleware, async (req, res) => {
-  const { execFile } = require('child_process');
-  const cands = process.env.YTDLP_PYTHON ? [process.env.YTDLP_PYTHON] : ['python', 'python3', 'py'];
-  let python = null;
-  let ytdlp = null;
-  for (const bin of cands) {
-    try {
-      const ver = await new Promise((resolve, reject) => {
-        execFile(bin, ['-c', 'import yt_dlp; print(yt_dlp.version.__version__)'], { timeout: 10000 }, (err, stdout) => {
-          if (err || !String(stdout || '').trim()) return reject(err || new Error('empty'));
-          resolve(String(stdout).trim());
-        });
-      });
-      python = bin;
-      ytdlp = ver;
-      break;
-    } catch { /* thử binary kế tiếp */ }
+  try {
+    const st = await ytdlp.getStatus();
+    res.json({
+      success: true,
+      ...st,
+      ffmpegPath: ffmpegPath || null,
+      note: !st.ready ? 'Binary yt-dlp chưa tải (npm install lại để postinstall tải binary).' : undefined,
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
-  let ffmpeg = false;
-  try { ffmpeg = !!(ffmpegPath && fs.existsSync(ffmpegPath)); } catch { ffmpeg = false; }
-  res.json({
-    success: true,
-    python,
-    yt_dlp: ytdlp,
-    ffmpeg,
-    ffmpegPath: ffmpegPath || null,
-    ready: !!(python && ytdlp),
-    note: !python ? 'Không tìm thấy Python + yt_dlp. Admin cài ngoài: pip install yt-dlp' : undefined,
-  });
 });
 
 router.get('/youtube/search', authMiddleware, async (req, res) => {

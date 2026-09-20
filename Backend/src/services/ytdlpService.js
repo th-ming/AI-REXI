@@ -1,114 +1,198 @@
 /**
  * ytdlpService.js — Xem YouTube không quảng cáo (giống Premium free)
  *
- * Dùng yt-dlp (Python, đã cài sẵn trong hệ thống) để:
- *  - Search video trên YouTube
- *  - Lấy thông tin video + URL stream trực tiếp (không quảng cáo, không tracking)
- *  - Tải audio (mp3) về máy để Tóm tắt AI
+ * 20/9/2026: ĐỔI SANG youtube-dl-exec (npm) — BỎ HOÀN TOÀN PHỤ THUỘC PYTHON.
+ *   Trước đây service spawn `python ytdlp_helper.py` (yt-dlp Python module).
+ *   Render free runtime=node KHÔNG có Python/yt_dlp → YouTube Free chết hoàn toàn
+ *   trên cloud ("Không tìm thấy Python + yt_dlp").
+ *   youtube-dl-exec tự tải binary yt-dlp vào node_modules/youtube-dl-exec/bin/
+ *   lúc npm install (postinstall) → chạy được mọi nơi chỉ cần Node.
+ *   LƯU Ý Render/deploy: nếu npm chặn install-scripts (npm config allow-scripts),
+ *   binary sẽ không tải — check bằng GET /api/services/youtube/status → ready=false.
  *
- * Cách dùng: gọi hàm, trả Promise<object>. Nếu yt-dlp lỗi → throw Error có message rõ.
+ * Cách dùng: giữ nguyên 3 hàm + shape trả về như bản Python helper cũ:
+ *   searchVideos(query, limit)                → { videos: [...] }
+ *   getVideoStream(urlOrId)                   → { id, title, author, duration, views,
+ *                                                 description, stream_url, format_id, ext, height }
+ *   downloadAudio(urlOrId, outPath, timeout)  → { ok, title, file, duration }
  */
 
-const { execFile } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const ytdl = require('youtube-dl-exec');
 
-// Lệnh python: thử python, python3, py
-const PYTHON_CANDIDATES = process.env.YTDLP_PYTHON
-  ? [process.env.YTDLP_PYTHON]
-  : ['python', 'python3', 'py'];
+// ffmpeg cho extract-audio (đã có sẵn trong dependencies — không cần PATH)
+let ffmpegPath = null;
+try { ffmpegPath = require('ffmpeg-static'); } catch (e) { ffmpegPath = null; }
 
-let pythonBin = null;
-
-function findPython() {
-  if (pythonBin) return Promise.resolve(pythonBin);
-  return new Promise((resolve) => {
-    let idx = 0;
-    const tryNext = () => {
-      if (idx >= PYTHON_CANDIDATES.length) {
-        pythonBin = null;
-        return resolve(null);
-      }
-      const bin = PYTHON_CANDIDATES[idx++];
-      execFile(bin, ['-c', 'import yt_dlp; print(yt_dlp.version.__version__)'], { timeout: 10000 }, (err, stdout) => {
-        if (!err && stdout && stdout.trim()) {
-          pythonBin = bin;
-          console.log(`[yt-dlp] Using ${bin} (yt_dlp ${stdout.trim()})`);
-          return resolve(bin);
-        }
-        tryNext();
-      });
-    };
-    tryNext();
-  });
+// Đường dẫn binary yt-dlp do youtube-dl-exec tải (check trạng thái / debug)
+function getBinaryPath() {
+  try {
+    const pkgDir = path.dirname(require.resolve('youtube-dl-exec/package.json'));
+    const bin = process.platform === 'win32'
+      ? path.join(pkgDir, 'bin', 'yt-dlp.exe')
+      : path.join(pkgDir, 'bin', 'yt-dlp');
+    return fs.existsSync(bin) ? bin : null;
+  } catch (e) { return null; }
 }
 
-const HELPER_SCRIPT = path.join(__dirname, 'ytdlp_helper.py');
+const DEFAULT_TIMEOUT = 45000;
 
-/**
- * Chạy helper python với action + args → trả JSON.
- * Helper luôn in JSON ở DÒNG CUỐI stdout (yt-dlp có thể in log ra stdout
- * dù đã noprogress — nên parse dòng cuối cùng để luôn an toàn).
- */
-function runHelper(action, args = [], timeoutMs = 30000) {
-  return new Promise(async (resolve, reject) => {
-    const bin = await findPython();
-    if (!bin) {
-      return reject(new Error('Không tìm thấy Python + yt_dlp. Cài: pip install yt-dlp'));
-    }
-    execFile(bin, [HELPER_SCRIPT, action, ...args], {
-      timeout: timeoutMs,
-      maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-    }, (err, stdout, stderr) => {
-      if (err) {
-        return reject(new Error((stderr || stdout || err.message).slice(0, 300)));
-      }
-      const lines = String(stdout || '').trim().split('\n').filter(l => l.trim());
-      const lastLine = lines[lines.length - 1] || '';
-      try {
-        const data = JSON.parse(lastLine);
-        if (data.error) return reject(new Error(data.error));
-        resolve(data);
-      } catch (e) {
-        reject(new Error('yt-dlp trả dữ liệu không hợp lệ: ' + stdout.slice(0, 200)));
-      }
-    });
-  });
+function normalizeUrl(urlOrId) {
+  const s = String(urlOrId || '').trim();
+  if (!s) throw new Error('Thiếu URL/ID video');
+  return /^https?:\/\//.test(s) ? s : `https://www.youtube.com/watch?v=${s}`;
+}
+
+// youtube-dl-exec v3 KHÔNG có option "timeout" (đẩy --timeout cho yt-dlp → lỗi).
+// Chặn cứng bằng race; stall mạng thì yt-dlp tự chết nhờ socketTimeout.
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} quá ${Math.round(ms / 1000)}s`)), ms)),
+  ]);
+}
+
+function toError(e) {
+  // youtube-dl-exec reject với stderr yt-dlp — rút gọn cho FE hiển thị
+  const msg = String((e && (e.stderr || e.message)) || e || '').trim();
+  return new Error(msg.split('\n').filter(Boolean).slice(-1)[0] || 'yt-dlp lỗi không xác định');
 }
 
 /**
  * Search video YouTube.
- * @param {string} query từ khóa
- * @param {number} limit số kết quả (mặc định 12)
- * @returns {Promise<Array>} [{id, title, author, duration, views, thumbnails}]
+ * @returns {Promise<{videos: Array<{id,title,author,duration,views,thumbnails,thumb}>}>}
  */
 async function searchVideos(query, limit = 12) {
-  if (!query || !query.trim()) throw new Error('Thiếu từ khóa tìm kiếm');
-  const data = await runHelper('search', [query.trim(), String(limit || 12)], 45000);
-  return data.videos || [];
+  if (!query || !String(query).trim()) throw new Error('Thiếu từ khóa tìm kiếm');
+  try {
+    const data = await withTimeout(ytdl(`ytsearch${parseInt(limit, 10) || 12}:${String(query).trim()}`, {
+      dumpSingleJson: true,
+      flatPlaylist: true,
+      noPlaylist: true,
+      skipDownload: true,
+      quiet: true,
+      noWarnings: true,
+      socketTimeout: 20,
+    }), DEFAULT_TIMEOUT, 'Search');
+    const entries = (data && (data.entries || data)) || [];
+    const videos = (Array.isArray(entries) ? entries : []).filter(Boolean).map(e => {
+      const thumbs = e.thumbnails || [];
+      return {
+        id: e.id,
+        title: e.title,
+        author: e.channel || e.uploader || '',
+        duration: e.duration,
+        views: e.view_count,
+        thumbnails: thumbs,
+        thumb: (thumbs.length ? thumbs[thumbs.length - 1].url : (e.thumbnail || null)),
+      };
+    });
+    return { videos };
+  } catch (e) { throw toError(e); }
 }
 
 /**
- * Lấy thông tin video + URL stream trực tiếp.
- * @param {string} url hoặc videoId (YouTube URL / ID)
- * @returns {Promise<Object>} {id, title, author, duration, views, description, stream_url}
+ * Lấy thông tin video + URL stream trực tiếp (không quảng cáo, không tracking).
+ * @returns {Promise<{id,title,author,duration,views,description,stream_url,format_id,ext,height}>}
  */
 async function getVideoStream(urlOrId) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
-  const data = await runHelper('stream', [urlOrId], 45000);
-  return data;
+  try {
+    const info = await withTimeout(ytdl(normalizeUrl(urlOrId), {
+      dumpSingleJson: true,
+      noPlaylist: true,
+      skipDownload: true,
+      quiet: true,
+      noWarnings: true,
+      // Chuẩn format như helper cũ: combined ≤720p ưu tiên, fallback dần xuống
+      format: 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best',
+      socketTimeout: 20,
+    }), DEFAULT_TIMEOUT, 'Lấy stream');
+    if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
+    return {
+      id: info.id,
+      title: info.title,
+      author: info.channel || info.uploader || '',
+      duration: info.duration,
+      views: info.view_count,
+      description: String(info.description || '').slice(0, 2000),
+      stream_url: info.url,
+      format_id: info.format_id,
+      ext: info.ext,
+      height: info.height,
+    };
+  } catch (e) { throw toError(e); }
 }
 
+// Giới hạn độ dài audio tải về cho Tóm tắt AI (giây) — tránh 413 Groq
+// (video nonstop 1-2h sẽ chỉ tải 10 phút đầu, đủ để tóm tắt nội dung chính)
+const SUMMARY_MAX_SECONDS = 600;
+
 /**
- * Tải audio (mp3) của video về máy — dùng cho tính năng Tóm tắt AI.
- * @param {string} urlOrId URL hoặc videoId
- * @param {string} outPath đường dẫn file đích (không đuôi, helper tự thêm .mp3)
- * @returns {Promise<Object>} {ok, title, file}
+ * Tải audio (mp3 mono 16kHz 64kbps, tối đa 10 phút) — chuẩn đầu vào Whisper cho Tóm tắt AI.
+ * @returns {Promise<{ok, title, file, duration}>}
  */
 async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
-  const data = await runHelper('audio', [urlOrId, outPath], timeoutMs);
-  return data;
+  if (!outPath) throw new Error('Thiếu đường dẫn file đích');
+  try {
+    // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
+    // → không tải file nào cả. Phải dùng printJson (in JSON sau khi tải xong).
+    const out = await withTimeout(ytdl.exec(normalizeUrl(urlOrId), {
+      printJson: true,
+      noPlaylist: true,
+      quiet: true,
+      noWarnings: true,
+      format: 'bestaudio/best',
+      output: outPath + '.%(ext)s',
+      downloadSections: `*0-${SUMMARY_MAX_SECONDS}`,
+      forceKeyframesAtCuts: true,
+      extractAudio: true,
+      audioFormat: 'mp3',
+      audioQuality: '64',
+      // mono 16kHz + cắt 10 phút: chuẩn Whisper, tránh file >25MB bị Groq từ chối
+      postprocessorArgs: `ffmpeg:-ar 16000 -ac 1 -t ${SUMMARY_MAX_SECONDS}`,
+      ...(ffmpegPath ? { ffmpegLocation: ffmpegPath } : {}),
+      socketTimeout: 30,
+    }), timeoutMs, 'Tải audio');
+    const stdout = typeof out === 'string' ? out : ((out && out.stdout) || '');
+    const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+    let info = null;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try { info = JSON.parse(lines[i]); break; } catch (e) { /* dòng progress — bỏ qua */ }
+    }
+    let file = '';
+    try { file = info.requested_downloads[0].filepath; } catch (e) { /* fallback bên dưới */ }
+    if (!file || !fs.existsSync(file)) {
+      file = outPath + '.mp3';
+    }
+    if (!fs.existsSync(file)) throw new Error('Không tìm thấy file mp3 sau khi tải: ' + file);
+    return { ok: true, title: info.title, file, duration: info.duration };
+  } catch (e) { throw toError(e); }
 }
 
-module.exports = { searchVideos, getVideoStream, downloadAudio };
+/**
+ * Trạng thái sẵn sàng (dùng cho GET /api/services/youtube/status).
+ * Không cần Python nữa — chỉ cần binary yt-dlp do youtube-dl-exec tải lúc npm install.
+ */
+async function getStatus() {
+  const bin = getBinaryPath();
+  let version = null;
+  if (bin) {
+    version = await new Promise((resolve) => {
+      require('child_process').execFile(bin, ['--version'], { timeout: 10000 }, (err, stdout) => {
+        resolve(err ? null : String(stdout || '').trim() || null);
+      });
+    });
+  }
+  return {
+    engine: 'youtube-dl-exec (bundled yt-dlp binary)',
+    binary_path: bin,
+    yt_dlp: version,
+    ffmpeg: !!(ffmpegPath && fs.existsSync(ffmpegPath)),
+    ready: !!version,
+  };
+}
+
+module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus };
