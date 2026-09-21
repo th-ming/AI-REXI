@@ -1,8 +1,9 @@
-# rexi-keepalive.ps1 - Giu backend Render cua AI REXI luon tinh (chong sleep)
+﻿# rexi-keepalive.ps1 - Giu backend Render cua AI REXI luon tinh (chong sleep)
 # Render free tier ngu sau 15 phut idle, goi moi 60s de no khong bao gio ngu.
 # Chay nen: dang ky Windows Scheduled Task (xem rexi-keepalive-task.ps1)
 # ──────────────────────────────────────────────────────────────
 # UPDATE: Them phan biet Sleep vs Dead + alert khi backend chet
+# UPDATE 2: Chay 1 lan roi thoat (task PT1M spawn lai moi phut — khong chong instance)
 # ──────────────────────────────────────────────────────────────
 
 $urls = @(
@@ -51,8 +52,7 @@ Write-Host ""
 
 $logFile = Join-Path $PSScriptRoot 'rexi-keepalive.log'
 
-while ($true) {
-    foreach ($u in $urls) {
+foreach ($u in $urls) {
         try {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             $r = Invoke-WebRequest -Uri $u -TimeoutSec 30 -UseBasicParsing
@@ -109,5 +109,3 @@ while ($true) {
             }
         }
     }
-    Start-Sleep -Seconds 60
-}

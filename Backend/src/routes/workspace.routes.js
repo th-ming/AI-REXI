@@ -100,7 +100,7 @@ function safePath(rootDir, relPath) {
 return fullPath;
 }
 
-router.get('/file-content', authMiddleware, (req, res) => {
+router.get('/file-content', [authMiddleware, adminMiddleware], (req, res) => {
   const relPath = req.query.path;
   if (!relPath) return res.status(400).json({ error: 'Missing file path' });
 

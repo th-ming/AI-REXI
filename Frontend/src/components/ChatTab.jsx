@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare } from 'lucide-react';
 import { sanitizeMarkdown } from '../utils/sanitize';
+import { t } from '../i18n';
 
 export default function ChatTab({
   messages, inputText, setInputText, loading, attachedFiles,
@@ -168,12 +169,12 @@ export default function ChatTab({
                       <button onClick={() => speakText(msg.noi_dung, msg.ma_tin_nhan)}
                         className={`flex items-center gap-1 transition-colors ${speakingMsgId === msg.ma_tin_nhan ? "text-amber-400 animate-pulse" : "hover:text-cyan-400"}`}>
                         <Volume2 size={13} />
-                        <span>{speakingMsgId === msg.ma_tin_nhan ? "Dừng" : "Đọc"}</span>
+                        <span>{speakingMsgId === msg.ma_tin_nhan ? t(lang, 'stop') : t(lang, 'speak')}</span>
                       </button>
                       <button onClick={() => copyToClipboard(msg.noi_dung, msg.ma_tin_nhan)}
                         className="flex items-center gap-1 hover:text-cyan-400 transition-colors">
                         {copiedId === msg.ma_tin_nhan ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                        <span>{copiedId === msg.ma_tin_nhan ? 'Đã chép' : 'Sao chép'}</span>
+                        <span>{copiedId === msg.ma_tin_nhan ? t(lang, 'copied') : t(lang, 'copy')}</span>
                       </button>
                     </div>
                   )}
@@ -241,7 +242,7 @@ export default function ChatTab({
             onClick={startVoice}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[11px] font-semibold hover:bg-rose-500/30 transition-all shrink-0"
           >
-            <Square size={11} /> Dừng
+            <Square size={11} /> {t(lang, 'stop')}
           </button>
         </div>
       )}

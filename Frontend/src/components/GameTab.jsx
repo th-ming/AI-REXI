@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Gamepad2, RefreshCw, ExternalLink, Monitor } from 'lucide-react';
+import GameFrame from './GameFrame';
 
 const GAMES = [
   { id: 'pacman', name: 'Pac-Man', desc: 'Cổ điển nhất mọi thời đại', emoji: '👻', color: 'from-yellow-500 to-amber-600', url: '/games/pacman/index.html' },
@@ -9,20 +10,17 @@ const GAMES = [
 
 export default function GameTab({ showToast }) {
   const [activeGame, setActiveGame] = useState('pacman');
-  const [loading, setLoading] = useState(true);
-  const [key, setKey] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const current = GAMES.find(g => g.id === activeGame) || GAMES[0];
 
   const handlePick = (id) => {
     setActiveGame(id);
-    setLoading(true);
-    setKey(k => k + 1);
+    setReloadKey(k => k + 1);
   };
 
   const handleReload = () => {
-    setLoading(true);
-    setKey(k => k + 1);
+    setReloadKey(k => k + 1);
   };
 
   const handleOpenNewTab = () => {
@@ -63,7 +61,7 @@ export default function GameTab({ showToast }) {
             className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
             title="Tải lại"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className="transition-transform group-hover:rotate-90" />
           </button>
           <button
             onClick={handleOpenNewTab}
@@ -85,26 +83,7 @@ export default function GameTab({ showToast }) {
         <span className="ml-auto text-[10px] text-slate-600">Chơi ngay trong trình duyệt — không cần cài đặt</span>
       </div>
 
-      {/* Iframe */}
-      <div className="flex-1 relative bg-black">
-        {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d0e11]">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs text-slate-500">Đang tải {current.name}...</span>
-            </div>
-          </div>
-        )}
-        <iframe
-          key={key}
-          src={current.url}
-          title={current.name}
-          className="w-full h-full border-0"
-          allow="autoplay; fullscreen"
-          onLoad={() => setLoading(false)}
-          sandbox="allow-scripts allow-same-origin allow-forms"
-        />
-      </div>
+      <GameFrame src={current.url} title={current.name} name={current.name} reloadKey={reloadKey} />
     </div>
   );
 }

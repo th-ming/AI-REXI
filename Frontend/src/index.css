@@ -381,6 +381,8 @@ select {
 [data-theme="light"] .bg-black\/40 { background-color: rgba(26,32,51,.4); }
 /* Admin page missing dark bg remaps */
 [data-theme="light"] .bg-\[\#13151a\] { background-color: #f0f2f8; }
+[data-theme="light"] .bg-\[\#0d0e14\] { background-color: #e2e6ef; }
+[data-theme="light"] .bg-\[\#12131a\] { background-color: #f0f2f8; }
 [data-theme="light"] .bg-\[\#10111a\] { background-color: #eef0f6; }
 [data-theme="light"] .bg-\[\#0e0f17\] { background-color: #e2e6ef; }
 [data-theme="light"] .bg-\[\#0b0c10\] { background-color: #e2e6ef; }

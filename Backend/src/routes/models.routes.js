@@ -369,6 +369,23 @@ async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
     const data = await resp.json();
     if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
     else if (data.error) return { success: false, error: 'AgentRouter: ' + (data.error.message || JSON.stringify(data.error)) };
+  } else if (['nvidia', 'nvidia-nim', 'cerebras', 'cohere', 'mistral', 'bai', 'kiosapi', 'unorouter'].includes(provider)) {
+    const OPENAI_COMPAT_BASES = {
+      'nvidia': 'https://integrate.api.nvidia.com/v1',
+      'nvidia-nim': 'https://integrate.api.nvidia.com/v1',
+      'cerebras': 'https://api.cerebras.ai/v1',
+      'cohere': 'https://api.cohere.com/compatibility/v1',
+      'mistral': 'https://api.mistral.ai/v1',
+      'bai': 'https://api.b.ai/v1',
+      'kiosapi': 'https://router.kiosapi.com/v1',
+      'unorouter': 'https://api.unorouter.com/v1'
+    };
+    const cleanedBase = (baseUrl || OPENAI_COMPAT_BASES[provider]).replace(/\/+$/, '');
+    const endpoint = cleanedBase.endsWith('/models') ? cleanedBase : cleanedBase + '/models';
+    const resp = await fetch(endpoint, { headers: { 'Authorization': 'Bearer ' + apiKey } });
+    const data = await resp.json();
+    if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
+    else if (data.error) return { success: false, error: provider + ': ' + (data.error.message || JSON.stringify(data.error)) };
   } else {
     // custom
     const cleanedBase = (baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
@@ -672,8 +689,8 @@ router.post('/admin/models/verify-and-scan', [authMiddleware, adminMiddleware], 
         );
       }
 
-      // 🔄 REPLACE POLICY: Xóa toàn bộ model cũ + cache của provider trước khi lưu model working mới
-      db.run('DELETE FROM ai_models WHERE ma_nha_cung_cap = ?', [resolvedProvider]);
+      // 🔄 K4 UPSERT POLICY: KHÔNG xóa model cũ — upsert giữ nguyên kich_hoat
+      // admin đã bật/tắt thủ công; chỉ refresh cache quét của provider
       db.run('DELETE FROM model_scan_cache WHERE ma_nha_cung_cap = ?', [resolvedProvider]);
 
       for (const m of workingResults) {
@@ -688,7 +705,7 @@ router.post('/admin/models/verify-and-scan', [authMiddleware, adminMiddleware], 
              ma_nha_cung_cap = excluded.ma_nha_cung_cap,
              ten_hien_thi = excluded.ten_hien_thi,
              loai = excluded.loai,
-             kich_hoat = 1,
+             kich_hoat = ai_models.kich_hoat,
              ngay_cap_nhat = CURRENT_TIMESTAMP`,
           [modelId, resolvedProvider, displayName, type]
         );
@@ -744,40 +761,36 @@ router.post('/admin/models/publish-active', [authMiddleware, adminMiddleware], a
       );
     }
 
-    // 2. 🔄 REPLACE POLICY: Xóa hẳn các model cũ của provider này (chỉ giữ model working mới được đăng tải)
-    db.run('DELETE FROM ai_models WHERE ma_nha_cung_cap = ?', [provider], (err) => {
-      if (err) console.error('[PublishModels] Delete old models error:', err.message);
+    // 2. 🔄 K4 UPSERT POLICY: KHÔNG xóa model cũ của provider — upsert
+    // giữ nguyên kich_hoat admin bật thủ công (DELETE làm model thủ công mất)
+    let savedCount = 0;
+    for (const m of models) {
+      const modelId = typeof m === 'string' ? m : m.id;
+      const displayName = modelId.includes('/') ? modelId.split('/').pop() : modelId;
+      const type = (modelId.includes('pro') || modelId.includes('gpt-4') || modelId.includes('sonnet')) ? 'pro' : 'free';
 
-      // 3. Đăng ký & Kích hoạt các model đang hoạt động
-      let savedCount = 0;
-      for (const m of models) {
-        const modelId = typeof m === 'string' ? m : m.id;
-        const displayName = modelId.includes('/') ? modelId.split('/').pop() : modelId;
-        const type = (modelId.includes('pro') || modelId.includes('gpt-4') || modelId.includes('sonnet')) ? 'pro' : 'free';
+      db.run(
+        `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi, kich_hoat)
+         VALUES (?, ?, ?, ?, 0, 1)
+         ON CONFLICT(ma_model) DO UPDATE SET
+           ma_nha_cung_cap = excluded.ma_nha_cung_cap,
+           ten_hien_thi = excluded.ten_hien_thi,
+           loai = excluded.loai,
+           kich_hoat = ai_models.kich_hoat,
+           ngay_cap_nhat = CURRENT_TIMESTAMP`,
+        [modelId, provider, displayName, type]
+      );
+      savedCount++;
+    }
 
-        db.run(
-          `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi, kich_hoat)
-           VALUES (?, ?, ?, ?, 0, 1)
-           ON CONFLICT(ma_model) DO UPDATE SET
-             ma_nha_cung_cap = excluded.ma_nha_cung_cap,
-             ten_hien_thi = excluded.ten_hien_thi,
-             loai = excluded.loai,
-             kich_hoat = 1,
-             ngay_cap_nhat = CURRENT_TIMESTAMP`,
-          [modelId, provider, displayName, type]
-        );
-        savedCount++;
-      }
-
-      if (typeof global !== 'undefined' && global.__modelScanComplete) {
-        global.__modelScanComplete({ provider, publishedCount: savedCount, action: 'published' });
-      }
-      res.json({
-        success: true,
-        provider,
-        publishedCount: savedCount,
-        message: `🎉 Đã đăng tải thành công ${savedCount} model đang hoạt động của ${provider.toUpperCase()} lên Menu Trang Chủ!`
-      });
+    if (typeof global !== 'undefined' && global.__modelScanComplete) {
+      global.__modelScanComplete({ provider, publishedCount: savedCount, action: 'published' });
+    }
+    res.json({
+      success: true,
+      provider,
+      publishedCount: savedCount,
+      message: `🎉 Đã đăng tải thành công ${savedCount} model đang hoạt động của ${provider.toUpperCase()} lên Menu Trang Chủ!`
     });
   } catch (err) {
     res.status(500).json({ success: false, error: 'Lỗi cập nhật trang chủ: ' + err.message });

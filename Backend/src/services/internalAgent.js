@@ -1,6 +1,6 @@
 // internalAgent.js — agent-loop chạy HOÀN TOÀN bằng API provider (không cần opencode.exe/dsh),
-// nên hoạt động cả trên Linux/container (Render/VPS). Protocol: ReAct JSON — model必答
-// 1 object JSON mỗi bước hoặc file → parse được. executeTool + stop: model nào cũng dùng được.
+// nên hoạt động cả trên Linux/container (Render/VPS). Protocol: ReAct JSON — model bắt buộc
+// trả 1 object JSON mỗi bước hoặc file → parse được. executeTool + stop: model nào cũng dùng được.
 
 const { executeTool, TOOL_REGISTRY } = require('./agentService');
 const db = require('../config/db');

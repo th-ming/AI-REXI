@@ -121,12 +121,6 @@ class BrowserStreamService {
             sent++;
           }
         });
-        // Log mỗi 10 frame thay vì mỗi frame
-        this._frameSkipCounter++;
-        if (this._frameSkipCounter >= 10) {
-          if (sent > 0) console.log(`[FrameCapture] Sent frames to ${sent} clients (every 5s)`);
-          this._frameSkipCounter = 0;
-        }
       } catch (e) {
         console.error('[FrameCapture] Error:', e.message);
       }

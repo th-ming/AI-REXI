@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // ADMIN PANEL - AI REXI OS (Auto-Reloaded & Synced)
 // ═══════════════════════════════════════════════════════════
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import {
   Shield, Users, MessageSquare, Key, Layers, Settings, Home,
   Activity, Trash2, Search, RefreshCw, ChevronLeft, ChevronRight,
@@ -777,6 +777,11 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
             <option value="cerebras">Cerebras</option>
             <option value="cohere">Cohere AI</option>
             <option value="mistral">Mistral AI</option>
+            <option value="xkiro">xKiro</option>
+            <option value="agentrouter">AgentRouter</option>
+            <option value="bai">B.AI</option>
+            <option value="kiosapi">KiosAPI</option>
+            <option value="unorouter">UnoRouter</option>
             <option value="custom">Custom / Khác</option>
           </select>
 
@@ -1025,7 +1030,9 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
   const [messages, setMessages] = useState([]);
   const [reply, setReply] = useState('');
   const [, setLoading] = useState(true);
-  const [prevConvCount, setPrevConvCount] = useState(0);
+  const [convSearch, setConvSearch] = useState('');
+  const [msgLimit, setMsgLimit] = useState(20);
+  const knownConvsRef = useRef(null);
 
 
   const fetchConvs = async (silent = false) => {
@@ -1034,9 +1041,14 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
       const data = await apiFetch('/chat/conversations/all', token);
       const list = Array.isArray(data) ? data : [];
       setConvs(list);
-      // Thông báo nếu có hội thoại mới (auto-refresh)
-      if (silent && list.length > prevConvCount) showToast(`🔔 Có ${list.length - prevConvCount} hội thoại mới!`);
-      setPrevConvCount(list.length);
+      const ids = new Set(list.map(c => c.ma_hoi_thoai));
+      if (silent && knownConvsRef.current) {
+        const added = list.filter(c => !knownConvsRef.current.has(c.ma_hoi_thoai)).length;
+        const removed = [...knownConvsRef.current].filter(id => !ids.has(id)).length;
+        if (added > 0) showToast(`🔔 Có ${added} hội thoại mới!`);
+        if (removed > 0) showToast(`Đã có ${removed} hội thoại bị xóa.`, 'error');
+      }
+      knownConvsRef.current = ids;
     } catch (e) { if (!silent) showToast(e.message, 'error'); }
     finally { if (!silent) setLoading(false); }
   };
@@ -1051,6 +1063,7 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
 
   const selectConv = async (convId) => {
     setSelectedConv(convId);
+    setMsgLimit(20);
     try { const data = await apiFetch(`/chat/conversations/${convId}/messages`, token); setMessages(Array.isArray(data) ? data : []); }
     catch (e) { showToast(e.message, 'error'); }
   };
@@ -1074,7 +1087,15 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-[#181920] rounded-2xl border border-white/8 overflow-hidden max-h-[60vh] overflow-y-auto">
           <div className="px-3 py-2 border-b border-white/5 text-[10px] text-slate-400 uppercase font-semibold">Danh sách hội thoại</div>
-          {convs.map(c => (
+          <div className="px-3 py-2 border-b border-white/5">
+            <input type="text" value={convSearch} onChange={e => setConvSearch(e.target.value)}
+              placeholder="Lọc theo email / tiêu đề..." className="w-full px-2.5 py-1.5 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] text-white placeholder-slate-500 outline-none" />
+          </div>
+          {convs.filter(c => {
+            const q = convSearch.trim().toLowerCase();
+            if (!q) return true;
+            return (c.email || 'guest').toLowerCase().includes(q) || (c.tieu_de || '').toLowerCase().includes(q);
+          }).map(c => (
             <div key={c.ma_hoi_thoai} onClick={() => selectConv(c.ma_hoi_thoai)}
               className={`px-3 py-2.5 border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors ${selectedConv === c.ma_hoi_thoai ? 'bg-rose-500/10' : ''}`}>
               <p className="text-xs font-medium text-slate-200 truncate">{c.tieu_de || 'Trò chuyện mới'}</p>
@@ -1086,7 +1107,12 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
           {selectedConv ? (
             <>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.map(m => (
+                {messages.length > msgLimit && (
+                  <div className="text-center">
+                    <button onClick={() => setMsgLimit(l => l + 30)} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] text-slate-300 transition-colors">Tải tin nhắn cũ hơn ({messages.length - msgLimit})</button>
+                  </div>
+                )}
+                {messages.slice(-msgLimit).map(m => (
                   <div key={m.ma_tin_nhan} className={`flex ${m.vai_tro === 'user' ? 'justify-start' : 'justify-end'}`}>
                     <div className={`max-w-[80%] p-3 rounded-xl text-xs ${m.vai_tro === 'user' ? 'bg-cyan-500/10 text-cyan-200' : 'bg-rose-500/10 text-rose-200'}`}>
                       <span className="text-[10px] font-bold opacity-60">{m.vai_tro === 'user' ? '👤 User' : '🤖 Admin'}</span>
@@ -1347,7 +1373,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       const data = await apiFetch('/admin/notifications?limit=30', token);
       setNotifications(data.notifications || []);
       setUnreadCount(data.unread || 0);
-    } catch {}
+    } catch (e) { showToast(e.message || 'Lỗi tải thông báo', 'error'); }
   }, [token]);
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
@@ -1357,7 +1383,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       await apiFetch('/admin/notifications/read-all', token, { method: 'PUT' });
       setNotifications(n => n.map(x => ({ ...x, is_read: 1 })));
       setUnreadCount(0);
-    } catch {}
+    } catch (e) { showToast(e.message || 'Lỗi đánh dấu đã đọc', 'error'); }
   };
 
   const markRead = async (id) => {
@@ -1365,7 +1391,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       await apiFetch(`/admin/notifications/${id}/read`, token, { method: 'PUT' });
       setNotifications(n => n.map(x => x.id === id ? { ...x, is_read: 1 } : x));
       setUnreadCount(c => Math.max(0, c - 1));
-    } catch {}
+    } catch (e) { showToast(e.message || 'Lỗi đánh dấu đã đọc', 'error'); }
   };
 
   const deleteNotif = async (id) => {
@@ -1374,7 +1400,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       setNotifications(n => n.filter(x => x.id !== id));
       const was = notifications.find(x => x.id === id);
       if (was && !was.is_read) setUnreadCount(c => Math.max(0, c - 1));
-    } catch {}
+    } catch (e) { showToast(e.message || 'Lỗi xóa thông báo', 'error'); }
   };
 
   const total = status?.total_channels || stats?.summary?.total_all || 0;
@@ -1720,7 +1746,7 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
             <div key={p.provider} className="flex items-center gap-3 text-xs">
               <span className="w-28 font-semibold text-slate-200 uppercase">{p.provider}</span>
               <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((p.count / Math.max(1, (providers[0]?.count || 1))) * 100))}%` }} />
+                <div className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" style={{ width: `${Math.min(100, Math.round((p.count / Math.max(1, Math.max(...providers.map(x => x.count || 0)))) * 100))}%` }} />
               </div>
               <span className="w-10 text-right text-slate-300">{p.count}</span>
               <span className="w-16 text-right text-slate-500">{p.avgMs}ms</span>
@@ -1770,7 +1796,16 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
   );
 });
 
-export default function AdminPanel({ token, currentUser, onClose }) {
+export default function AdminPanel(props) {
+  const token = props.token || (() => { try { return localStorage.getItem('rexi_token') || null; } catch { return null; } })();
+  const [currentUser, setCurrentUser] = useState(() => {
+    if (props.currentUser) return props.currentUser;
+    try {
+      const raw = localStorage.getItem('rexi_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+  const onClose = props.onClose;
   const [activeTab, setActiveTabState] = useState(() => {
     return localStorage.getItem('rexi_admin_active_tab') || 'users';
   });
@@ -1817,7 +1852,7 @@ export default function AdminPanel({ token, currentUser, onClose }) {
       case 'skills': return <SkillsTab token={token} showToast={showToast} />;
       case 'chat': return <AdminChatTab token={token} showToast={showToast} />;
       case 'iptv': return <IptvTab token={token} showToast={showToast} />;
-      case 'github': return <GitHubTrending token={token} />;
+      case 'github': return <GitHubTrending token={token} showToast={showToast} />;
       case 'routing': return <RoutingTab token={token} showToast={showToast} />;
       case 'settings': return <SettingsTab token={token} showToast={showToast} />;
       default: return <UsersTab token={token} currentUser={currentUser} showToast={showToast} stats={stats} statsLoading={statsLoading} fetchStats={fetchStats} />;
@@ -1874,7 +1909,7 @@ export default function AdminPanel({ token, currentUser, onClose }) {
 
       {/* Main Glassmorphism Display Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-[#0b0c10] via-[#0e0f17] to-[#0a0b10]">
-        <header className="h-13 px-6 border-b border-white/8 flex items-center justify-between bg-[#0d0e14]/70 backdrop-blur-xl shrink-0">
+        <header className="h-14 px-6 border-b border-white/8 flex items-center justify-between bg-[#0d0e14]/70 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="text-xs font-bold text-slate-400">Bảng điều khiển</span>
             <span className="text-xs text-slate-600">/</span>

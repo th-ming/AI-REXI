@@ -57,6 +57,8 @@ async function callUpstream(url, key, body, timeoutMs = 120000) {
 }
 
 // ─── POST /api/media/image — tạo ảnh ────────────────────────────
+// N7: response_format 'url' → URL upstream hết hạn nhanh, history lưu URL là chết ảnh
+// → ưu tiên b64_json (nhúng data-URL luôn); provider từ chối b64 → retry 'url'
 router.post('/image', authMiddleware, async (req, res) => {
   try {
     const { prompt, model, provider, size, n } = req.body || {};
@@ -66,9 +68,17 @@ router.post('/image', authMiddleware, async (req, res) => {
     const key = await getApiKey(pKey) || process.env[`${pKey.toUpperCase()}_API_KEY`] || null;
     if (!key && PROVIDER_ENDPOINTS[pKey]?.auth !== 'none') return res.status(400).json({ success: false, error: `Provider ${pKey} chưa có API key` });
     const base = await baseUrlFor(pKey);
-    const json = await callUpstream(`${base}/images/generations`, key, {
-      model: modelId, prompt, n: Math.min(parseInt(n) > 0 ? parseInt(n) : 1, 4), size: size || '1024x1024', response_format: 'url',
+    const bodyFor = (fmt) => ({
+      model: modelId, prompt, n: Math.min(parseInt(n) > 0 ? parseInt(n) : 1, 4), size: size || '1024x1024', response_format: fmt,
     });
+    let json;
+    try {
+      json = await callUpstream(`${base}/images/generations`, key, bodyFor('b64_json'));
+    } catch (b64Err) {
+      if (b64Err && b64Err.status === 400) {
+        json = await callUpstream(`${base}/images/generations`, key, bodyFor('url'));
+      } else { throw b64Err; }
+    }
     const items = (json.data || []).map(d => ({ url: d.url || null, b64: d.b64_json ? `data:image/png;base64,${d.b64_json}` : null })).filter(d => d.url || d.b64);
     if (!items.length) return res.status(502).json({ success: false, error: 'Upstream không trả ảnh nào', raw: JSON.stringify(json).slice(0, 400) });
     res.json({ success: true, provider: pKey, model: modelId, images: items, revised_prompt: json.data?.[0]?.revised_prompt || null });
@@ -84,13 +94,18 @@ router.post('/speech', authMiddleware, async (req, res) => {
     if (!String(text || '').trim()) return res.status(400).json({ success: false, error: 'Thiếu text' });
     const { provider: pKey, model: modelId } = splitModel(model, (provider || '').toLowerCase() || null);
     if (!pKey || !modelId) return res.status(400).json({ success: false, error: 'Chọn model TTS trước (provider/model)' });
+    const textTrim = String(text);
+    // N7: không cắt text im lặng — báo rõ khi vượt giới hạn upstream (4000 ký tự)
+    if (textTrim.length > 4000) {
+      return res.status(400).json({ success: false, error: `Text quá dài: ${textTrim.length} ký tự (giới hạn upstream 4000). Hãy tách ngắn lại hoặc rút gọn.` });
+    }
     const key = await getApiKey(pKey);
     if (!key && PROVIDER_ENDPOINTS[pKey]?.auth !== 'none') return res.status(400).json({ success: false, error: `Provider ${pKey} chưa có API key` });
     const base = await baseUrlFor(pKey);
     const upstream = await fetch(`${base}/audio/speech`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: modelId, input: String(text).slice(0, 4000), voice: voice || 'alloy', response_format: 'mp3' }),
+      body: JSON.stringify({ model: modelId, input: textTrim, voice: voice || 'alloy', response_format: 'mp3' }),
       signal: AbortSignal.timeout(90000),
     });
     if (!upstream.ok) {

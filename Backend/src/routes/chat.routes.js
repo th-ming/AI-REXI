@@ -164,6 +164,27 @@ setInterval(async () => {
   } catch (e) { console.log('[HealthCheck] refresh error:', e.message); }
 }, 10 * 60 * 1000);
 
+// E5: purge hội thoại soft-delete quá 30 ngày (cả tin nhắn con) — DB không phình vô hạn.
+// ngay_xoa là TEXT/TIMESTAMP (CURRENT_TIMESTAMP) — hàm datetime() chỉ có SQLite → tính cutoff bằng JS.
+const purgeExpiredConvs = () => {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  db.all('SELECT ma_hoi_thoai FROM cuoc_hoi_thoai WHERE ngay_xoa IS NOT NULL AND ngay_xoa < ?', [cutoff], (err, rows) => {
+    if (err || !rows || !rows.length) return;
+    const ids = rows.map(r => r.ma_hoi_thoai);
+    let done = 0;
+    for (const id of ids) {
+      db.run('DELETE FROM tin_nhan WHERE ma_hoi_thoai = ?', [id], () => {
+        db.run('DELETE FROM cuoc_hoi_thoai WHERE ma_hoi_thoai = ?', [id], () => {
+          done++;
+          if (done === ids.length) console.log(`[ChatPurge] Đã xóa ${ids.length} hội thoại hết hạn (>30 ngày)`);
+        });
+      });
+    }
+  });
+};
+purgeExpiredConvs();
+setInterval(purgeExpiredConvs, 24 * 60 * 60 * 1000);
+
 // --- CACHING FOR MODELS ---
 const modelCache = new Map();
 const CACHE_TTL = 60 * 60 * 1000; // P3: thống nhất cache models 1h (trước 6h — lệch với modelRouter)
@@ -852,7 +873,6 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
               ragHits.map(h => `- [${h.ten_file}] ${h.noi_dung}`).join('\n');
           }
         } catch (eRag) { console.log('[RAG] context error:', eRag.message); }
-        if (memoryText) console.log('[Brain] Memory loaded:', memoryText.slice(0, 200));
 
         // ─── AUTO: tìm web khi cần + tóm tắt hội thoại dài ───
         const { webSearchText, summaryText } = await buildAutoContext(req, id, noi_dung);
@@ -935,11 +955,7 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
             } catch (e) {
               model = tempGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
             }
-            const contents = history.map(h => ({
-              role: h.vai_tro === 'user' ? 'user' : 'model',
-              // QA 17/9: ảnh data-URL phải chuyển thành inlineData, không phải text thuần
-              parts: h.vai_tro === 'user' ? buildGeminiParts(h.noi_dung) : [{ text: h.noi_dung }]
-            }));
+            const contents = chatExecutor.buildHistoryGemini(history);
             
             // CHỈ gửi thinkingConfig khi user chọn thinking_level = 'deep'.
             // KHÔNG gửi thinkingBudget: 0 — một số model Gemini mới (3.x)
@@ -1122,10 +1138,10 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
           }
         } catch (apiErr) {
           console.error(`Lỗi gọi ${selectedProvider}:`, apiErr.message);
-          // P1-10: chỉ throttle khi 429/5xx/Abort (mạng nghẽn thật) — lỗi logic thì không phạt provider
+          // P1-10 + M6: chỉ throttle khi 429/5xx thật — Abort/timeout cắt do câu hỏi
+          // dài hoặc client dừng, KHÔNG phạt provider oan (giống stream path).
           const _st = apiErr && apiErr.status;
-          const _abort = apiErr.name === 'AbortError' || apiErr.name === 'TimeoutError' || /timeout|aborted/i.test(apiErr.message || '');
-          if (_st === 429 || (_st >= 500 && _st <= 599) || (!_st && _abort)) {
+          if (_st === 429 || (_st >= 500 && _st <= 599)) {
             quotaManager.recordThrottle(selectedProvider);
           }
           // ─── FALLBACK CHUỖI (chỉ khi chế độ Auto) ───
@@ -1526,8 +1542,8 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
         let model;
         try { model = tempGenAI.getGenerativeModel({ model: selectedModel || 'gemini-2.5-flash' }); }
         catch (e) { model = tempGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); }
-        // QA 17/9: ảnh data-URL → inlineData (trước đây chỉ gửi text → vision mù)
-        const contents = history.map(h => ({ role: h.vai_tro === 'user' ? 'user' : 'model', parts: h.vai_tro === 'user' ? buildGeminiParts(h.noi_dung) : [{ text: h.noi_dung }] }));
+        // QA 17/9 + M7: ảnh data-URL → inlineData, history cũ chỉ giữ 12 tin gần nhất + bỏ base64 cũ
+        const contents = chatExecutor.buildHistoryGemini(history);
         // CHỈ gửi thinkingConfig khi thinking_level = 'deep' (xem ghi chú BUG 400 INVALID_ARGUMENT)
         const genConfig = thinking_level === 'deep' ? { thinkingConfig: { thinkingBudget: 8192 } } : {};
         const stream = await model.generateContentStream({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });

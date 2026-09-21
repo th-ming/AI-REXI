@@ -158,8 +158,42 @@ async function launchBrowser(chromium) {
  * @param {number} o.duration  giây
  * @returns {Promise<{buffer:Buffer, frames:number, ms:number, browser:string}>}
  */
-async function renderComposition({ html, width = 1280, height = 720, fps = 30, duration = 5 }) {
-  if (!isAvailable()) throw new Error('ffmpeg-static chưa cài — không render được video');
+// I4: chỉ 1 render chạy 1 lúc (Playwright + ffmpeg ăn CPU khủng, chạy song
+// song trên Render free tier là treo máy) + tối đa 1 hàng đợi.
+let _rendering = false;
+let _queued = 0;
+const MAX_QUEUE = 1;
+
+async function renderComposition(o = {}) {
+  // I2: báo lỗi ffmpeg rõ ràng (kèm path/package) thay vì lỗi chung chung
+  if (!isAvailable()) {
+    throw new Error(
+      `ffmpeg-static chưa cài hoặc binary không tồn tại (${ffmpegPath || 'không tìm thấy package'}) — không render được video. Chạy "npm install ffmpeg-static" rồi restart.`
+    );
+  }
+  // I3: prod (Render) cap 10s + 720p + 30fps — tránh CPU explosion
+  const isProd = (process.env.NODE_ENV || '') === 'production';
+  let { html, width = 1280, height = 720, fps = 30, duration = 5 } = o;
+  if (isProd) {
+    duration = Math.min(Number(duration) || 5, 10);
+    width = Math.min(Number(width) || 1280, 1280);
+    height = Math.min(Number(height) || 720, 720);
+    fps = Math.min(Number(fps) || 30, 30);
+  }
+  if (_rendering || _queued >= MAX_QUEUE) {
+    throw new Error('Đang có video render — thử lại sau ít phút (server chỉ render 1 video 1 lần).');
+  }
+  _queued++;
+  try {
+    while (_rendering) await new Promise(r => setTimeout(r, 500));
+    _rendering = true;
+    try {
+      return await _renderInner({ html, width, height, fps, duration });
+    } finally { _rendering = false; }
+  } finally { _queued--; }
+}
+
+async function _renderInner({ html, width = 1280, height = 720, fps = 30, duration = 5 }) {
   const { chromium } = require('playwright');
 
   const t0 = Date.now();
@@ -206,7 +240,10 @@ async function renderComposition({ html, width = 1280, height = 720, fps = 30, d
       ff.stdin.once('drain', resolve);
     });
 
+    // I1: deadline tổng 5 phút — kẹt capture/treem browser thì bỏ thay vì treo request
+    const deadline = Date.now() + 5 * 60 * 1000;
     for (let i = 0; i < totalFrames; i++) {
+      if (Date.now() > deadline) throw new Error('Render quá 5 phút — bỏ (giảm thời lượng/fps hoặc kiểm tra browser).');
       const t = i / fps;
       await page.evaluate((tt) => {
         const tls = window.__timelines || {};

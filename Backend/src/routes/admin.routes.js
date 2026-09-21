@@ -405,6 +405,10 @@ router.delete('/notifications/:id', async (req, res) => {
 
 // ─── Kích hoạt scan thủ công ────────────────────────────────────
 router.post('/scan-now', async (req, res) => {
+  const runningScan = await getQ("SELECT id, created_at FROM iptv_scan_log WHERE status='running' ORDER BY id DESC LIMIT 1").catch(() => null);
+  if (runningScan) {
+    return res.status(409).json({ success: false, error: 'Quét đang chạy rồi (bắt đầu ' + (runningScan.created_at || '?') + ') — chờ xong đã.' });
+  }
   res.json({ success: true, message: 'Scan started! Check /status in 20s.' });
 
   // Tạo notification "đang scan"
@@ -483,13 +487,15 @@ router.post('/cleanup', [authMiddleware, adminMiddleware], async (req, res) => {
 // POST /api/admin/import-sqlite   body: { db_b64 } (file .db base64, <= ~25MB)
 // Idempotent: ON CONFLICT DO NOTHING — chạy lại không nhân bản dữ liệu.
 // Bootstrap: DB chưa có user nào (PG mới tinh) → cho import khi body.bootstrap_key
-// trùng ADMIN_PASSWORD (chưa seed admin trên PG được vì ensure-admin skip non-SQLite — chống trứng-gà).
+// trùng IMPORT_BOOTSTRAP_KEY (N5: tách riêng khỏi ADMIN_PASSWORD — lộ password admin
+// là import đè DB; fallback ADMIN_PASSWORD khi env thiếu để không vỡ flow cũ).
 const importBootstrapGate = (req, res, next) => {
   getQ('SELECT COUNT(*) AS n FROM nguoi_dung')
     .then((row) => {
       const n = Number(row && row.n != null ? row.n : (Object.values(row || {})[0] || 0));
       console.log('[IMPORT-gate] nguoi_dung count =', n);
-      if (!n && req.body && req.body.bootstrap_key && req.body.bootstrap_key === (process.env.ADMIN_PASSWORD || '').trim()) {
+      const expectedKey = (process.env.IMPORT_BOOTSTRAP_KEY || process.env.ADMIN_PASSWORD || '').trim();
+      if (!n && req.body && req.body.bootstrap_key && req.body.bootstrap_key === expectedKey) {
         console.log('[IMPORT] Bootstrap mode: DB trống + bootstrap_key hop le — bo qua admin auth.');
         return next();
       }
@@ -589,11 +595,15 @@ router.get('/export-db', [authMiddleware, adminMiddleware], async (req, res) => 
     tmpPath = path.join(os.tmpdir(), fname);
     const sq = new DatabaseSync(tmpPath);
     const tables = (await allQ("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")).map(r => r.tablename ?? Object.values(r)[0]);
+    // N6: backup rơi nhầm = lộ phiên đăng nhập + key API + OTP → loại/mask khi export
+    const SKIP_TABLES = new Set(['sessions_store']);
+    const MASK_COLS = new Set(['otp_code', 'gia_tri_khoa']);
     const mapType = (t) =>
       /^(smallint|integer|bigint|smallserial|serial|bigserial)$/i.test(t) ? 'INTEGER' :
       /^(numeric|real|double precision)$/i.test(t) ? 'NUMERIC' : 'TEXT';
     const summary = [];
     for (const t of tables) {
+      if (SKIP_TABLES.has(t)) { summary.push({ table: t, rows: 0, skipped: true }); continue; }
       const cols = await allQ('SELECT column_name, data_type FROM information_schema.columns WHERE table_schema=? AND table_name=? ORDER BY ordinal_position', ['public', t]);
       if (!cols.length) continue;
       sq.exec('DROP TABLE IF EXISTS "' + t + '"');
@@ -604,6 +614,7 @@ router.get('/export-db', [authMiddleware, adminMiddleware], async (req, res) => 
       let n = 0;
       for (const row of rows) {
         const vals = colNames.map(c => {
+          if (MASK_COLS.has(c)) return '[MASKED]';
           const v = row[c];
           if (v === undefined) return null;
           if (v === null) return null;

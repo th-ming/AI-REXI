@@ -252,7 +252,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   const [duration, setDuration] = useState(5);
   const [rendering, setRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState('');
-  const [videoUrl, setVideoUrl] = useState(null);
+    const [videoUrl, setVideoUrl] = useState(null);
+    const [downloaded, setDownloaded] = useState(false);
   const [videoSize, setVideoSize] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advHtml, setAdvHtml] = useState('');
@@ -325,6 +326,11 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         method: 'POST', headers, credentials: 'include',
         body: JSON.stringify({ html, width: selectedFormat.w, height: selectedFormat.h, fps: 30, duration })
       });
+      if (res.status === 404 || res.status === 410) {
+        setRenderProgress('');
+        showToast('Link render đã hết hạn (server restart) — render lại nhé.', 'error');
+        return;
+      }
       const data = await res.json();
       if (data.success && data.video) {
         const url = 'data:video/mp4;base64,' + data.video;
@@ -351,6 +357,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
     a.href = videoUrl;
     a.download = `rexi_video_${Date.now()}.mp4`;
     a.click();
+    setDownloaded(true);
     showToast('Đã tải video MP4!', 'success');
   };
 
@@ -359,6 +366,16 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
     setVideoUrl(null);
     setRenderProgress('');
   };
+
+  useEffect(() => {
+    if (!videoUrl || downloaded) return;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [videoUrl, downloaded]);
 
   const previewSrc = `data:text/html;base64,${utf8ToBase64(showAdvanced ? advHtml || html : html)}`;
   const ready = status?.ready === true;
@@ -660,10 +677,15 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
              <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mb-4">
                <Check size={32} className="text-emerald-400" />
              </div>
-             <h2 className="text-lg font-bold text-slate-800">Video đã xong!</h2>
-             <p className="text-[11px] text-slate-500 mt-1.5">
-               Bấm nút bên dưới để tải file MP4 về thư mục Downloads.
-             </p>
+              <h2 className="text-lg font-bold text-slate-800">Video đã xong!</h2>
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                Bấm nút bên dưới để tải file MP4 về thư mục Downloads.
+              </p>
+              {!downloaded && (
+                <p className="text-[11px] text-amber-600 mt-2 flex items-center justify-center gap-1.5">
+                  <Info size={12} /> Video chỉ tồn tại trong phiên này — hãy tải về máy trước khi rời trang.
+                </p>
+              )}
              <div className="mt-5 space-y-2.5">
                <button
                  onClick={handleDownload}

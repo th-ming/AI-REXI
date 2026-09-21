@@ -90,7 +90,6 @@ const getGroqClient = async () => {
   if (!key || key === 'YOUR_GROQ_API_KEY_HERE') {
     key = await new Promise((resolve) => {
       db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'groq'", [], (err, row) => {
-        console.log('[getGroqClient] db result err=', err ? err.message : null, 'row=', row ? row.gia_tri_khoa ? 'HAS_KEY' : 'EMPTY' : 'NONE');
         if (err || !row || !row.gia_tri_khoa) return resolve(null);
         resolve(decryptKey(row.gia_tri_khoa).trim());
       });
@@ -1543,6 +1542,28 @@ router.post('/office/process-pdf', authMiddleware, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const tempDir = path.join(__dirname, '..', '..', 'temp');
 if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+
+// I5: dọn file temp cũ >1h — server restart/crash giữa render/upload làm file kẹt lại,
+// RAM 512MB trên Render không đủ chứa rác tích tụ (ytdl audio + render mp4 + upload)
+function cleanupOldTemp() {
+  const dirs = [tempDir, path.join(tempDir, 'video')];
+  const now = Date.now();
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    let entries = [];
+    try { entries = fs.readdirSync(dir); } catch (e) { continue; }
+    for (const name of entries) {
+      const p = path.join(dir, name);
+      try {
+        const st = fs.statSync(p);
+        const isRecent = now - st.mtimeMs < 60 * 60 * 1000;
+        if (!isRecent) fs.rmSync(p, { recursive: true, force: true });
+      } catch (e) { /* file biến mất giữa chừng — bỏ qua */ }
+    }
+  }
+}
+cleanupOldTemp();
+setInterval(cleanupOldTemp, 60 * 60 * 1000).unref();
 
 router.post('/transcribe', authMiddleware, upload.single('audio'), async (req, res) => {
   const audioFile = req.file;

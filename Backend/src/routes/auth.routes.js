@@ -3,11 +3,12 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const db = require('../config/db');
 const { authMiddleware, adminMiddleware, getJWTSecret } = require('../middleware/auth.middleware');
 
 function generateToken(user) {
-    const payload = { id: user.ma_nguoi_dung, role: user.phan_quyen };
+    const payload = { id: user.ma_nguoi_dung, role: user.phan_quyen, tv: user.token_version || 0 };
     return jwt.sign(payload, getJWTSecret(), { expiresIn: '7d' });
 }
 
@@ -64,20 +65,35 @@ function findOrCreateUser(email, name, avatar, provider, done) {
 // Đăng ký
 router.post('/register', async (req, res) => {
     const { account, email, password, ten_day_du } = req.body;
-    const accountName = (account || email || '').trim();
+    const accountName = (account || '').trim().toLowerCase();
+    const emailAddr = (email || '').trim().toLowerCase();
     if (!accountName || !password) {
         return res.status(400).json({ error: 'Tài khoản và mật khẩu là bắt buộc.' });
     }
+    if (!/^[a-z0-9._-]{3,32}$/.test(accountName)) {
+        return res.status(400).json({ error: 'Tài khoản 3-32 ký tự, chỉ gồm chữ thường, số, dấu . _ -' });
+    }
+    if (emailAddr && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddr)) {
+        return res.status(400).json({ error: 'Email không đúng định dạng.' });
+    }
+    if (password.length < 6) {
+        return res.status(400).json({ error: 'Mật khẩu tối thiểu 6 ký tự.' });
+    }
 
+    const finalEmail = emailAddr || `${accountName}@rexi.com`;
     const hashedPassword = await bcrypt.hash(password, 10);
     const maUser = crypto.randomUUID();
 
     db.run(
         "INSERT INTO nguoi_dung (ma_nguoi_dung, email, mat_khau_ma_hoa, ten_day_du, phan_quyen) VALUES (?, ?, ?, ?, 'user')",
-        [maUser, accountName, hashedPassword, ten_day_du || 'Người dùng mới'],
+        [maUser, finalEmail, hashedPassword, ten_day_du || accountName],
         (err) => {
             if (err) {
-                return res.status(500).json({ error: 'Email này có thể đã tồn tại.' });
+                if (/UNIQUE|duplicate/i.test(err.message || '')) {
+                    return res.status(409).json({ error: emailAddr ? 'Email này đã tồn tại.' : 'Tài khoản này đã tồn tại — thử tên khác.' });
+                }
+                console.error('[Auth] Register error:', err.message);
+                return res.status(500).json({ error: 'Lỗi hệ thống khi đăng ký.' });
             }
             res.status(201).json({ success: true, message: 'Đăng ký thành công!' });
         }
@@ -92,9 +108,10 @@ router.post('/login', (req, res) => {
         return res.status(400).json({ error: 'Vui lòng nhập tài khoản và mật khẩu.' });
     }
 
+    const nicknameEmail = accountName.includes('@') ? accountName : `${accountName}@rexi.com`;
     db.get(
-        "SELECT * FROM nguoi_dung WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(email) LIKE LOWER(?)",
-        [accountName, accountName === 'admin' ? 'admin@rexi.com' : accountName, accountName + '@%'],
+        "SELECT * FROM nguoi_dung WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?)",
+        [accountName, nicknameEmail],
         async (err, user) => {
             if (err || !user) {
                 return res.status(401).json({ error: 'Tài khoản hoặc mật khẩu không đúng.' });
@@ -121,6 +138,14 @@ router.post('/login', (req, res) => {
             res.json({ success: true, token, user: sanitizeUser(user) });
         }
     );
+});
+
+// Đăng xuất (đăng xuất → token cũ vô hiệu qua token_version)
+router.post('/logout', [authMiddleware], (req, res) => {
+    db.run('UPDATE nguoi_dung SET token_version = COALESCE(token_version, 0) + 1 WHERE ma_nguoi_dung = ?', [req.user.id], (err) => {
+        if (err) console.error('[Auth] Logout error:', err.message);
+        res.json({ success: true, message: 'Đã đăng xuất.' });
+    });
 });
 
 // Đăng nhập Google
@@ -218,8 +243,8 @@ router.get('/google/callback', async (req, res) => {
             }
 
             const token = generateToken(user);
-            // Redirect back to frontend with token
-            res.redirect(`${frontendUrl}?google_token=${token}&user=${encodeURIComponent(JSON.stringify(sanitizeUser(user)))}`);
+            // Redirect back to frontend with token in hash fragment (không lộ vào URL query/history/log)
+            res.redirect(`${frontendUrl}#google_token=${token}&user=${encodeURIComponent(JSON.stringify(sanitizeUser(user)))}`);
         });
 
     } catch (e) {
@@ -229,31 +254,59 @@ router.get('/google/callback', async (req, res) => {
 });
 
 // FORGOT / RESET PASSWORD
-router.post('/forgot-password', (req, res) => {
+async function sendOTPMail(to, otpCode) {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return false;
+  const port = parseInt(SMTP_PORT) || 587;
+  const transporter = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port,
+    secure: port === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASS }
+  });
+  await transporter.sendMail({
+    from: SMTP_FROM || SMTP_USER,
+    to,
+    subject: `AI REXI — Mã OTP đặt lại mật khẩu: ${otpCode}`,
+    text: `Mã OTP của bạn là: ${otpCode}\nCó hiệu lực trong 10 phút. Không chia sẻ mã này cho ai.`,
+    html: `<p>Mã OTP của bạn là: <strong style="font-size:20px;letter-spacing:4px">${otpCode}</strong></p><p>Có hiệu lực trong 10 phút. Không chia sẻ mã này cho ai.</p>`
+  });
+  return true;
+}
+
+router.post('/forgot-password', async (req, res) => {
     const { account, email } = req.body;
     const accountName = (account || email || '').trim();
     if (!accountName) {
         return res.status(400).json({ error: 'Vui lòng nhập tài khoản.' });
     }
 
-    db.get("SELECT * FROM nguoi_dung WHERE email = ?", [accountName], (err, user) => {
+    db.get("SELECT * FROM nguoi_dung WHERE email = ? OR email = ?", [accountName, accountName + '@rexi.com'], async (err, user) => {
         if (err || !user) {
             return res.json({ success: true, message: 'Nếu tài khoản tồn tại, mã OTP đã được tạo.' });
         }
 
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
         const otpExpiry = Date.now() + 10 * 60 * 1000;
+        const otpHash = crypto.createHash('sha256').update(otpCode).digest('hex');
 
         db.run(
-            "UPDATE nguoi_dung SET otp_code = ?, otp_expiry = ? WHERE ma_nguoi_dung = ?",
-            [otpCode, otpExpiry, user.ma_nguoi_dung],
-            (err) => {
+            "UPDATE nguoi_dung SET otp_code = ?, otp_expiry = ?, otp_attempts = 0 WHERE ma_nguoi_dung = ?",
+            [otpHash, otpExpiry, user.ma_nguoi_dung],
+            async (err) => {
                 if (err) {
                     return res.status(500).json({ error: 'Lỗi hệ thống.' });
                 }
                 console.log(`[Auth] OTP for ${accountName}: ${otpCode}`);
-                const payload = { success: true, message: 'Mã OTP đã được tạo.' };
-                if (process.env.NODE_ENV !== 'production') payload.otp_debug = otpCode;
+                let mailSent = false;
+                try { mailSent = await sendOTPMail(user.email, otpCode); } catch { mailSent = false; }
+                const payload = {
+                    success: true,
+                    message: mailSent
+                        ? 'Mã OTP đã được gửi vào email của bạn (kiểm tra cả thư mục Spam).'
+                        : 'Chưa gửi được email (SMTP chưa cấu hình) — mã OTP hiển thị tạm trong otp_debug.'
+                };
+                if (!mailSent) payload.otp_debug = otpCode;
                 res.json(payload);
             }
         );
@@ -270,22 +323,29 @@ router.post('/reset-password', async (req, res) => {
         return res.status(400).json({ error: 'Mật khẩu mới tối thiểu 6 ký tự.' });
     }
 
-    db.get("SELECT * FROM nguoi_dung WHERE email = ?", [accountName], async (err, user) => {
+    db.get("SELECT * FROM nguoi_dung WHERE email = ? OR email = ?", [accountName, accountName + '@rexi.com'], async (err, user) => {
         if (err || !user) {
             return res.status(400).json({ error: 'Tài khoản không tồn tại.' });
         }
 
-        if (!user.otp_code || user.otp_code !== otp_code) {
-            return res.status(400).json({ error: 'Mã OTP không đúng.' });
+        if ((user.otp_attempts || 0) >= 5) {
+            return res.status(429).json({ error: 'Nhập sai OTP quá 5 lần — hãy yêu cầu mã OTP mới.' });
         }
 
         if (!user.otp_expiry || Date.now() > user.otp_expiry) {
             return res.status(400).json({ error: 'Mã OTP đã hết hạn. Vui lòng yêu cầu lại.' });
         }
 
+        const otpHash = crypto.createHash('sha256').update(String(otp_code)).digest('hex');
+        if (!user.otp_code || user.otp_code !== otpHash) {
+            db.run("UPDATE nguoi_dung SET otp_attempts = COALESCE(otp_attempts, 0) + 1 WHERE ma_nguoi_dung = ?", [user.ma_nguoi_dung], () => {});
+            const left = 5 - ((user.otp_attempts || 0) + 1);
+            return res.status(400).json({ error: left > 0 ? `Mã OTP không đúng — còn ${left} lần thử.` : 'Mã OTP không đúng — đã khóa, yêu cầu mã OTP mới.' });
+        }
+
         const hashedPassword = await bcrypt.hash(new_password, 10);
         db.run(
-            "UPDATE nguoi_dung SET mat_khau_ma_hoa = ?, otp_code = NULL, otp_expiry = NULL WHERE ma_nguoi_dung = ?",
+            "UPDATE nguoi_dung SET mat_khau_ma_hoa = ?, otp_code = NULL, otp_expiry = NULL, otp_attempts = 0 WHERE ma_nguoi_dung = ?",
             [hashedPassword, user.ma_nguoi_dung],
             (err) => {
                 if (err) {
@@ -347,10 +407,20 @@ router.put('/users/:id/role', [authMiddleware, adminMiddleware], (req, res) => {
     if (req.user.id === id) {
         return res.status(400).json({ error: 'Không thể thay đổi quyền của chính mình.' });
     }
-    db.run('UPDATE nguoi_dung SET phan_quyen = ? WHERE ma_nguoi_dung = ?', [phan_quyen, id], function(err) {
+    const demote = () => db.run('UPDATE nguoi_dung SET phan_quyen = ? WHERE ma_nguoi_dung = ?', [phan_quyen, id], function(err) {
         if (err) return res.status(500).json({ error: 'Lỗi cập nhật phân quyền.' });
         res.json({ success: true, message: `Đã đổi quyền thành ${phan_quyen}` });
     });
+    if (phan_quyen === 'user') {
+        db.get("SELECT COUNT(*) as total FROM nguoi_dung WHERE phan_quyen = 'admin' AND ma_nguoi_dung != ? AND trang_thai = 'active'", [id], (err, row) => {
+            if (!err && row && (row.total || 0) === 0) {
+                return res.status(409).json({ error: 'Đây là admin duy nhất — không thể hạ quyền.' });
+            }
+            demote();
+        });
+    } else {
+        demote();
+    }
 });
 
 // ADMIN: Khoá / Mở khoá tài khoản
@@ -363,10 +433,20 @@ router.put('/users/:id/status', [authMiddleware, adminMiddleware], (req, res) =>
     if (req.user.id === id) {
         return res.status(400).json({ error: 'Không thể khoá tài khoản của chính mình.' });
     }
-    db.run('UPDATE nguoi_dung SET trang_thai = ? WHERE ma_nguoi_dung = ?', [trang_thai, id], function(err) {
+    const ban = () => db.run('UPDATE nguoi_dung SET trang_thai = ? WHERE ma_nguoi_dung = ?', [trang_thai, id], function(err) {
         if (err) return res.status(500).json({ error: 'Lỗi cập nhật trạng thái.' });
         res.json({ success: true, trang_thai });
     });
+    if (trang_thai === 'banned') {
+        db.get("SELECT COUNT(*) as total FROM nguoi_dung WHERE phan_quyen = 'admin' AND trang_thai = 'active' AND ma_nguoi_dung != ?", [id], (err, row) => {
+            if (!err && row && (row.total || 0) === 0) {
+                return res.status(409).json({ error: 'Đây là admin hoạt động duy nhất — không thể khoá.' });
+            }
+            ban();
+        });
+    } else {
+        ban();
+    }
 });
 
 // ADMIN: Thống kê hệ thống

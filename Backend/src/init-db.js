@@ -17,7 +17,7 @@ function getRow(sql, params = []) {
 // ─── Schema gốc (dump từ SQLite chuẩn) — sắp theo thứ tự FK ─────────
 const TABLES = [
   `CREATE TABLE ai_providers (ma_nha_cung_cap TEXT PRIMARY KEY, ten_hien_thi TEXT NOT NULL, base_url TEXT, can_api_key INTEGER DEFAULT 1, placeholder TEXT, thu_tu INTEGER DEFAULT 0, kich_hoat INTEGER DEFAULT 1, ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP, ngay_cap_nhat TEXT DEFAULT CURRENT_TIMESTAMP)`,
-  `CREATE TABLE nguoi_dung ( ma_nguoi_dung TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, mat_khau_ma_hoa TEXT NOT NULL, ten_day_du TEXT, phan_quyen TEXT DEFAULT 'user', anh_dai_dien TEXT, otp_code TEXT, otp_expiry INTEGER, trang_thai TEXT DEFAULT 'active', ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP , _sync_at DATETIME)`,
+  `CREATE TABLE nguoi_dung ( ma_nguoi_dung TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, mat_khau_ma_hoa TEXT NOT NULL, ten_day_du TEXT, phan_quyen TEXT DEFAULT 'user', anh_dai_dien TEXT, otp_code TEXT, otp_expiry INTEGER, otp_attempts INTEGER DEFAULT 0, token_version INTEGER DEFAULT 0, trang_thai TEXT DEFAULT 'active', ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP , _sync_at DATETIME)`,
   `CREATE TABLE ai_models (ma_model TEXT NOT NULL, ma_nha_cung_cap TEXT NOT NULL, ten_hien_thi TEXT NOT NULL, loai TEXT DEFAULT 'free', modality TEXT DEFAULT 'chat', thu_tu_hien_thi INTEGER DEFAULT 0, kich_hoat INTEGER DEFAULT 1, ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP, ngay_cap_nhat TEXT DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (ma_model, ma_nha_cung_cap), FOREIGN KEY (ma_nha_cung_cap) REFERENCES ai_providers(ma_nha_cung_cap))`,
   `CREATE TABLE cuoc_hoi_thoai ( ma_hoi_thoai TEXT PRIMARY KEY, ma_nguoi_dung TEXT NOT NULL, ma_thu_muc TEXT, tieu_de TEXT DEFAULT 'Trò chuyện mới', ten_mo_hinh_ai TEXT DEFAULT 'Gemini 3.5 Flash', trang_thai TEXT DEFAULT 'dang_mo', ngay_tao DATETIME DEFAULT CURRENT_TIMESTAMP, ngay_cap_nhat DATETIME DEFAULT CURRENT_TIMESTAMP, ngay_xoa DATETIME, ma_phien TEXT, _sync_at DATETIME, FOREIGN KEY (ma_nguoi_dung) REFERENCES nguoi_dung(ma_nguoi_dung) )`,
   `CREATE TABLE tin_nhan ( ma_tin_nhan TEXT PRIMARY KEY, ma_hoi_thoai TEXT NOT NULL, vai_tro TEXT NOT NULL, noi_dung TEXT NOT NULL, ngay_gui DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (ma_hoi_thoai) REFERENCES cuoc_hoi_thoai(ma_hoi_thoai) )`,
@@ -46,6 +46,8 @@ const TABLES = [
   `CREATE TABLE lich_nhac (ma_nhac TEXT PRIMARY KEY, ma_nguoi_dung TEXT NOT NULL, noi_dung TEXT NOT NULL, thoi_gian TEXT NOT NULL, da_nhac INTEGER DEFAULT 0, ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE thong_bao (ma_tb TEXT PRIMARY KEY, ma_nguoi_dung TEXT NOT NULL, noi_dung TEXT NOT NULL, da_doc INTEGER DEFAULT 0, ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP)`,
   `CREATE TABLE nhat_ky (ma_ky TEXT PRIMARY KEY, ma_nguoi_dung TEXT, hanh_dong TEXT NOT NULL, chi_tiet TEXT, ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP)`,
+  // M3: state throttle provider nằm trên DB — restart server không mất backoff
+  `CREATE TABLE provider_throttle ( provider TEXT PRIMARY KEY, until BIGINT DEFAULT 0, backoff_ms INTEGER DEFAULT 30000, failures INTEGER DEFAULT 0, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP )`,
 ];
 
 const INDEXES = [

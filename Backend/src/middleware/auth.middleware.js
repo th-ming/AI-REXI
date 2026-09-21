@@ -31,7 +31,8 @@ function authMiddleware(req, res, next) {
     try {
         const decoded = jwt.verify(token, getJWTSecret());
         // FIX SECURITY: user bị khoá (banned) KHÔNG được dùng token tiếp (kể cả token cũ)
-        db.get("SELECT phan_quyen, trang_thai FROM nguoi_dung WHERE ma_nguoi_dung = ?", [decoded.id], (err, row) => {
+        db.get(
+            "SELECT phan_quyen, trang_thai, token_version FROM nguoi_dung WHERE ma_nguoi_dung = ?", [decoded.id], (err, row) => {
           if (err) {
             console.error('[authMiddleware] DB Error:', err.message);
             return res.status(500).json({ error: 'Lỗi CSDL' });
@@ -39,6 +40,10 @@ function authMiddleware(req, res, next) {
           if (row && row.trang_thai === 'banned') {
             console.error('[authMiddleware] Banned user attempted access:', decoded.id);
             return res.status(403).json({ error: 'Tài khoản của bạn đã bị khoá.', code: 'ACCOUNT_BANNED' });
+          }
+          // FIX L6: token cũ phát hành trước lần đăng xuất gần nhất → vô hiệu
+          if (row && (decoded.tv || 0) < (row.token_version || 0)) {
+            return res.status(401).json({ error: 'Phiên đã đăng xuất trên thiết bị này.', code: 'SESSION_REVOKED' });
           }
           // Gắn thêm role từ DB phòng trường hợp token cũ chưa update role mới
           if (row) {

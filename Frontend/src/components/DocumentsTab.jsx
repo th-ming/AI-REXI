@@ -82,15 +82,15 @@ export default function DocumentsTab({ API_BASE, authToken, showToast }) {
     <div className="h-full flex flex-col p-4 space-y-4 overflow-y-auto">
       <div className="flex items-center gap-2">
         <FileText size={18} className="text-emerald-400" />
-        <h2 className="text-lg font-semibold text-slate-800">Đọc &amp; Hiểu File (RAG)</h2>
+        <h2 className="text-lg font-semibold text-[var(--text-main)]">Đọc &amp; Hiểu File (RAG)</h2>
       </div>
-      <p className="text-sm text-slate-600">
+      <p className="text-sm text-slate-400">
         Đưa <b>PDF / Word (.docx) / TXT</b> vào — Rexi tự đọc, hiểu theo nghĩa và trả lời dựa trên nội dung file. Hỏi bằng cách diễn đạt khác vẫn tìm ra. 📚
       </p>
 
       {/* Upload */}
       <div
-        className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${dragOver ? 'border-emerald-400 bg-emerald-500/10' : 'border-slate-300 hover:border-emerald-500'}`}
+        className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors cursor-pointer ${dragOver ? 'border-emerald-400 bg-emerald-500/10' : 'border-white/20 hover:border-emerald-500'}`}
         onClick={() => fileRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
@@ -105,18 +105,18 @@ export default function DocumentsTab({ API_BASE, authToken, showToast }) {
         ) : (
           <>
             <Upload size={28} className="mx-auto text-emerald-400 mb-2" />
-            <p className="text-sm text-slate-600">Bấm hoặc kéo thả file vào đây</p>
+            <p className="text-sm text-slate-400">Bấm hoặc kéo thả file vào đây</p>
             <p className="text-xs text-slate-400 mt-1">Hỗ trợ: PDF, DOCX, TXT, MD, CSV, JSON (tối đa 20MB)</p>
           </>
         )}
       </div>
 
-      {error && <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</div>}
+      {error && <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg p-3">{error}</div>}
 
       {/* Danh sách */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-slate-700">Tài liệu đã thêm ({documents.length})</h3>
-        <button onClick={load} className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1">
+        <h3 className="text-sm font-medium text-slate-300">Tài liệu đã thêm ({documents.length})</h3>
+        <button onClick={load} className="text-xs text-slate-500 hover:text-slate-200 flex items-center gap-1">
           <RefreshCw size={12} /> Làm mới
         </button>
       </div>
@@ -131,10 +131,10 @@ export default function DocumentsTab({ API_BASE, authToken, showToast }) {
       ) : (
         <div className="space-y-2">
           {documents.map((d) => (
-            <div key={d.ma_tai_lieu} className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+            <div key={d.ma_tai_lieu} className="flex items-center gap-3 bg-[var(--bg-card)] border border-white/10 rounded-lg px-4 py-3">
               <FileText size={18} className="text-emerald-400 shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-slate-800 truncate">{d.ten_file}</p>
+                <p className="text-sm text-[var(--text-main)] truncate">{d.ten_file}</p>
                 <p className="text-xs text-slate-500">
                   {d.loai_file?.toUpperCase()} · {fmtSize(d.so_ky_tu)} · {d.ngay_tao}
                 </p>
@@ -148,7 +148,7 @@ export default function DocumentsTab({ API_BASE, authToken, showToast }) {
         </div>
       )}
 
-      <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-3">
+      <div className="text-xs text-slate-400 bg-[var(--bg-card)] border border-white/10 rounded-lg p-3">
         <p className="flex items-center gap-1 mb-1"><CheckCircle2 size={12} className="text-emerald-400" /> <b>Cách dùng:</b></p>
         <p>1. Upload file → Rexi tự đọc + vector hóa (vài giây).</p>
         <p>2. Quay lại chat, hỏi bất kỳ câu nào liên quan nội dung file — kể cả diễn đạt khác từ.</p>

@@ -239,7 +239,7 @@ export default function IPTVTab({
         recorder.onstop = () => {
           if (cancelled) return;
           if (iptvSubtitleOnRef.current) {
-            try { startRecorder(); } catch {}
+            try { startRecorder(); } catch (e) { console.error('[Caption] restart recorder error:', e); }
           }
         };
         // Ghi liên tục, cứ ~5s phát chunk

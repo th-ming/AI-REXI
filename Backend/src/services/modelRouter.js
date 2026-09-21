@@ -111,12 +111,14 @@ function stripDiacritics(s) {
 }
 
 // ─── Từ khóa nhận diện loại câu hỏi (tiếng Việt có dấu + không dấu + Anh) ───
+// M5: bỏ `anh ` / `tinh ` / `truyen` rời rạc — overmatch "một anh bạn" / "tinh thần" /
+// "truyền hình" thành vision/math/writing. Dùng word-boundary + lookahead.
 const PATTERNS = {
   code: /(code|lap trinh|thuat toan|debug|sua loi|viet ham|viet chuong trinh|javascript|python|java|html|css|react|api|backend|frontend|database|sql|script|bug|compile|function|class|cau truc du lieu|regex|terminal|command line)/i,
-  math: /(tinh toan|phuong trinh|toan hoc|giai phuong trinh|bai toan|tinh |can bac|logarit|dao ham|tich phan|phan so|so hoc|\b\d+\s*[+\-*/×÷]\s*\d+)/i,
-  translate: /(dich|translate|chuyen sang tieng|ban dich|phien dich|vietsub|dịch|chuyển sang tiếng|bản dịch|phiên dịch)/i,
-  writing: /(viet bai|bai van|bai luan|content|noi dung|kich ban|truyen|tho|email|thu |bai viet|tieu thuyet|slogan|quang cao|bai dang|viết bài|bài văn|bài luận|kịch bản|bài viết|tiểu thuyết|quảng cáo|bài đăng)/i,
-  vision: /(anh |hinh anh|hinh nay|picture|image|photo|nhin thay|mo ta anh|ảnh|hình ảnh|hình này|nhìn thấy|mô tả ảnh)/i,
+  math: /(tinh toan|phuong trinh|toan hoc|giai phuong trinh|bai toan|tinh (toan|cong|kieu|trung binh|tong)\b|can bac|logarit|dao ham|tich phan|phan so|so hoc|\b\d+\s*[+\-*/×÷]\s*\d+)/i,
+  translate: /(dich|translate|chuyen sang tieng|ban dich|phien dich|vietsub)/i,
+  writing: /(viet bai|bai van|bai luan|content|noi dung|kich ban|truy?en(?! hinh)\b|tho\b|email|bai viet|tieu thuyet|slogan|quang cao|bai dang)/i,
+  vision: /(hinh anh|hinh nay|\b(anh|hinh) (nay|do|kia|con|cua|chup|cut|cute|ngau|dep|xinh|nho|lon|trong|tren|giup)\b|picture|image|photo|nhin thay|mo ta anh|data:image)/i,
 };
 
 const COMPLEX_HINTS = /(tai sao|vi sao|giai thich|phan tich|so sanh|danh gia|tong hop|huong dan chi tiet|neu ro|trinh bay|luan giai|chung minh|y nghia|tại sao|vì sao|giải thích|phân tích|so sánh|đánh giá|tổng hợp)/i;
@@ -318,6 +320,20 @@ async function pickFromLive(cat, keys) {
     }
     if (usable.length) return { provider: p, model: usable[0] };
   }
+  // M4: hết provOrder → thử provider BẤT KỲ còn key (cerebras/cohere/bai/kiosapi/...)
+  const rest = [...keys].filter((p) => !provOrder.includes(p));
+  await prefetchLiveModels(rest);
+  for (const p of rest) {
+    if (!isHealthy(p)) continue;
+    const live = await fetchLiveModels(p);
+    if (!live) continue;
+    const usable = [...live.full].filter(id => !/embed|rerank|whisper|tts|audio|image|vision|guard|moderation/i.test(id));
+    for (const r of patterns) {
+      const hit = usable.find(id => r.test(id));
+      if (hit) return { provider: p, model: hit };
+    }
+    if (usable.length) return { provider: p, model: usable[0] };
+  }
   return null;
 }
 
@@ -412,6 +428,11 @@ async function findGeneric(models, keys, cat) {
     const any = list[0];
     if (any) return { provider: p, model: any.ma_model };
   }
+  // M4: fallback cuối — provider BẤT KỲ còn key + model kích hoạt (cerebras/cohere/bai/...)
+  for (const p of keys) {
+    const list = models.filter(m => String(m.ma_nha_cung_cap).toLowerCase() === String(p).toLowerCase());
+    if (list.length) return { provider: list[0].ma_nha_cung_cap, model: list[0].ma_model };
+  }
   return null;
 }
 
@@ -475,7 +496,7 @@ async function getStatus() {
 function detectSpecialty(text) {
   const t = stripD(text);
   if (/hop dong|doanh nghiep|kinh doanh|startup|ke hoach kinh doanh|tai chinh|cong ty|thue/i.test(t)) return 'business';
-  if (/marketing|content|quang cao|ban hang|sale|slogan|kịch bản|viral|seo/i.test(t)) return 'marketing';
+  if (/marketing|content|quang cao|ban hang|sale|slogan|kich ban|viral|seo/i.test(t)) return 'marketing';
   if (/bai giang|giao duc|hoc tap|on thi|luyen thi|gia su|bai tap ve nha/i.test(t)) return 'education';
   if (/suc khoe|dinh duong|thuc don|bai tap|gym|benh|tri lieu|thuoc/i.test(t)) return 'health';
   if (/code|lap trinh|thuat toan|debug|sua loi|javascript|python|java|api|backend|frontend|database|sql/i.test(t)) return 'coder';

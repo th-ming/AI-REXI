@@ -92,7 +92,7 @@ const SECTIONS = [
     icon: <FolderOpen size={16} className="text-amber-400" />,
     title: '📁 Files Dự Án (Workspace)',
     steps: [
-      'Ở sidebar trái, bấm "Files Dự Án (D:\\AI REXI)" để mở danh sách file.',
+      'Ở sidebar trái, bấm "Files Dự Án" để mở danh sách file.',
       'Bấm vào file bất kỳ để mở và chỉnh sửa ngay trong tab "Editor & Preview".',
       'Bấm 💾 Save để lưu thay đổi vào đĩa.'
     ]

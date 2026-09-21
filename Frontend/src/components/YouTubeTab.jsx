@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download} from 'lucide-react';
+import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle} from 'lucide-react';
 import { API_BASE } from '../config';
 
 // Danh mục trending (tự động tải khi mở tab — không cần gõ từ khóa)
@@ -80,6 +80,8 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
   const [summaryStep, setSummaryStep] = useState('');
   const [showTranscript, setShowTranscript] = useState(false);
   const videoRef = useRef(null);
+  const [engineReady, setEngineReady] = useState(null);
+  const [engineNote, setEngineNote] = useState('');
 
   const headers = () => {
     const h = { 'Content-Type': 'application/json' };
@@ -120,6 +122,26 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     if (!activeCat && videos.length === 0) handleSearch(null, CATEGORIES[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/services/youtube/status`, { headers: headers() });
+        const data = await res.json();
+        if (cancelled) return;
+        setEngineReady(!!(data.success && data.ready));
+        setEngineNote(data.note || (data.success && !data.ready ? 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.' : ''));
+      } catch {
+        if (!cancelled) {
+          setEngineReady(false);
+          setEngineNote('Không kiểm tra được engine YouTube. Có thể cần đăng nhập.');
+        }
+      }
+    };
+    check();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePlay = async (video) => {
     setSelected(video);
@@ -191,6 +213,17 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
         </span>
       </div>
 
+      {engineReady === false && (
+        <div className="mx-4 mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2.5 shrink-0">
+          <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold mb-0.5">YouTube chưa sẵn sàng trên server</p>
+            <p className="text-amber-300/80">{engineNote || 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.'}</p>
+          </div>
+        </div>
+      )}
+
+      {engineReady !== false && (
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {!selected ? (
           <>
@@ -395,6 +428,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

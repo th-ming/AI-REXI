@@ -4,6 +4,8 @@ import {
    Layers, Zap, Search, Trash2, ChevronDown, FolderOpen,
    User, Settings, LogOut, Headphones, Shield
   } from 'lucide-react';
+import { API_BASE } from '../config';
+import { t } from '../i18n';
 
 const RexiLogo = ({ className = "w-8 h-8" }) => (
   <img src="/rexi_cat_icon.png" alt="Rexi" className={`rexi-logo object-contain ${className}`} />
@@ -18,7 +20,8 @@ export default function Sidebar({
   filesDrawerOpen, setFilesDrawerOpen, renderTree, fileTree,
    setSkillsOpen, setSuperToolsOpen,
   currentUser, setCurrentUser, setAuthToken, setAuthModalOpen, setSettingsOpen,
-  apiFetch, showToast, setConversations
+  apiFetch, showToast, setConversations,
+  lang = 'vi'
 }) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
@@ -32,7 +35,11 @@ export default function Sidebar({
   }, []);
 
   const handleLogout = () => {
-    if (!window.confirm('Bạn có chắc chắn muốn đăng xuất?')) return;
+    if (!window.confirm(t(lang, 'logoutConfirm'))) return;
+    try {
+      const token = localStorage.getItem('rexi_token');
+      if (token) fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    } catch {}
     setCurrentUser(null);
     setAuthToken('');
     localStorage.removeItem('rexi_token');
@@ -52,24 +59,24 @@ export default function Sidebar({
         setActiveConvId(data.ma_hoi_thoai);
         setActiveTab('chat');
         setUserMenuOpen(false);
-        showToast('Đã tạo cuộc trò chuyện với Admin', 'success');
+        showToast(t(lang, 'contactAdminCreated'), 'success');
       } else {
-        showToast(data.error || 'Không thể tạo cuộc trò chuyện', 'error');
+        showToast(data.error || t(lang, 'contactAdminFail'), 'error');
       }
     } catch(e) {
       console.error('Contact admin error:', e);
-      showToast('Lỗi kết nối server', 'error');
+      showToast(t(lang, 'serverError'), 'error');
     }
   };
 
   const handleAdminPanel = () => {
     if (!currentUser) {
-      showToast('Vui lòng đăng nhập để truy cập Quản trị viên', 'error');
+      showToast(t(lang, 'needLoginAdmin'), 'error');
       setAuthModalOpen(true);
       return;
     }
     if (currentUser.phan_quyen !== 'admin') {
-      showToast('Chức năng này chỉ dành cho Quản trị viên. Bạn không có quyền truy cập.', 'error');
+      showToast(t(lang, 'adminOnlyAccess'), 'error');
       return;
     }
     setActiveTab('admin');
@@ -107,7 +114,7 @@ export default function Sidebar({
           className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium text-xs transition-all"
         >
           <Plus size={15} />
-          <span>Cuộc Trò Chuyện Mới</span>
+          <span>{t(lang, 'newConversation')}</span>
         </button>
       </div>
 
@@ -120,13 +127,13 @@ export default function Sidebar({
           onClick={() => setSkillsOpen(true)}
           className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-purple-900/30 border border-purple-500/30 text-purple-300 hover:text-white text-[11px] font-medium transition-all"
         >
-          <Layers size={13} /> 35+ Skills
+          <Layers size={13} /> {t(lang, 'skillsBtn')}
         </button>
         <button
           onClick={() => setSuperToolsOpen(true)}
           className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-amber-900/30 border border-amber-500/30 text-amber-300 hover:text-white text-[11px] font-medium transition-all"
         >
-          <Zap size={13} /> Super Tools
+          <Zap size={13} /> {t(lang, 'superToolsBtn')}
         </button>
       </div>
       )}
@@ -139,7 +146,7 @@ export default function Sidebar({
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Tìm hội thoại..."
+            placeholder={t(lang, 'searchConvs')}
             className="w-full bg-transparent text-xs text-slate-200 placeholder-slate-500 outline-none"
           />
         </div>
@@ -159,7 +166,7 @@ export default function Sidebar({
           >
             <div className="flex items-center gap-2.5 truncate">
               <MessageSquare size={14} className={activeConvId === conv.ma_hoi_thoai ? "text-cyan-400" : "text-slate-500"} />
-              <span className="text-xs truncate font-medium">{conv.tieu_de || 'Trò chuyện mới'}</span>
+              <span className="text-xs truncate font-medium">{conv.tieu_de || t(lang, 'newChat')}</span>
             </div>
             <button
               onClick={(e) => handleDeleteConversation(conv.ma_hoi_thoai, e)}
@@ -178,7 +185,7 @@ export default function Sidebar({
           onClick={() => setFilesDrawerOpen(!filesDrawerOpen)}
           className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
         >
-          <span className="flex items-center gap-2"><FolderOpen size={15} /> Files Dự Án (D:\AI REXI)</span>
+          <span className="flex items-center gap-2"><FolderOpen size={15} /> {t(lang, 'projectFiles')}</span>
           <ChevronDown size={13} className={`transition-transform ${filesDrawerOpen ? 'rotate-180' : ''}`} />
         </button>
         {filesDrawerOpen && (
@@ -209,28 +216,30 @@ export default function Sidebar({
                   <p className="text-[10px] text-slate-400 truncate">{currentUser.email}</p>
                 </div>
                 <button type="button" onClick={handleContactAdmin} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-amber-400 hover:bg-white/5 transition-colors">
-                  <Headphones size={13} /> Nhắn Admin
+                  <Headphones size={13} /> {t(lang, 'messageAdmin')}
                 </button>
                 <div className="border-t border-white/5 my-0.5"></div>
                 <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-rose-400 hover:bg-white/5 transition-colors">
-                  <LogOut size={13} /> Đăng xuất
+                  <LogOut size={13} /> {t(lang, 'logout')}
                 </button>
               </div>
             )}
           </div>
         ) : (
-          <button onClick={() => setAuthModalOpen(true)} className="flex items-center gap-2">
+          <button onClick={() => setAuthModalOpen(true)} title={t(lang, 'loginUnlockTitle')} className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center">
               <User size={14} className="text-white/70" />
             </div>
-            <span className="text-xs font-medium text-slate-400">Đăng nhập</span>
+            <span className="text-xs font-medium text-slate-400">{t(lang, 'loginBtn')}</span>
           </button>
         )}
         <div className="flex items-center gap-1">
-          <button onClick={handleAdminPanel} className="p-1.5 rounded-lg hover:bg-white/10 text-amber-400/60 hover:text-amber-400 transition-colors" title="Quản trị viên">
-            <Shield size={16} />
-          </button>
-          <button onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors" title="Cài đặt hệ thống">
+          {currentUser?.phan_quyen === 'admin' && (
+            <button onClick={handleAdminPanel} className="p-1.5 rounded-lg hover:bg-white/10 text-amber-400/60 hover:text-amber-400 transition-colors" title={t(lang, 'adminOnlyTitle')}>
+              <Shield size={16} />
+            </button>
+          )}
+          <button onClick={() => setSettingsOpen(true)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors" title={t(lang, 'settingsTitle')}>
             <Settings size={16} />
           </button>
         </div>

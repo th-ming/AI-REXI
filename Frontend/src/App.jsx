@@ -37,6 +37,7 @@ import {
   Gamepad2,
   FileText,
   Languages,
+  Sliders,
   Sun,
   Moon
 } from 'lucide-react';
@@ -264,16 +265,17 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
 const FabItem = ({ item, activeTab, onPick }) => (
   <button
     onClick={onPick}
-    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+    title={item.desc ? `${item.label} — ${item.desc}` : item.label}
+    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
       activeTab === item.tab
-        ? 'bg-cyan-50 text-cyan-600 border border-cyan-200 shadow-sm font-bold'
-        : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+        ? 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30 font-bold'
+        : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-white/5 border-transparent'
     }`}
   >
     <span className={item.color}>{item.icon}</span>
     <div className="flex flex-col items-start whitespace-nowrap">
       <span>{item.label}</span>
-      {item.desc && <span className="text-[9px] text-slate-400 font-normal">{item.desc}</span>}
+      {item.desc && <span className="text-[11px] text-[var(--text-sub)] font-normal line-clamp-1">{item.desc}</span>}
     </div>
   </button>
 );
@@ -492,9 +494,15 @@ export default function App() {
   // Handle Google OAuth redirect (runs in popup OR main window)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const googleToken = params.get('google_token');
-    const googleUser = params.get('user');
+    let googleToken = params.get('google_token');
+    let googleUser = params.get('user');
     const googleError = params.get('error');
+
+    if (!googleToken && window.location.hash.includes('google_token=')) {
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      googleToken = hashParams.get('google_token');
+      googleUser = hashParams.get('user');
+    }
 
     if (googleToken && googleUser) {
       try {
@@ -503,7 +511,7 @@ export default function App() {
         localStorage.setItem('rexi_token', googleToken);
         setCurrentUser(user);
         localStorage.setItem('rexi_user', JSON.stringify(user));
-        window.history.replaceState({}, document.title, '/');
+        window.history.replaceState({}, document.title, window.location.pathname);
         // Nếu đang ở popup → đóng popup, parent sẽ detect token qua storage event
         if (window.opener) {
           window.close();
@@ -891,7 +899,15 @@ useEffect(() => {
       await apiFetch(`/chat/conversations/${id}`, { method: 'DELETE', headers: authHeaders() });
       setConversations(prev => prev.filter(c => c.ma_hoi_thoai !== id));
       if (activeConvId === id) setActiveConvId(null);
-    } catch (e) { console.error(e); }
+    } catch (err) {
+      if (err.status === 401) {
+        showToast('Đăng nhập để xóa hội thoại.', 'error');
+      } else if (err.status === 403) {
+        showToast('Bạn chỉ có thể xóa hội thoại của mình.', 'error');
+      } else {
+        showToast(err.message || 'Xóa hội thoại thất bại.', 'error');
+      }
+    }
   };
 
   // Đính kèm file: ảnh → downscale (giữ vision, chặn base64 khổng lồ phình prompt/DB);
@@ -1487,6 +1503,7 @@ useEffect(() => {
         currentUser={currentUser} setCurrentUser={setCurrentUser} setAuthToken={setAuthToken}
         setAuthModalOpen={setAuthModalOpen} setSettingsOpen={setSettingsOpen}
         apiFetch={apiFetch} API_BASE={API_BASE} showToast={showToast} setConversations={setConversations}
+        lang={lang}
       />
 
       {/* ═══════════════════ MAIN WORKSPACE AREA ═══════════════════ */}
@@ -1627,18 +1644,20 @@ useEffect(() => {
               className="group relative w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 bg-[#131417] text-slate-300 hover:text-white hover:border-white/20 transition-all active:scale-90"
             >
               <Sun
-                size={15}
+                size={16}
+                strokeWidth={2.5}
                 className={`absolute transition-all duration-300 ease-out ${
                   currentTheme === 'dark'
                     ? 'opacity-0 rotate-90 scale-50'
-                    : 'opacity-100 rotate-0 scale-100 text-[#f59e0b]'
+                    : 'opacity-100 rotate-0 scale-100 text-amber-400'
                 }`}
               />
               <Moon
-                size={15}
+                size={16}
+                strokeWidth={2.5}
                 className={`absolute transition-all duration-300 ease-out ${
                   currentTheme === 'dark'
-                    ? 'opacity-100 rotate-0 scale-100 text-[#a78bfa]'
+                    ? 'opacity-100 rotate-0 scale-100 text-indigo-300'
                     : 'opacity-0 -rotate-90 scale-50'
                 }`}
               />
@@ -2005,40 +2024,40 @@ useEffect(() => {
                   <span className="text-xs text-white/50 font-semibold tracking-widest mt-1">AI Rexi</span>
                 </div>
 
-<div className="flex bg-white border border-slate-200 rounded-xl p-1 mb-5">
+<div className="flex bg-[#131417] border border-white/10 rounded-xl p-1 mb-5">
                    <button
                      onClick={() => setAuthMode('login')}
                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                       authMode === 'login' ? 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                        authMode === 'login' ? 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white' : 'text-slate-200 hover:text-white hover:bg-white/5'
                      }`}
                    >
-                     Đăng Nhập
+                     {t(lang, 'loginTab')}
                    </button>
                    <button
                      onClick={() => setAuthMode('register')}
                      className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                       authMode === 'register' ? 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white' : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                        authMode === 'register' ? 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white' : 'text-slate-200 hover:text-white hover:bg-white/5'
                      }`}
                    >
-                     Đăng Ký
+                     {t(lang, 'registerTab')}
                    </button>
                  </div>
 
                 <form onSubmit={(e) => { e.preventDefault(); handleAuthSubmit(); }} className="space-y-3 text-xs">
                   {authMode === 'register' && (
                     <div>
-                      <label className="block text-slate-400 font-medium mb-1">Họ và Tên</label>
+                      <label className="block text-slate-400 font-medium mb-1">{t(lang, 'fullName')}</label>
                       <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)} placeholder="Nguyễn Văn A" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
                     </div>
                   )}
                   <div>
-<label className="block text-slate-500 font-medium mb-1">Tài Khoản</label>
-                     <input type="text" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Nhập tài khoản" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none" />
+<label className="block text-slate-500 font-medium mb-1">{t(lang, 'account')}</label>
+                     <input type="text" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Nhập tài khoản" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
                   </div>
                   <div>
-<label className="block text-slate-500 font-medium mb-1">Mật Khẩu</label>
+<label className="block text-slate-500 font-medium mb-1">{t(lang, 'password')}</label>
                      <div className="relative">
-                       <input type={showPassword ? 'text' : 'password'} required value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="••••••••" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none pr-10" />
+                       <input type={showPassword ? 'text' : 'password'} required value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="••••••••" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none pr-10" />
                        <button type="button" onClick={() => setShowPassword(!showPassword)}
                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
                          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -2048,29 +2067,29 @@ useEffect(() => {
 
 <div className="flex justify-end mt-1">
                      <button type="button" onClick={() => { setForgotStep('request'); setForgotMessage(''); }} className="text-[10px] text-slate-500 hover:text-slate-600 transition-colors">
-                       Quên Mật Khẩu?
+                       {t(lang, 'forgotPassword')}
                      </button>
                    </div>
 
 <button type="submit" className="w-full py-3 mt-4 rounded-xl bg-[#4a7dff] hover:bg-[#3d6ae6] text-white font-bold text-xs shadow-lg shadow-[#4a7dff]/20 transition-all">
-                     {authMode === 'login' ? 'Đăng Nhập' : 'Đăng Ký'}
+                     {authMode === 'login' ? t(lang, 'loginTab') : t(lang, 'registerTab')}
                    </button>
                 </form>
 
 <div className="relative flex items-center my-4">
-                   <div className="flex-1 h-px bg-slate-200"></div>
-                   <span className="px-3 text-[10px] text-slate-500 font-medium">hoặc</span>
-                   <div className="flex-1 h-px bg-slate-200"></div>
+                   <div className="flex-1 h-px bg-white/10"></div>
+                   <span className="px-3 text-[10px] text-slate-500 font-medium">{t(lang, 'orDivider')}</span>
+                   <div className="flex-1 h-px bg-white/10"></div>
                  </div>
 
-                 <button type="button" onClick={openGoogleOAuth} className="w-full py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-medium flex items-center justify-center gap-2 border border-slate-200 transition-all">
+                 <button type="button" onClick={openGoogleOAuth} className="w-full py-2.5 rounded-xl bg-[#131417] hover:bg-white/5 text-slate-200 text-xs font-medium flex items-center justify-center gap-2 border border-white/10 transition-all">
                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                    </svg>
-                   Đăng nhập với Google
+                   {t(lang, 'continueGoogle')}
                  </button>
               </div>
             )}
@@ -2093,8 +2112,7 @@ useEffect(() => {
         <>
           {fabOpen && (
             <div
-              className="fixed inset-0 z-40 transition-opacity duration-300"
-              style={{backgroundColor:'rgba(0,0,0,.08)'}}
+              className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
               onClick={() => setFabOpen(false)}
             />
           )}
@@ -2102,7 +2120,7 @@ useEffect(() => {
           <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
             {/* Danh sách các công cụ hiện lên khi bấm mở (Có hỗ trợ cuộn nếu có nhiều tính năng) */}
             <div className={`
-              flex flex-col gap-1 p-2 bg-white border border-slate-200 rounded-2xl shadow-xl transition-all duration-300 origin-bottom-right
+              flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl transition-all duration-300 origin-bottom-right
               max-h-[70vh] overflow-y-auto pr-1.5 scrollbar-thin
               ${fabOpen
                 ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
@@ -2110,49 +2128,50 @@ useEffect(() => {
               }
             `}>
               {/* Nhóm AI */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">Trí Tuệ AI</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">{t(lang, 'fabAi')}</p>
               {[
                 { tab: 'chat', icon: <MessageSquare size={17} />, label: 'Chat AI', color: 'text-cyan-400', desc: 'Trò chuyện với AI' },
-                { tab: 'code', icon: <Code size={17} />, label: 'Editor & Preview', color: 'text-blue-400', desc: 'Code + xem trước HTML' },
-                { tab: 'browser', icon: <Bot size={17} />, label: 'Browser Agent', color: 'text-purple-400', desc: 'AI điều khiển trình duyệt' },
+                { tab: 'code', icon: <Code size={17} />, label: t(lang, 'fabEditor'), color: 'text-blue-400', desc: 'Code + xem trước HTML' },
+                { tab: 'browser', icon: <Bot size={17} />, label: t(lang, 'fabBrowser'), color: 'text-purple-400', desc: 'AI điều khiển trình duyệt' },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}
 
               {/* Nhóm Sáng Tạo */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">🎨 Sáng Tạo</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">{t(lang, 'fabCreate')}</p>
               {[
-                { tab: 'tts', icon: <Mic size={17} />, label: 'TTS Studio', color: 'text-cyan-400', desc: 'Chữ → giọng nói MP3' },
-                { tab: 'documents', icon: <FileText size={17} />, label: 'Đọc & Hiểu File', color: 'text-emerald-400', desc: 'AI hiểu nội dung PDF/Word/TXT' },
+                { tab: 'tts', icon: <Mic size={17} />, label: t(lang, 'fabTts'), color: 'text-cyan-400', desc: 'Chữ → giọng nói MP3' },
+                { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: 'AI hiểu nội dung PDF/Word/TXT' },
                 { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: 'Tạo video từ mẫu' },
-                { tab: 'opencut', icon: <Clapperboard size={17} />, label: 'OpenCut Editor', color: 'text-sky-400', desc: 'Edit video chuyên sâu' },
+                { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: 'Edit video chuyên sâu' },
                 { tab: 'youtube', icon: <MonitorPlay size={17} />, label: 'YouTube Free', color: 'text-red-400', desc: 'Xem video không quảng cáo' },
-                { tab: 'games', icon: <Gamepad2 size={17} />, label: 'Game Zone', color: 'text-fuchsia-400', desc: 'Chơi game HTML5 miễn phí' },
+                { tab: 'games', icon: <Gamepad2 size={17} />, label: t(lang, 'fabGames'), color: 'text-fuchsia-400', desc: 'Chơi game HTML5 miễn phí' },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}
 
               {/* Nhóm Giải Trí & Hệ Thống */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">📺 Giải Trí & Hệ Thống</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">{t(lang, 'fabEnt')}</p>
               {[
-                { tab: 'iptv', icon: <Tv size={17} />, label: 'IPTV Truyền Hình', color: 'text-rose-400', desc: 'Xem TV trực tuyến' },
-                { tab: 'files', icon: <Folder size={17} />, label: 'Workspace Files', color: 'text-amber-400', desc: 'Quản lý file dự án' },
-                { tab: 'desktop', icon: <Monitor size={17} />, label: 'Remote Desktop', color: 'text-emerald-400', desc: 'Điều khiển màn hình' },
-                ...(currentUser?.phan_quyen === 'admin' ? [{ tab: 'admin', icon: <Shield size={17} />, label: 'Quản Trị Viên', color: 'text-amber-400', desc: 'Bảng điều khiển admin' }] : []),
+                { tab: 'iptv', icon: <Tv size={17} />, label: t(lang, 'fabIptv'), color: 'text-rose-400', desc: 'Xem TV trực tuyến' },
+                { tab: 'files', icon: <Folder size={17} />, label: t(lang, 'fabFiles'), color: 'text-amber-400', desc: 'Quản lý file dự án' },
+                { tab: 'desktop', icon: <Monitor size={17} />, label: t(lang, 'fabDesktop'), color: 'text-emerald-400', desc: 'Điều khiển màn hình' },
+                ...(currentUser?.phan_quyen === 'admin' ? [{ tab: 'admin', icon: <Shield size={17} />, label: t(lang, 'fabAdmin'), color: 'text-amber-400', desc: 'Bảng điều khiển admin' }] : []),
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}
 
               {/* Trợ giúp */}
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-600 px-3 pt-2 pb-1">❓ Trợ Giúp</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">{t(lang, 'fabHelp')}</p>
               <button
                 onClick={() => { setHelpOpen(true); setFabOpen(false); }}
+                title="Hướng Dẫn Sử Dụng — Học cách dùng mọi tính năng"
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all text-slate-300 hover:text-white hover:bg-white/10"
               >
                 <span className="text-sky-400"><BookOpen size={17} /></span>
                 <div className="flex flex-col items-start whitespace-nowrap">
-                  <span>Hướng Dẫn Sử Dụng</span>
-                  <span className="text-[9px] text-slate-500">Học cách dùng mọi tính năng</span>
+                  <span>{t(lang, 'fabGuide')}</span>
+                  <span className="text-[11px] text-slate-500 font-normal line-clamp-1">Học cách dùng mọi tính năng</span>
                 </div>
               </button>
 
@@ -2162,26 +2181,29 @@ useEffect(() => {
               {/* Nhóm Quick Tools (Modals) */}
               <button
                 onClick={() => { setSkillsOpen(true); setFabOpen(false); }}
+                title="35+ Agent Skills — Xem và kích hoạt kỹ năng AI"
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-purple-300 hover:text-white hover:bg-purple-500/20 transition-all"
               >
                 <Layers size={17} className="text-purple-400" />
-                <span className="whitespace-nowrap">35+ Agent Skills</span>
+                <span className="whitespace-nowrap">{t(lang, 'fabSkills')}</span>
               </button>
 
               <button
                 onClick={() => { setSuperToolsOpen(true); setFabOpen(false); }}
+                title="Super Tools (CLI/Git) — Terminal, Git, Memory"
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-amber-300 hover:text-white hover:bg-amber-500/20 transition-all"
               >
                 <Zap size={17} className="text-amber-400" />
-                <span className="whitespace-nowrap">Super Tools (CLI/Git)</span>
+                <span className="whitespace-nowrap">{t(lang, 'fabSuper')}</span>
               </button>
 
               <button
                 onClick={() => { setSettingsOpen(true); setFabOpen(false); }}
+                title="Cài Đặt Hệ Thống — API key, model, theme"
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-all"
               >
                 <Settings size={17} className="text-slate-400" />
-                <span className="whitespace-nowrap">Cài Đặt Hệ Thống</span>
+                <span className="whitespace-nowrap">{t(lang, 'settingsTitle')}</span>
               </button>
             </div>
 
@@ -2197,7 +2219,7 @@ useEffect(() => {
               `}
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
-              <Zap size={20} className={`transition-all duration-200 ${fabOpen ? 'scale-110' : ''}`} />
+              <Sliders size={20} className={`transition-all duration-200 ${fabOpen ? 'scale-110 rotate-90' : ''}`} />
             </button>
           </div>
         </>

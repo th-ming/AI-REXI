@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE, apiFetch } from '../config';
 import { mdToHtml, sanitizeHtml } from '../utils/sanitize';
 import {
@@ -49,20 +49,21 @@ function getLangColor(lang) {
 
 // ─── TTS Helper ────────────────────────────────────────────
 function speakText(text) {
-  if (!window.speechSynthesis) return;
+  if (!window.speechSynthesis) return false;
   window.speechSynthesis.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   // Use English voice for repo descriptions (they're in English)
   const voices = window.speechSynthesis.getVoices();
   const enVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Google'))
-    || voices.find(v => v.lang.startsWith('en'))
-    || voices[0];
-  if (enVoice) utter.voice = enVoice;
+    || voices.find(v => v.lang.startsWith('en'));
+  if (!enVoice) return false;
+  utter.voice = enVoice;
   utter.lang = 'en-US';
   utter.rate = 0.9;
   utter.pitch = 1;
   utter.onend = () => {};
   window.speechSynthesis.speak(utter);
+  return true;
 }
 
 // Preload voices
@@ -464,7 +465,7 @@ function RepoDetailModal({ repo, token, onClose }) {
 }
 
 // ══════════════════════════════════════════════════════════
-export default function GitHubTrending({ token }) {
+export default function GitHubTrending({ token, showToast }) {
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -489,6 +490,7 @@ export default function GitHubTrending({ token }) {
   const [githubStarred, setGithubStarred] = useState([]);
   const [detailRepo, setDetailRepo] = useState(null);
   const [showExport, setShowExport] = useState(false);
+  const [exporting, setExporting] = useState(null);
 
   const fetchTrending = useCallback(async () => {
     setLoading(true);
@@ -540,7 +542,7 @@ export default function GitHubTrending({ token }) {
     if (!repoList || repoList.length === 0) return;
     try {
       // Batch check — 1 API call instead of N
-      const repos = repoList.slice(0, 30).map(repo => ({
+      const repos = repoList.slice(0, 100).map(repo => ({
         owner: repo.owner || repo.full_name.split('/')[0],
         name: repo.name || repo.full_name.split('/')[1],
       }));
@@ -556,6 +558,7 @@ export default function GitHubTrending({ token }) {
   }, [token]);
 
   // ─── REAL-TIME: Refresh tất cả data ───────────────────────────
+  const lastRefreshRef = useRef(0);
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -620,6 +623,7 @@ export default function GitHubTrending({ token }) {
       await Promise.allSettled(promises);
     } catch { /* ignore */ } finally {
       setRefreshing(false);
+      lastRefreshRef.current = Date.now();
     }
   }, [token, language, period, fetchStarredStatus]);
 
@@ -636,31 +640,36 @@ export default function GitHubTrending({ token }) {
     });
   }, [fetchTrending]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── REAL-TIME: Auto-refresh khi quay lại tab + polling 60s ──
+  // ─── REAL-TIME: Auto-refresh khi quay lại tab + polling backoff ──
   useEffect(() => {
     let pollInterval = null;
 
+    const isStale = () => {
+      if (!lastRefreshRef.current) return true;
+      return Date.now() - lastRefreshRef.current > 2 * 60 * 1000;
+    };
+
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isStale()) {
         refreshAll();
       }
     };
 
-    // Khi quay lại tab → refresh tất cả
+    // Khi quay lại tab → chỉ refresh nếu dữ liệu đã cũ (>2 phút)
     document.addEventListener('visibilitychange', handleVisibility);
 
-    // Polling tự động mỗi 60 giây (chỉ khi tab visible)
+    // Polling backoff mỗi 5 phút (chỉ khi tab visible + dữ liệu cũ)
     pollInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isStale()) {
         refreshAll();
       }
-    }, 60000);
+    }, 300000);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       if (pollInterval) clearInterval(pollInterval);
     };
-  }, [refreshAll]);
+  }, [refreshAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSaved = useCallback(async () => {
     setSavedLoading(true);
@@ -728,6 +737,7 @@ export default function GitHubTrending({ token }) {
 
   // Export saved / starred repos
   const handleExport = async (type, format) => {
+    setExporting(`${type}-${format}`);
     try {
       const res = await fetch(`${API_BASE}/admin/github/export/${type}?format=${format}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -743,8 +753,12 @@ export default function GitHubTrending({ token }) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      showToast?.(`Đã export ${type} (${format.toUpperCase()}).`, 'success');
     } catch (e) {
       setError(e.message);
+      showToast?.('Export thất bại: ' + e.message, 'error');
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -795,7 +809,11 @@ export default function GitHubTrending({ token }) {
     if (repo.stars_gained) parts.push(`Gained ${repo.stars_gained} stars ${repo.period || 'today'}.`);
     if (repo.topics?.length) parts.push(`Topics: ${repo.topics.join(', ')}.`);
     if (repo.homepage) parts.push(`Homepage: ${repo.homepage}.`);
-    speakText(parts.join(' '));
+    const ok = speakText(parts.join(' '));
+    if (!ok) {
+      showToast?.('Thiết bị không có giọng đọc tiếng Anh (voice EN).', 'error');
+      return;
+    }
     setSpeakingKey(repo.full_name);
   };
 
@@ -935,10 +953,10 @@ export default function GitHubTrending({ token }) {
               </button>
               {showExport && (
                 <div className="absolute right-0 top-full mt-2 w-40 bg-[#1a1b24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
-                  <button onClick={() => { handleExport(view, 'csv'); setShowExport(false); }}
-                    className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 transition-colors">CSV</button>
-                  <button onClick={() => { handleExport(view, 'json'); setShowExport(false); }}
-                    className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 transition-colors">JSON</button>
+                  <button onClick={() => { handleExport(view, 'csv'); setShowExport(false); }} disabled={!!exporting}
+                    className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 transition-colors disabled:opacity-40">{exporting === `${view}-csv` ? 'Đang export...' : 'CSV'}</button>
+                  <button onClick={() => { handleExport(view, 'json'); setShowExport(false); }} disabled={!!exporting}
+                    className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-white/5 transition-colors disabled:opacity-40">{exporting === `${view}-json` ? 'Đang export...' : 'JSON'}</button>
                 </div>
               )}
             </div>

@@ -120,6 +120,37 @@ function maxTokensForLevel(level) {
   return String(level || '').toLowerCase() === 'deep' ? 16384 : 4096;
 }
 
+// ─── M7: history gửi lên API — chỉ giữ 12 tin gần nhất, bỏ base64 ảnh CŨ ───
+// (payload base64 dồn cục làm request chậm + 400 Payload Too Large trên
+// nhiều provider. Tin CUỐI giữ nguyên ảnh — đó là ảnh user vừa gửi.)
+function stripOldImages(s) {
+  return String(s || '').replace(/!\[[^\]]*\]\((data:image\/[^)\s]+)\)/g, '[ảnh đính kèm]');
+}
+
+function buildHistoryOpenAI(history) {
+  const list = (history || []).slice(-12);
+  return list.map((h, i) => {
+    const isLast = i === list.length - 1;
+    const nd = isLast ? h.noi_dung : stripOldImages(h.noi_dung);
+    return {
+      role: h.vai_tro === 'user' ? 'user' : 'assistant',
+      content: h.vai_tro === 'user' ? buildOpenAIContent(nd) : nd,
+    };
+  });
+}
+
+function buildHistoryGemini(history) {
+  const list = (history || []).slice(-12);
+  return list.map((h, i) => {
+    const isLast = i === list.length - 1;
+    const nd = isLast ? h.noi_dung : stripOldImages(h.noi_dung);
+    return {
+      role: h.vai_tro === 'user' ? 'user' : 'model',
+      parts: h.vai_tro === 'user' ? buildGeminiParts(nd) : [{ text: nd }],
+    };
+  });
+}
+
 // Gọi 1 provider (không fallback) — trả { ok, content, error, status }
 async function callOnce(candidate, { systemPrompt, history, thinkingLevel }) {
   const { provider, model } = candidate;
@@ -130,19 +161,13 @@ async function callOnce(candidate, { systemPrompt, history, thinkingLevel }) {
   const finalModel = stripProviderPrefix(provider, model);
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...(history || []).map(h => ({
-      role: h.vai_tro === 'user' ? 'user' : 'assistant',
-      content: h.vai_tro === 'user' ? buildOpenAIContent(h.noi_dung) : h.noi_dung,
-    })),
+    ...buildHistoryOpenAI(history),
   ];
 
   if (provider === 'gemini') {
     const genAI = new GoogleGenerativeAI(apiKey);
     const gmodel = genAI.getGenerativeModel({ model: finalModel });
-    const contents = (history || []).map(h => ({
-      role: h.vai_tro === 'user' ? 'user' : 'model',
-      parts: h.vai_tro === 'user' ? buildGeminiParts(h.noi_dung) : [{ text: h.noi_dung }],
-    }));
+    const contents = buildHistoryGemini(history);
     const genConfig = thinkingLevel === 'deep' ? { thinkingConfig: { thinkingBudget: 8192 } } : {};
     const result = await gmodel.generateContent({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });
     const text = result.response.text();
@@ -181,12 +206,11 @@ async function callOnce(candidate, { systemPrompt, history, thinkingLevel }) {
       return r;
     });
   } catch (e) {
-    // P2-20(1): phạt throttle ĐÚNG 1 lần, CHỈ khi 429/5xx/timeout thật.
-    // (Trước đây recordThrottle nằm trong withRetry cho 429 + ở catch cho Abort,
-    // còn 5xx không bị phạt; giờ gom 1 chỗ, không trùng, không phạt oan lỗi logic.)
+    // P2-20(1): phạt throttle ĐÚNG 1 lần, CHỈ khi 429/5xx thật.
+    // M6: bỏ timeout/abort khỏi throttle — timeout thường do câu quá dài/max_tokens,
+    // không phải provider chết → phạt oan làm provider rơi vào cooldown 1-4 phút.
     const _st = e && e.status;
-    const _abort = e && (e.name === 'AbortError' || e.name === 'TimeoutError' || /timeout|aborted/i.test(e.message || ''));
-    if (_st === 429 || (_st >= 500 && _st <= 599) || (!_st && _abort)) {
+    if (_st === 429 || (_st >= 500 && _st <= 599)) {
       quota.recordThrottle(provider, (e && e.retryAfterMs) || undefined);
     }
     throw e;
@@ -244,4 +268,4 @@ function friendlyFail({ errors, candidates }) {
   return `⚠️ **Không gọi được AI (đã thử ${(candidates || []).length} lựa chọn: ${tried}).**\n\nLỗi cuối: ${first}\n\n_Đây thường do key hết quota hoặc nhà cung cấp đang lỗi. Thử lại sau ít phút hoặc chọn model khác._`;
 }
 
-module.exports = { callWithFallback, callOnce, stripProviderPrefix, endpointFor, OPENAI_COMPAT, maxTokensForLevel, timeoutForLevel };
+module.exports = { callWithFallback, callOnce, stripProviderPrefix, endpointFor, OPENAI_COMPAT, maxTokensForLevel, timeoutForLevel, stripOldImages, buildHistoryOpenAI, buildHistoryGemini, buildGeminiParts };

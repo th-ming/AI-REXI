@@ -52,7 +52,9 @@ export async function apiFetch(path, token, options = {}) {
         window.dispatchEvent(new CustomEvent('rexi_session_expired', { detail: data.error }));
       } catch {}
     }
-    throw new Error(data.error || `HTTP ${res.status}`);
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return data;
 }

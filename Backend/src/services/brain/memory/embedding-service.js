@@ -73,10 +73,7 @@ async function getEmbedding(text) {
   if (cache.has(cacheKey)) return cache.get(cacheKey);
   try {
     const key = await getGeminiKey();
-    if (!key) {
-      console.log('[Embedding] getEmbedding: vec=null (chua_cai_key_gemini)');
-      return null;
-    }
+    if (!key) return null;
     let resp = null;
     let lastErr = '';
     for (let attempt = 1; attempt <= 2; attempt++) {

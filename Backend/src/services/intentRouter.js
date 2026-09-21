@@ -13,73 +13,74 @@ function stripDiacritics(s) {
     .replace(/đ/g, 'd').replace(/Đ/g, 'D');
 }
 
-// Bảng intent: pattern (không dấu) → tab + hành động gợi ý
+// Bảng intent: pattern (không dấu, word-boundary) → tab + hành động gợi ý
+// LƯU Ý M1: text đầu vào đã stripDiacritics → pattern chứa dấu không bao giờ match.
 const INTENTS = [
   {
     id: 'image',
     tab: 'image',
     label: 'Tạo ảnh AI',
-    patterns: /(tao anh|ve (mot |buc )?anh|generate image|draw |ve buc tranh|tao hinh anh|hinh anh ai|vẽ ảnh|tạo ảnh|draw an? image|make an image|create an image|anh con|logo cho|background cho|ảnh nền)/i,
+    patterns: /(\btao (anh|hinh anh)\b|\bve (mot |buc |mot buc )?anh\b|\bve buc tranh\b|\bhinh anh ai\b|\banh con\b|\blogo cho\b|\bbackground cho\b|\banh nen\b|\bgenerate (an )?image\b|\bdraw (an? |the )?image\b|\bmake (an )?image\b|\bcreate (an )?image\b)/i,
   },
   {
     id: 'iptv',
     tab: 'iptv',
     label: 'Xem truyền hình',
-    patterns: /(xem (kenh|tv|tivi|truyen hinh)|mo (kenh|tv|tivi)|kenh (vtv|thvl|htv|hn1|vtc|viettv)|truyền hình|xem trực tiếp kênh|channels?|live tv|watch tv)/i,
+    patterns: /(\bxem (kenh |)?(tv|tivi|truyen hinh|vtv\d*|thvl\d*|htv\d*|hn1|vtc\d*|viettv)\b|\bmo (kenh|tv|tivi|truyen hinh)\b|\bkenh (vtv|thvl|htv|hn1|vtc|viettv)\b|\btruyen hinh\b|\bxem truc tiep kenh\b|\blive tv\b|\bwatch tv\b|\bturn on (the )?tv\b)/i,
   },
   {
     id: 'documents',
     tab: 'documents',
     label: 'Đọc & hiểu file',
-    patterns: /(doc (file|tai lieu|pdf|word|txt|vb)|tom tat (file|tai lieu|pdf|word)|hiểu (file|tài liệu)|đọc file|đọc pdf|phân tích (file|pdf|tài liệu)|summarize (this )?(file|pdf|document)|read (the )?(file|pdf|document))/i,
+    patterns: /(\bdoc (file|tai lieu|pdf|word|txt|van ban)\b|\btom tat (file|tai lieu|pdf|word)\b|\bhieu (file|tai lieu)\b|\bphan tich (file|pdf|tai lieu)\b|\bsummarize (this )?(file|pdf|document)\b|\bread (the )?(file|pdf|document)\b)/i,
   },
   {
     id: 'youtube',
     tab: 'youtube',
     label: 'YouTube',
-    patterns: /(youtube|video youtube|xem video (khong quang cao|trên youtube)|tai video youtube|download youtube|tải video)/i,
+    patterns: /(\byoutube\b|\bvideo youtube\b|\bxem video (khong quang cao|tren youtube)\b|\btai video youtube\b|\bdownload youtube\b|\btai video\b)/i,
   },
   {
     id: 'tts',
     tab: 'tts',
     label: 'Chuyển giọng nói',
-    patterns: /(chuyen (van ban|text|chữ) thanh giong|doc (van ban|text) thanh tieng|tts|text to speech|giong noi|giọng nói|chuyển chữ thành giọng)/i,
+    patterns: /(\bchuyen (van ban|text|chu) thanh giong\b|\bdoc (van ban|text) thanh tieng\b|\btts\b|\btext to speech\b|\bgiong noi\b|\bchuyen chu thanh giong\b)/i,
   },
   {
     id: 'video',
     tab: 'video',
     label: 'Tạo video',
-    patterns: /(tao video|lam video|video tu (anh|hinh|mau)|create a video|make a video|video creator)/i,
+    patterns: /(\btao video\b|\blam video\b|\bvideo tu (anh|hinh|mau)\b|\bcreate a video\b|\bmake a video\b|\bvideo creator\b)/i,
   },
   {
     id: 'opencut',
     tab: 'opencut',
     label: 'Edit video',
-    patterns: /(cat video|edit video|chinh sua video|montage|dựng video|opencut)/i,
+    patterns: /(\bcat video\b|\bedit video\b|\bchinh sua video\b|\bmontage\b|\bdung video\b|\bopencut\b)/i,
   },
   {
     id: 'code',
     tab: 'code',
     label: 'Code & Preview',
-    patterns: /(code giup|viet (code|trang web|web|html|website)|tao (web|trang web|website)|code editor|preview html|làm website|xây dựng website)/i,
+    patterns: /(\bcode giup\b|\bviet (code|trang web|web|html|website)\b|\btao (web|trang web|website)\b|\bcode editor\b|\bpreview html\b|\blam website\b|\bxay dung website\b)/i,
   },
   {
     id: 'games',
     tab: 'games',
     label: 'Game Zone',
-    patterns: /(choi (game|tro choi)|game|trò chơi|minigame|html5 game)/i,
+    patterns: /(\bchoi (game|tro choi)\b|\bgame\b|\btro choi\b|\bminigame\b|\bhtml5 game\b|\bplay (a )?game\b)/i,
   },
   {
     id: 'browser',
     tab: 'browser',
     label: 'Browser Agent',
-    patterns: /(mo (trang web|website|url|web|trang) ?(giup)?|truy cap (web|website|trang web)|dieu khien trinh duyet|browser agent|mở (web|website|trang web))/i,
+    patterns: /(\bmo (trang web|website|url|web|trang)\b|\btruy cap (web|website|trang web)\b|\bdieu khien trinh duyet\b|\bbrowser agent\b|\bmo (web|website|trang web)\b)/i,
   },
   {
     id: 'agent',
     tab: 'chat',
     label: 'Agent Mode',
-    patterns: /(thuc thi|chay (lenh|script|code nay)|tự động thực hiện|agent mode|executes? (this )?(code|script|task))/i,
+    patterns: /(\bthuc thi\b|\bchay (lenh|script|code nay)\b|\btu dong thuc hien\b|\bagent mode\b|\bexecutes? (this )?(code|script|task)\b)/i,
   },
 ];
 
@@ -93,12 +94,13 @@ function detectIntent(text) {
   for (const intent of INTENTS) {
     const m = intent.patterns.exec(t);
     if (m) {
-      const matched = m[0].length;
+      const matched = m[0].trim().length;
+      if (matched < 3) continue;
       return {
         intent: intent.id,
         tab: intent.tab,
         label: intent.label,
-        confidence: matched >= 12 ? 'high' : matched >= 6 ? 'medium' : 'none',
+        confidence: matched >= 12 ? 'high' : 'medium',
       };
     }
   }
