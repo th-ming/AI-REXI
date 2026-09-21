@@ -18,8 +18,23 @@
  */
 
 const path = require('path');
+const os = require('os');
 const fs = require('fs');
 const ytdl = require('youtube-dl-exec');
+
+// YOUTUBE_COOKIES: nội dung file cookie Netscape — vượt bot check
+// "Sign in to confirm you're not a bot" khi chạy trên IP datacenter (Render).
+// Set env trên Render (multiline OK), ghi ra temp file 1 lần rồi pass --cookies cho yt-dlp.
+let _cookiesFile = null;
+function getCookiesOption() {
+  const raw = process.env.YOUTUBE_COOKIES;
+  if (!raw || !raw.trim()) return {};
+  if (!_cookiesFile) {
+    _cookiesFile = path.join(os.tmpdir(), `ytdlp-cookies-${process.pid}.txt`);
+    fs.writeFileSync(_cookiesFile, raw.replace(/\\n/g, '\n'), 'utf8');
+  }
+  return { cookies: _cookiesFile };
+}
 
 // ffmpeg cho extract-audio (đã có sẵn trong dependencies — không cần PATH)
 let ffmpegPath = null;
@@ -74,6 +89,7 @@ async function searchVideos(query, limit = 12) {
       quiet: true,
       noWarnings: true,
       socketTimeout: 20,
+      ...getCookiesOption(),
     }), DEFAULT_TIMEOUT, 'Search');
     const entries = (data && (data.entries || data)) || [];
     const videos = (Array.isArray(entries) ? entries : []).filter(Boolean).map(e => {
@@ -108,6 +124,7 @@ async function getVideoStream(urlOrId) {
       // Chuẩn format như helper cũ: combined ≤720p ưu tiên, fallback dần xuống
       format: 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best',
       socketTimeout: 20,
+      ...getCookiesOption(),
     }), DEFAULT_TIMEOUT, 'Lấy stream');
     if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
     return {
@@ -155,6 +172,7 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
       postprocessorArgs: `ffmpeg:-ar 16000 -ac 1 -t ${SUMMARY_MAX_SECONDS}`,
       ...(ffmpegPath ? { ffmpegLocation: ffmpegPath } : {}),
       socketTimeout: 30,
+      ...getCookiesOption(),
     }), timeoutMs, 'Tải audio');
     const stdout = typeof out === 'string' ? out : ((out && out.stdout) || '');
     const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
@@ -191,6 +209,7 @@ async function getStatus() {
     binary_path: bin,
     yt_dlp: version,
     ffmpeg: !!(ffmpegPath && fs.existsSync(ffmpegPath)),
+    cookies: !!process.env.YOUTUBE_COOKIES,
     ready: !!version,
   };
 }

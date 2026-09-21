@@ -28,6 +28,8 @@ import {
   ChevronUp,
   Terminal,
   Shield,
+  Sparkles,
+  Lock,
   GitBranch,
   EyeOff,
   Video,
