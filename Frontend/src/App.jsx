@@ -2144,7 +2144,7 @@ useEffect(() => {
                 { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: 'AI hiểu nội dung PDF/Word/TXT' },
                 { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: 'Tạo video từ mẫu' },
                 { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: 'Edit video chuyên sâu' },
-                { tab: 'youtube', icon: <MonitorPlay size={17} />, label: 'YouTube Free', color: 'text-red-400', desc: 'Xem video không quảng cáo' },
+                { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: 'Xem video không quảng cáo' },
                 { tab: 'games', icon: <Gamepad2 size={17} />, label: t(lang, 'fabGames'), color: 'text-fuchsia-400', desc: 'Chơi game HTML5 miễn phí' },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />

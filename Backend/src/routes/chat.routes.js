@@ -737,17 +737,25 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
         const requestedEngine = String(req.body.agent_engine || 'auto').trim().toLowerCase();
         const agentEngineName = agentEngine.pickEngine(noi_dung, requestedEngine);
 
-        if (!agentEngine.isEngineAvailable(agentEngineName)) {
-          const errorMessage = agentEngineName === 'dsh'
-            ? "⛔ **Lỗi hệ thống:** DeepSeek Harness (dsh) chưa được cài đặt. Vui lòng kiểm tra lại."
-            : "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`. Vui lòng kiểm tra lại đường dẫn cài đặt.";
-          return saveAIMessageAndRespond(id, errorMessage, res);
-        }
-
         // Null/empty check cho Agent Mode để tránh spawn process vô nghĩa
         if (!noi_dung || !noi_dung.trim()) {
           const errorMessage = "⚠️ **Lỗi:** Nội dung tin nhắn trống. Vui lòng nhập yêu cầu trước khi chạy Agent Mode.";
           return saveAIMessageAndRespond(id, errorMessage, res);
+        }
+
+        if (!agentEngine.isEngineAvailable(agentEngineName)) {
+          // G1/G2: opencode.exe/dsh không có trên server (cloud) → chạy Agent nội bộ
+          // (ReAct qua API provider — internalAgent) thay vì trả lỗi chết.
+          try {
+            const { runInternalAgent } = require('../services/internalAgent');
+            const result = await runInternalAgent(noi_dung, {});
+            if (result && result.success && result.answer) {
+              return saveAIMessageAndRespond(id, result.answer + '\n\n> ⚙️ _Chạy bằng Agent nội bộ (engine ngoài không có trên server)._', res);
+            }
+            return saveAIMessageAndRespond(id, '⚠️ Agent nội bộ chưa hoàn thành: ' + ((result && result.error) || 'không rõ lý do'), res);
+          } catch (fbErr) {
+            return saveAIMessageAndRespond(id, '⛔ **Lỗi hệ thống:** Agent nội bộ cũng lỗi — ' + fbErr.message, res);
+          }
         }
 
         const rootDir = path.join(__dirname, '..', '..', '..');

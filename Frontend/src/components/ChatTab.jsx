@@ -340,7 +340,7 @@ export default function ChatTab({
                         <span className="text-xs shrink-0 mt-0.5"><Zap size={12} /></span>
                         <div className="flex-1 min-w-0">
                           <div className="text-[11px] font-bold text-purple-200">DeepSeek Harness</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm)</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm — server cloud tự chạy Agent nội bộ)</div>
                         </div>
                         {agentEngine === 'dsh' && <span className="text-purple-400 text-[10px] mt-0.5">✓</span>}
                       </button>
