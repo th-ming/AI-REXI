@@ -122,7 +122,9 @@ async function getVideoStream(urlOrId) {
       quiet: true,
       noWarnings: true,
       // Chuẩn format như helper cũ: combined ≤720p ưu tiên, fallback dần xuống
-      format: 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best',
+      // Video dài/music mix thường KHÔNG có progressive format → fallback audio-only
+      // (bestaudio m4a phát được trong <video> như audio-only, phù hợp nghe nhạc)
+      format: 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best/bestaudio[ext=m4a]/bestaudio',
       socketTimeout: 20,
       ...getCookiesOption(),
     }), DEFAULT_TIMEOUT, 'Lấy stream');

@@ -43,6 +43,10 @@ router.get('/', (req, res) => {
         EXISTS (SELECT 1 FROM khoa_api k WHERE LOWER(k.ten_nha_cung_cap) = LOWER(m.ma_nha_cung_cap))
         OR EXISTS (SELECT 1 FROM ai_providers p2 WHERE LOWER(p2.ma_nha_cung_cap) = LOWER(m.ma_nha_cung_cap) AND p2.can_api_key = 0 AND p2.kich_hoat = 1)
       )
+      -- FREE-ALL (QA 22/9/2026): hệ thống free hoàn toàn cho người dùng — ẩn model paid
+      -- (needs_balance) khỏi picker: user không có cách nạp tiền, giữ lại chỉ gây click-lỗi.
+      -- Scanner vẫn upsert vào DB (admin còn thấy), chỉ /api/models công khai lọc đi.
+      AND LOWER(m.loai) != 'paid'
   `;
   const params = [];
   if (provider) {
@@ -106,14 +110,13 @@ router.get('/', (req, res) => {
       const pKey = r.ma_nha_cung_cap.toLowerCase();
       const cached = cacheState.get(`${pKey}|${r.ma_model}`);
       if (!map.has(pKey)) map.set(pKey, []);
+      // FREE-ALL: loại bỏ paid + model scanner vừa kết luận needs_balance khỏi picker
+      if (r.loai === 'paid' || cached === 'needs_balance') continue;
       map.get(pKey).push({
         id: r.ma_model,
         name: r.ten_hien_thi,
-        type: r.loai,
+        type: 'free',
         modality: mod,
-        // paid trong DB HOẶC scanner vừa kết luận needs_balance → 🔒 (hết quota ngày vẫn hiện working,
-        // 429/5xx là transient không phải lock)
-        status: (r.loai === 'paid' || cached === 'needs_balance') ? 'needs_balance' : 'working',
         provider: pKey,
         providerName: r.provider_name,
       });

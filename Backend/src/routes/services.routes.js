@@ -492,7 +492,9 @@ async function runEdgeTtsPython(voiceName, trimmedText, validRate, validPitch, t
   });
 }
 
-router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), authMiddleware, async (req, res) => {
+// FREE-ALL (QA 22/9/2026): TTS free cho mọi user kể cả khách vãng lai (user yêu cầu)
+// — edge-tts/VieNeu đều miễn phí không tốn key, chỉ giữ rateLimit chống abuse.
+router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
   const { text, voice, rate, pitch } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Văn bản không được để trống' });
@@ -947,7 +949,9 @@ router.get('/iptv/countries', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // 20/9/2026: engine đã đổi sang youtube-dl-exec (npm, binary yt-dlp tự tải lúc
 // npm install) — KHÔNG cần Python nữa. Sửa lỗi "YouTube chết trên Render free".
-router.get('/youtube/status', authMiddleware, async (req, res) => {
+// FREE-ALL (QA 22/9/2026): YouTube cho khách vãng lai — gỡ auth khỏi search/stream/status
+// (user yêu cầu: không cần đăng nhập vẫn xem được). Giữ rateLimit + proxyAuth ở /proxy.
+router.get('/youtube/status', async (req, res) => {
   try {
     const st = await ytdlp.getStatus();
     res.json({
@@ -961,19 +965,20 @@ router.get('/youtube/status', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/youtube/search', authMiddleware, async (req, res) => {
+router.get('/youtube/search', async (req, res) => {
   const { q, limit } = req.query;
   if (!q) return res.status(400).json({ error: 'Thiếu từ khóa (q)' });
   try {
-    const videos = await searchVideos(q, parseInt(limit, 10) || 12);
-    res.json({ success: true, videos });
+    const result = await searchVideos(q, parseInt(limit, 10) || 12);
+    // searchVideos trả { videos: [...] } — unwrap để FE nhận array (YouTubeTab.jsx:106)
+    res.json({ success: true, videos: Array.isArray(result) ? result : (result.videos || []) });
   } catch (e) {
     console.error('[YouTube] Search error:', e.message);
     res.status(500).json({ success: false, error: e.message });
   }
 });
 
-router.get('/youtube/stream', authMiddleware, async (req, res) => {
+router.get('/youtube/stream', async (req, res) => {
   const { url } = req.query;
   if (!url || !isValidYouTubeUrl(url)) return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ (chỉ hỗ trợ YouTube).' });
   try {
@@ -1201,7 +1206,8 @@ async function summarizeWithGemini(genAI, text) {
   }
 }
 
-router.post('/youtube/summarize', authMiddleware, async (req, res) => {
+// FREE-ALL: tóm tắt AI mở cho guest (rateLimit đã chặn abuse)
+router.post('/youtube/summarize', async (req, res) => {
   const { url } = req.body || {};
   if (!url || !isValidYouTubeUrl(url)) {
     return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ (chỉ hỗ trợ YouTube).' });
