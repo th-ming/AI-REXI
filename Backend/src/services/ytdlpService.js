@@ -199,7 +199,9 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
         noPlaylist: true,
         quiet: true,
         noWarnings: true,
-        format: 'bestaudio/best',
+        // Client android (cloud) CHỈ trả format 18 (combined) — không có audio-only,
+        // nên phải fallback sang combined để ffmpeg tách audio.
+        format: 'bestaudio[ext=m4a]/bestaudio/best[acodec!=none][vcodec!=none]/best',
         output: outPath + '.%(ext)s',
         downloadSections: `*0-${SUMMARY_MAX_SECONDS}`,
         forceKeyframesAtCuts: true,
