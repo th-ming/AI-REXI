@@ -255,13 +255,16 @@ async function getStatus() {
 
 // DEBUG (admin): chạy yt-dlp trực tiếp để dò player_client / format trên datacenter.
 // Dùng cho route GET /api/services/youtube/debug — sẽ gỡ sau khi chốt được client.
-async function debugRun(urlOrId, { client, listFormats } = {}) {
+async function debugRun(urlOrId, { client, listFormats, noCookies, extraArgs } = {}) {
   const bin = getBinaryPath();
   if (!bin) throw new Error('Không tìm thấy binary yt-dlp');
   const args = [normalizeUrl(urlOrId), '--no-playlist', '--no-warnings'];
-  const cookies = getCookiesOption();
-  if (cookies.cookies) args.push('--cookies', cookies.cookies);
+  if (!noCookies) {
+    const cookies = getCookiesOption();
+    if (cookies.cookies) args.push('--cookies', cookies.cookies);
+  }
   if (client) args.push('--extractor-args', `youtube:player_client=${client}`);
+  if (Array.isArray(extraArgs)) args.push(...extraArgs.map(String));
   if (listFormats) {
     args.push('-F');
   } else {
