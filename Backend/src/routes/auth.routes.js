@@ -282,7 +282,7 @@ router.post('/forgot-password', async (req, res) => {
         return res.status(400).json({ error: 'Vui lòng nhập tài khoản.' });
     }
 
-    db.get("SELECT * FROM nguoi_dung WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(email) LIKE LOWER(?)", [accountName, accountName + '@rexi.com', accountName.includes('@') ? '\u0000@%' : accountName.replace(/[%_]/g, '') + '@%'], async (err, user) => {
+    db.get("SELECT * FROM nguoi_dung WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(email) LIKE LOWER(?)", [accountName, accountName + '@rexi.com', accountName.includes('@') ? '@@nomatch@@' : accountName.replace(/[%_]/g, '') + '@%'], async (err, user) => {
         if (err || !user) {
             return res.json({ success: true, message: 'Nếu tài khoản tồn tại, mã OTP đã được tạo.' });
         }
@@ -328,7 +328,7 @@ router.post('/reset-password', async (req, res) => {
         return res.status(400).json({ error: 'Mật khẩu mới tối thiểu 6 ký tự.' });
     }
 
-    db.get("SELECT * FROM nguoi_dung WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(email) LIKE LOWER(?)", [accountName, accountName + '@rexi.com', accountName.includes('@') ? '\u0000@%' : accountName.replace(/[%_]/g, '') + '@%'], async (err, user) => {
+    db.get("SELECT * FROM nguoi_dung WHERE LOWER(email) = LOWER(?) OR LOWER(email) = LOWER(?) OR LOWER(email) LIKE LOWER(?)", [accountName, accountName + '@rexi.com', accountName.includes('@') ? '@@nomatch@@' : accountName.replace(/[%_]/g, '') + '@%'], async (err, user) => {
         if (err || !user) {
             return res.status(400).json({ error: 'Tài khoản không tồn tại.' });
         }
