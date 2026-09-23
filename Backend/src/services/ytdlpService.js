@@ -125,9 +125,10 @@ async function getVideoStream(urlOrId) {
       // Video dài/music mix thường KHÔNG có progressive format → fallback audio-only
       // (bestaudio m4a phát được trong <video> như audio-only, phù hợp nghe nhạc)
       format: 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best/bestaudio[ext=m4a]/bestaudio',
-      // IP datacenter (Render) bị YouTube bot check ở bước lấy stream — thử các
-      // player_client không cần cookies trước khi rơi vào YOUTUBE_COOKIES env
-      extractorArgs: 'youtube:player_client=tv_embedded,web_embedded,android',
+      // Có YOUTUBE_COOKIES (login thật) thì để yt-dlp tự chọn client mặc định.
+      // KHÔNG ép player_client nữa: tv_embedded bị bỏ (unsupported), android
+      // không hỗ trợ cookies → client set hỏng, YouTube trả "Requested format
+      // is not available" trên IP datacenter.
       socketTimeout: 20,
       ...getCookiesOption(),
     }), DEFAULT_TIMEOUT, 'Lấy stream');
