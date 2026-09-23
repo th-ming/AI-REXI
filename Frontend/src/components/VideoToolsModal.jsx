@@ -7,7 +7,7 @@ const VIDEO_TOOLS = [
     icon: <Volume2 size={16} className="text-emerald-400" />,
     tools: [
       { name: 'Web Speech API', desc: 'Chạy trong trình duyệt, không cần server', status: 'ready', badge: 'Miễn phí' },
-      { name: 'Server edge-tts', desc: '10 giọng Việt (Bắc/Nam/Nam/Nữ), cao cấp', status: 'ready', badge: '10 voices' },
+      { name: 'Server edge-tts', desc: 'Giọng Microsoft thật, lấy động từ engine (2 giọng vi-VN + đa ngôn ngữ)', status: 'ready', badge: 'Microsoft' },
       { name: 'Valtec TTS', desc: '74.8M params, chạy CPU, zero-shot cloning', status: 'setup', badge: '360⭐' },
       { name: 'VietVoice-TTS', desc: 'Voice cloning chuyên nghiệp', status: 'setup', badge: '105⭐' },
       { name: 'VietTTS', desc: '8 giọng nổi tiếng (Quynh, Ngọc Nga, Son Tùng...)', status: 'setup', badge: '8 voices' },

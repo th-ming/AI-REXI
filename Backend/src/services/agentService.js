@@ -2,7 +2,7 @@ const path = require('path');
 const fs = require('fs');
 const { exec } = require('child_process');
 const { stripAnsi } = require('../utils/stripAnsi');
-const { generateEdgeTTSNode } = require('./edgeTTS');
+const { generateEdgeTTSNode, listEdgeVoices, localeFromVoice } = require('./edgeTTS');
 const { assertPublicUrlAsync } = require('../utils/urlSafety');
 const { safeExec } = require('../utils/safeExec');
 
@@ -178,17 +178,20 @@ async function executeTool(toolName, args) {
     case 'text_to_speech': {
       // FIX PROD: dùng Edge TTS Thuần Node.js (WebSocket tới Microsoft) — KHÔNG cần Python,
       // chạy được cả trên Render (trước đây dùng python3 trên Linux → lỗi trên server).
-      const VALID_TTS_VOICES = [
-        'vi-VN-HoaiMyNeural', 'vi-VN-NamMinhNeural'
-      ];
-      const voiceName = VALID_TTS_VOICES.includes(args.voice) ? args.voice : 'vi-VN-HoaiMyNeural';
+      // Voice validate theo danh sach THAT cua engine (khong hardcode) - dong bo services.routes.
+      const isEdgeVoiceId = (v) => /^[a-z]{2,3}-[A-Z]{2}-[\w]+Neural$/.test(String(v || ''));
+      let voices = null;
+      try { voices = await listEdgeVoices(); } catch { voices = null; }
+      const reqVoice = String(args.voice || '');
+      const voiceName = (!voices || voices.some(v => v.id === reqVoice) || isEdgeVoiceId(reqVoice))
+        ? (reqVoice || 'vi-VN-HoaiMyNeural') : 'vi-VN-HoaiMyNeural';
       const validRate = args.rate && /^[+-]\d+%$/.test(args.rate) ? args.rate : '+0%';
       const validPitch = args.pitch && /^[+-]\d+Hz$/.test(args.pitch) ? args.pitch : '+0Hz';
       const cleanedText = (args.text || '').replace(/"/g, '\\"').substring(0, 1000);
       if (!cleanedText.trim()) return { error: 'Văn bản trống' };
       try {
         const outFile = path.join(__dirname, '..', '..', 'temp', 'tts_' + Date.now() + '.mp3');
-        const audioBuffer = await generateEdgeTTSNode(voiceName, cleanedText, validRate, validPitch);
+        const audioBuffer = await generateEdgeTTSNode(voiceName, cleanedText, validRate, validPitch, localeFromVoice(voiceName));
         if (!audioBuffer || audioBuffer.length === 0) return { error: 'TTS không tạo được âm thanh' };
         fs.writeFileSync(outFile, audioBuffer);
         return { success: true, audioFile: outFile, voice: voiceName };

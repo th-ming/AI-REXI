@@ -1786,6 +1786,28 @@ router.delete('/memory/:id', authMiddleware, (req, res) => {
 // P2-19c: thống nhất check admin bằng adminMiddleware (role || phan_quyen) thay vì
 // chỉ check req.user.role — trước đây token có phan_quyen='admin' nhưng role khác vẫn bị 403 oan.
 // GIỮ NGUYÊN localhost check (quyết định đợt 1) — không nới lỏng.
+// K5: WHITELIST lệnh an toàn. Chỉ cho phép các lệnh dev/đọc phổ biến; lệnh ngoài
+// danh sách bị chặn (kể cả khi đã qua localhost + admin + confirm). Đặt
+// EXEC_WHITELIST_DISABLED=1 để tắt (chỉ nên dùng khi thật cần, local).
+const EXEC_ALLOWED_BIN = new Set([
+  'git', 'node', 'npm', 'npx', 'yarn', 'pnpm', 'python', 'python3', 'pip', 'pip3', 'py',
+  'ls', 'dir', 'cat', 'type', 'echo', 'pwd', 'cd', 'find', 'findstr', 'grep', 'head',
+  'tail', 'wc', 'sort', 'uniq', 'tree', 'where', 'which',
+  'curl', 'wget', 'ffmpeg', 'ffprobe', 'whoami', 'hostname', 'ipconfig', 'netstat',
+  'tasklist', 'systeminfo', 'date', 'ver', 'sqlite3', 'psql', 'gh', 'vercel', 'docker',
+]);
+function execCommandsAllowed(command) {
+  if (process.env.EXEC_WHITELIST_DISABLED === '1') return true;
+  const segments = String(command).split(/&&|\|\||[;|\n]/).map(s => s.trim()).filter(Boolean);
+  if (!segments.length) return false;
+  for (const seg of segments) {
+    const first = seg.split(/\s+/)[0] || '';
+    const base = first.split(/[\\/]/).pop().toLowerCase();
+    if (!EXEC_ALLOWED_BIN.has(base)) return false;
+  }
+  return true;
+}
+
 router.post('/exec', authMiddleware, adminMiddleware, (req, res) => {
   const { command } = req.body;
   if (!command) return res.status(400).json({ error: 'Thiếu câu lệnh execution' });
@@ -1808,6 +1830,15 @@ router.post('/exec', authMiddleware, adminMiddleware, (req, res) => {
     return res.status(428).json({
       error: '⛔ Yêu cầu xác nhận: gửi header X-Exec-Confirm: yes để thực thi lệnh này.',
       command: command
+    });
+  }
+
+  // K5: whitelist lệnh an toàn (defense-in-depth, thêm trên blocklist bên dưới)
+  if (!execCommandsAllowed(command)) {
+    return res.status(403).json({
+      error: '⛔ Lệnh không nằm trong danh sách cho phép (whitelist an toàn).',
+      hint: 'Chỉ cho phép lệnh dev/đọc phổ biến: git, node, npm, ls, cat, grep, curl...',
+      allowed: [...EXEC_ALLOWED_BIN].sort().join(', ')
     });
   }
 

@@ -15,7 +15,7 @@ const { decryptKey } = require('../utils/cryptoKeys');
 const multer = require('multer');
 const Groq = require('groq-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const { generateEdgeTTSNode } = require('../services/edgeTTS');
+const { generateEdgeTTSNode, listEdgeVoices, localeFromVoice } = require('../services/edgeTTS');
 const { searchVideos, getVideoStream, downloadAudio } = require('../services/ytdlpService');
 const ytdlp = require('../services/ytdlpService');
 const { PDFParse } = require('pdf-parse');
@@ -397,15 +397,50 @@ router.get('/external/stocks/:symbol', authMiddleware, async (req, res) => {
   }
 });
 
-// Vietnamese TTS API - Edge TTS WebSocket thuần Node (fallback Python edge-tts)
-// VERIFY 17/9/2026 (voices/list thật của Microsoft): vi-VN chỉ còn 2 giọng — 8 giọng cũ
-// (DuyAnh, HaSanh, MinhAnh, ThuyMinh, ThiTuyet, VanHanh, VanMinh, CaoViet) đã bị MS rút
-// khỏi Edge TTS → WS đóng ngay 'No audio chunks' → rơi fallback Python chết trên Render.
-const VIETNAMESE_TTS_VOICES = [
-  { id: 'vi-VN-HoaiMyNeural', label: 'Hoài Mỹ (Nữ, Bắc)', gender: 'Nữ', region: 'Bắc' },
-  { id: 'vi-VN-NamMinhNeural', label: 'Nam Minh (Nam, Nam)', gender: 'Nam', region: 'Nam' }
+// Vietnamese TTS API - Edge TTS WebSocket thuần Node (không cần Python)
+// FIX 24/9/2026 (user báo tên giọng "ảo"): danh sách giọng KHÔNG hardcode nữa — lấy
+// ĐỘNG từ voices/list thật của Microsoft (xem edgeTTS.listEdgeVoices). Verify 24/9:
+// engine trả ĐÚNG 2 giọng vi-VN (id thật): vi-VN-HoaiMyNeural (Female) và
+// vi-VN-NamMinhNeural (Male), FriendlyName "Microsoft HoaiMy/NamMinh Online (Natural)".
+// Không bịa vùng miền/giới tính; label lấy từ dữ liệu engine.
+const EDGE_VOICE_FALLBACK_VI = [
+  { id: 'vi-VN-HoaiMyNeural', name: 'HoaiMy', gender: 'Nữ', locale: 'vi-VN', language: 'vi',
+    friendlyName: 'Microsoft HoaiMy Online (Natural) - Vietnamese (Vietnam)' },
+  { id: 'vi-VN-NamMinhNeural', name: 'NamMinh', gender: 'Nam', locale: 'vi-VN', language: 'vi',
+    friendlyName: 'Microsoft NamMinh Online (Natural) - Vietnamese (Vietnam)' },
 ];
-const VALID_TTS_VOICES = VIETNAMESE_TTS_VOICES.map(v => v.id);
+const DEFAULT_TTS_VOICE = 'vi-VN-HoaiMyNeural';
+const isEdgeVoiceId = (v) => /^[a-z]{2,3}-[A-Z]{2}-[\w]+Neural$/.test(String(v || ''));
+
+// Chuẩn hóa 1 voice engine → shape FE dùng (id/label/gender/locale). Label lấy từ
+// dữ liệu THẬT của engine (name + giới tính + locale), không thêm thông tin bịa.
+function toVoiceEntry(v) {
+  const label = v.friendlyName
+    ? `${v.name || v.id} (${v.gender || '?'}) · ${v.locale}`
+    : (v.label || v.id);
+  return {
+    id: v.id,
+    label,
+    gender: v.gender || '',
+    locale: v.locale || '',
+    language: v.language || '',
+    friendlyName: v.friendlyName || '',
+    engine: 'edge-tts',
+  };
+}
+
+// Lấy danh sách giọng Edge (thật nếu gọi được, fallback static nếu mạng lỗi).
+// langFilter: '' | 'vi' | 'all' | '<prefix>' (vd 'en', 'ja-JP')
+async function getEdgeVoices(langFilter) {
+  const real = await listEdgeVoices();
+  const source = real ? 'live' : 'fallback';
+  const base = (real || EDGE_VOICE_FALLBACK_VI).map(toVoiceEntry);
+  const f = String(langFilter || '').trim().toLowerCase();
+  let list = base;
+  if (!f || f === 'vi' || f === 'vi-vn') list = base.filter(v => v.language === 'vi');
+  else if (f !== 'all') list = base.filter(v => v.language === f || v.locale.toLowerCase() === f || v.locale.toLowerCase().startsWith(f + '-'));
+  return { list, source, total: base.length };
+}
 
 // ── VieNeu-TTS v3 Turbo (20/9/2026) ─────────────────────────────────────────
 // Engine OpenAI-compatible tự host (máy local có model): VIENEU_BASE_URL trỏ tới
@@ -471,38 +506,51 @@ const VIENEU_VOICE_ALIAS = {
 // VieNeu active (env VIENEU_BASE_URL) → trả 25 preset giọng v3 Turbo; ngược lại 2 giọng Edge.
 router.get('/tts/voices', async (req, res) => {
   const { lang } = req.query;
-  if (lang && lang !== 'vi') return res.json({ success: true, voices: [], default: null });
   if (VIENEU_BASE_URL) {
     const ids = (await fetchVieNeuVoices()) || VIENEU_PRESET_VOICES;
     return res.json({
       success: true,
       engine: 'vieneu',
-      voices: ids.map(id => ({ id, label: id })),
+      provider: 'VieNeu (self-hosted)',
+      voice_clone: true,
+      voices: ids.map(id => ({ id, label: id, engine: 'vieneu' })),
+      count: ids.length,
       default: ids.includes(VIENEU_DEFAULT_VOICE) ? VIENEU_DEFAULT_VOICE : ids[0],
     });
   }
-  return res.json({ success: true, engine: 'edge-tts', voices: VIETNAMESE_TTS_VOICES, default: 'vi-VN-HoaiMyNeural' });
+  const { list, source, total } = await getEdgeVoices(lang);
+  return res.json({
+    success: true,
+    engine: 'edge-tts',
+    provider: 'Microsoft Edge TTS',
+    voice_clone: false,
+    source,                 // 'live' = lấy trực tiếp từ engine, 'fallback' = engine không gọi được
+    count: list.length,
+    total,                  // tổng số giọng engine có (mọi ngôn ngữ)
+    voices: list,
+    default: list.some(v => v.id === DEFAULT_TTS_VOICE) ? DEFAULT_TTS_VOICE : (list[0]?.id || null),
+  });
 });
 
 // GET: Kiểm tra trạng thái TTS service
 router.get('/tts/status', async (req, res) => {
-  let edgeTtsAvailable = false;
-  try {
-    edgeTtsAvailable = await new Promise((resolve) => {
-      const spawn = require('child_process').spawn;
-      const proc = spawn('python', ['-c', 'import edge_tts; print("ok")'], { timeout: 10000 });
-      let ok = false;
-      proc.stdout.on('data', d => { if (d.toString().trim() === 'ok') ok = true; });
-      proc.on('close', () => resolve(ok));
-      proc.on('error', () => resolve(false));
-    });
-  } catch {
-    // edge-tts not available
-  }
+  let real = null;
+  try { real = await listEdgeVoices(); } catch { real = null; }
+  const reachable = Array.isArray(real) && real.length > 0;
+  const pool = real || EDGE_VOICE_FALLBACK_VI;
+  const viCount = pool.filter(v => (v.language || '') === 'vi').length;
   res.json({
     success: true,
-    edge_tts: edgeTtsAvailable,
-    voices: VIETNAMESE_TTS_VOICES.length,
+    engine: VIENEU_BASE_URL ? 'vieneu' : 'edge-tts',
+    provider: VIENEU_BASE_URL ? 'VieNeu (self-hosted)' : 'Microsoft Edge TTS',
+    engine_node: true,               // WebSocket thuần Node — không cần Python
+    voices_reachable: reachable,     // gọi được voices/list của engine không?
+    total_voices: reachable ? real.length : null,
+    voices: viCount,                 // số giọng vi-VN THẬT
+    voice_clone: !!VIENEU_BASE_URL,  // Edge TTS công khai KHÔNG clone giọng
+    note: VIENEU_BASE_URL
+      ? 'VieNeu self-hosted: hỗ trợ clone giọng.'
+      : 'Microsoft Edge TTS công khai — không hỗ trợ clone giọng (cần VIENEU_BASE_URL tự host).',
     fallback: 'Web Speech API (browser)'
   });
 });
@@ -552,7 +600,7 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
   if (VIENEU_BASE_URL) {
     try {
       const vnVoice = VIENEU_VOICE_ALIAS[voiceInput]
-        || (voiceInput && !VALID_TTS_VOICES.includes(voiceInput) ? voiceInput : VIENEU_DEFAULT_VOICE);
+        || (voiceInput && !isEdgeVoiceId(voiceInput) ? voiceInput : VIENEU_DEFAULT_VOICE);
       const wavBuffer = await generateVieNeuTTS(trimmedText, vnVoice);
       const base64Audio = wavBuffer.toString('base64');
       return res.json({
@@ -569,8 +617,25 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
     }
   }
 
-  // Edge TTS (Microsoft) — 2 giọng còn sống; voice lạ → Hoài Mỹ
-  const voiceName = VALID_TTS_VOICES.includes(voiceInput) ? voiceInput : 'vi-VN-HoaiMyNeural';
+  // Edge TTS (Microsoft) — validate theo danh sách giọng THẬT của engine (không hardcode).
+  let edgeVoices = null;
+  try { edgeVoices = await listEdgeVoices(); } catch { edgeVoices = null; }
+  let voiceName = voiceInput || DEFAULT_TTS_VOICE;
+  if (edgeVoices) {
+    const realIds = new Set(edgeVoices.map(v => v.id));
+    if (!realIds.has(voiceName) && !isEdgeVoiceId(voiceName)) {
+      // Không bịa/thay ngầm: báo rõ giọng không tồn tại + gợi ý giọng vi thật.
+      return res.status(400).json({
+        success: false,
+        error: `Giọng "${voiceInput}" không tồn tại trên engine Microsoft Edge TTS.`,
+        available: edgeVoices.filter(v => v.language === 'vi').map(v => v.id),
+      });
+    }
+  } else if (voiceInput && !isEdgeVoiceId(voiceInput)) {
+    voiceName = DEFAULT_TTS_VOICE;
+  }
+  const voiceLang = localeFromVoice(voiceName);
+  const edgeEntry = (edgeVoices || EDGE_VOICE_FALLBACK_VI).find(v => v.id === voiceName);
   const validRate = rate && /^[+-]\d+%$/.test(rate) ? rate : '+0%';
   const validPitch = pitch && /^[+-]\d+Hz$/.test(pitch) ? pitch : '+0Hz';
 
@@ -579,7 +644,7 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
 
     // Gọi trực tiếp Edge TTS WebSocket thuần Node.js (Siêu nhanh 300ms, không cần Python)
     try {
-      audioBuffer = await generateEdgeTTSNode(voiceName, trimmedText, validRate, validPitch);
+      audioBuffer = await generateEdgeTTSNode(voiceName, trimmedText, validRate, validPitch, voiceLang);
     } catch (wsErr) {
       console.warn('[TTS] Pure Node.js WebSocket failed, trying Python fallback:', wsErr.message);
       // Dự phòng: Thử gọi Python nếu WebSocket gặp sự cố
@@ -598,8 +663,10 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
         audio: base64Audio,
         format: 'mp3',
         engine: 'edge-tts',
+        provider: 'Microsoft Edge TTS',
         voice: voiceName,
-        voice_label: VIETNAMESE_TTS_VOICES.find(v => v.id === voiceName)?.label || voiceName,
+        locale: voiceLang,
+        voice_label: edgeEntry?.friendlyName || voiceName,
         rate: validRate,
         pitch: validPitch,
         text_length: trimmedText.length

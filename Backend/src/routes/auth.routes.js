@@ -298,16 +298,20 @@ router.post('/forgot-password', async (req, res) => {
                 if (err) {
                     return res.status(500).json({ error: 'Lỗi hệ thống.' });
                 }
-                console.log(`[Auth] OTP for ${accountName}: ${otpCode}`);
+                // L1: chỉ log OTP khi KHÔNG phải production (tránh lộ secret qua log Render).
+                const isProd = process.env.NODE_ENV === 'production';
+                if (!isProd) console.log(`[Auth] OTP for ${accountName}: ${otpCode}`);
                 let mailSent = false;
                 try { mailSent = await sendOTPMail(user.email, otpCode); } catch { mailSent = false; }
                 const payload = {
                     success: true,
                     message: mailSent
                         ? 'Mã OTP đã được gửi vào email của bạn (kiểm tra cả thư mục Spam).'
-                        : 'Chưa gửi được email (SMTP chưa cấu hình) — mã OTP hiển thị tạm trong otp_debug.'
+                        : 'Chưa gửi được email (SMTP chưa cấu hình trên máy chủ). Vui lòng liên hệ quản trị viên để đặt lại mật khẩu.'
                 };
-                if (!mailSent) payload.otp_debug = otpCode;
+                // KHÔNG bao giờ trả OTP ra production. Chỉ trả otp_debug khi chạy local/dev.
+                if (!mailSent && !isProd) payload.otp_debug = otpCode;
+                if (!mailSent) console.warn(`[Auth] forgot-password: SMTP chưa cấu hình — không gửi được mail OTP cho ${accountName}.`);
                 res.json(payload);
             }
         );

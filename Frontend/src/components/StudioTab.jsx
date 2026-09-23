@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Play, Pause, Download, Volume2, Mic, RotateCw, Loader2, Clock, Type, Hash, User, MapPin } from 'lucide-react';
 
+// Giọng THẬT của engine Microsoft Edge TTS (lấy đúng từ voices/list — không bịa).
+// Backend /services/tts/voices cũng trả động danh sách này; đây chỉ là fallback khi offline.
 const FALLBACK_VOICES = [
-  { id: 'vi-VN-HoaiMyNeural', label: 'Hoài Mỹ', gender: 'Nữ', region: 'Bắc', color: 'rose' },
-  { id: 'vi-VN-NamMinhNeural', label: 'Nam Minh', gender: 'Nam', region: 'Nam', color: 'blue' },
+  { id: 'vi-VN-HoaiMyNeural', label: 'HoaiMy (Nữ) · vi-VN', gender: 'Nữ', locale: 'vi-VN', color: 'rose' },
+  { id: 'vi-VN-NamMinhNeural', label: 'NamMinh (Nam) · vi-VN', gender: 'Nam', locale: 'vi-VN', color: 'blue' },
 ];
 
 const QUICK_SAMPLES = [
@@ -69,7 +71,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
           id: v.id,
           label: v.label || v.id,
           gender: v.gender,
-          region: v.region,
+          region: v.locale || v.region,
           color: v.color || COLOR_KEYS[i % COLOR_KEYS.length],
         }));
         setVoices(mapped);
