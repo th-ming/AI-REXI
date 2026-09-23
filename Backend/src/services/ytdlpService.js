@@ -117,27 +117,33 @@ async function searchVideos(query, limit = 12) {
 // Có YOUTUBE_COOKIES (login thật) → thử lần lượt từng client tới khi lấy được stream.
 // KHÔNG dùng android/ios (yt-dlp bỏ qua cookies với 2 client này). tv/web_safari/mweb
 // hay qua được datacenter; default để cuối cùng.
-const CLIENT_LADDER = [
-  'youtube:player_client=default,-web,-web_safari', // loại client web (gây "page needs reload")
-  'youtube:player_client=tv',                        // tv: hay qua datacenter, không cần PO token
-  'youtube:player_client=web_embedded',
-  'youtube:player_client=mweb,web_embedded',
-  'youtube:player_client=default,-web',
-  'youtube:player_client=tv,web_safari',
-  null, // để yt-dlp tự chọn client mặc định
+// Ladder chọn client + cookies cho IP datacenter (Render).
+// PHÁT HIỆN QUAN TRỌNG (đo trên cloud):
+//  - Client `android` KHÔNG cookies → YouTube trả format 18 (mp4 combined 360p) trên datacenter.
+//  - Nếu gửi cookies (session login) từ datacenter → "The page needs to be reloaded." (Google chặn).
+//  - Video age/sign-in-restricted thì mọi client đều bot-check trên datacenter → cần cookies.
+// Thứ tự: ưu tiên no-cookie android → các client no-cookie khác → cuối cùng mới thử cookies.
+const ATTEMPT_LADDER = [
+  { client: 'android', cookies: false },
+  { client: 'ios,android', cookies: false },
+  { client: 'android_vr', cookies: false },
+  { client: null, cookies: false },          // default (visionos...) — có thể chỉ video-only
+  { client: null, cookies: true },           // session login (local OK, cloud có thể bị "reload")
+  { client: 'tv', cookies: true },
+  { client: 'web_safari', cookies: true },
 ];
 
-// Format chuẩn: combined ≤720p ưu tiên, fallback dần xuống audio-only.
-// Video dài/music mix thường KHÔNG có progressive → bestaudio m4a phát được
-// trong <video> như audio-only (phù hợp nghe nhạc).
-const STREAM_FORMAT = 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best/bestaudio[ext=m4a]/bestaudio/b';
+// Format chuẩn: combined ≤720p ưu tiên, rồi combined bất kỳ, rồi audio-only
+// (bestaudio m4a phát được trong <video> như audio-only). KHÔNG ưu tiên video-only
+// vì sẽ mất tiếng khi phát trực tiếp.
+const STREAM_FORMAT = 'best[height<=720][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/bestaudio[ext=m4a]/bestaudio/best';
 
 async function getVideoStream(urlOrId) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   const url = normalizeUrl(urlOrId);
   const cookies = getCookiesOption();
   let lastErr = null;
-  for (const client of CLIENT_LADDER) {
+  for (const attempt of ATTEMPT_LADDER) {
     try {
       const opts = {
         dumpSingleJson: true,
@@ -147,9 +153,9 @@ async function getVideoStream(urlOrId) {
         noWarnings: true,
         format: STREAM_FORMAT,
         socketTimeout: 20,
-        ...cookies,
+        ...(attempt.cookies ? cookies : {}),
       };
-      if (client) opts.extractorArgs = client;
+      if (attempt.client) opts.extractorArgs = `youtube:player_client=${attempt.client}`;
       const info = await withTimeout(ytdl(url, opts), 30000, 'Lấy stream');
       if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
       return {
@@ -166,7 +172,7 @@ async function getVideoStream(urlOrId) {
       };
     } catch (e) {
       lastErr = e;
-      console.log(`[ytdlpService] getVideoStream client="${client || 'default'}" failed: ${(e && e.message) || e}`);
+      console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && e.message) || e}`);
     }
   }
   throw toError(lastErr || new Error('yt-dlp không trả được URL stream'));
@@ -184,7 +190,7 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   if (!outPath) throw new Error('Thiếu đường dẫn file đích');
   let lastErr = null;
-  for (const client of CLIENT_LADDER) {
+  for (const attempt of ATTEMPT_LADDER) {
     try {
       // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
       // → không tải file nào cả. Phải dùng printJson (in JSON sau khi tải xong).
@@ -204,9 +210,9 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
         postprocessorArgs: `ffmpeg:-ar 16000 -ac 1 -t ${SUMMARY_MAX_SECONDS}`,
         ...(ffmpegPath ? { ffmpegLocation: ffmpegPath } : {}),
         socketTimeout: 30,
-        ...getCookiesOption(),
+        ...(attempt.cookies ? getCookiesOption() : {}),
       };
-      if (client) opts.extractorArgs = client;
+      if (attempt.client) opts.extractorArgs = `youtube:player_client=${attempt.client}`;
       const out = await withTimeout(ytdl.exec(normalizeUrl(urlOrId), opts), timeoutMs, 'Tải audio');
       const stdout = typeof out === 'string' ? out : ((out && out.stdout) || '');
       const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
@@ -223,7 +229,7 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
       return { ok: true, title: info.title, file, duration: info.duration };
     } catch (e) {
       lastErr = e;
-      console.log(`[ytdlpService] downloadAudio client="${client || 'default'}" failed: ${(e && e.message) || e}`);
+      console.log(`[ytdlpService] downloadAudio client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && e.message) || e}`);
     }
   }
   throw toError(lastErr || new Error('yt-dlp không tải được audio'));
