@@ -34,6 +34,7 @@ function toTimeMs(t) {
 const PROVIDER_ENDPOINTS = {
   gemini:      { name: 'Google Gemini',     endpoint: 'https://generativelanguage.googleapis.com/v1beta/models', auth: 'key' },
   openrouter:  { name: 'OpenRouter',        endpoint: 'https://openrouter.ai/api/v1/models',                   auth: 'bearer' },
+  mintrouter:  { name: 'MinRouter',         endpoint: 'https://mintrouter.ai/v1/models',                     auth: 'bearer' },
   groq:        { name: 'Groq Cloud',        endpoint: 'https://api.groq.com/openai/v1/models',                 auth: 'bearer' },
   nvidia:      { name: 'Nvidia NIM',        endpoint: 'https://integrate.api.nvidia.com/v1/models',            auth: 'bearer' },
   mistral:     { name: 'Mistral AI',        endpoint: 'https://api.mistral.ai/v1/models',                      auth: 'bearer' },
@@ -164,6 +165,7 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
       gemini: `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey)}`,
       groq: 'https://api.groq.com/openai/v1/chat/completions',
       openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+      mintrouter: 'https://mintrouter.ai/v1/chat/completions',
       nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
       mistral: 'https://api.mistral.ai/v1/chat/completions',
       cerebras: 'https://api.cerebras.ai/v1/chat/completions',

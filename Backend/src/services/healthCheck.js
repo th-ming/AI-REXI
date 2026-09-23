@@ -26,6 +26,7 @@ const TEST_PLAN = {
   mistral:     { url: 'https://api.mistral.ai/v1/chat/completions',         model: 'mistral-small-latest',       auth: 'bearer' },
   groq:        { url: 'https://api.groq.com/openai/v1/chat/completions',    model: 'openai/gpt-oss-120b',        auth: 'bearer' },
   openrouter:  { url: 'https://openrouter.ai/api/v1/chat/completions',      model: 'nvidia/nemotron-3.5-lightning:free', auth: 'bearer' },
+  mintrouter:  { url: 'https://mintrouter.ai/v1/chat/completions',           model: 'muse-spark-1.3-contributor-free', auth: 'bearer' },
   agentrouter: { url: 'https://agentrouter.org/v1/chat/completions',        model: 'gpt-5.6-sol',                 auth: 'bearer' },
   bai:         { url: 'https://api.b.ai/v1/chat/completions',               model: 'qwen3.8-flash',               auth: 'bearer' },
   kiosapi:     { url: 'https://router.kiosapi.com/v1/chat/completions',     model: 'sensenova-6.8-flash-lite',    auth: 'bearer' },

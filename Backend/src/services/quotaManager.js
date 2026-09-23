@@ -50,7 +50,8 @@ const _usage = new Map(); // provider -> [ {ts, ok} ]
 // ─── Rules cơ bản (dùng làm fallback khi chưa có data thật) ───
 const BASE_RULES = {
   gemini:     { max: 5,   windowMs: 60 * 1000 },          // ~5 req/phút
-  openrouter: { max: 45,  windowMs: 24 * 60 * 60 * 1000 }, // ~50/ngày
+  openrouter: { max: 45,  windowMs: 24 * 60 * 60 * 1000 },
+  mintrouter: { max: 45,  windowMs: 24 * 60 * 60 * 1000 }, // ~50/ngày
   cohere:     { max: 8,   windowMs: 60 * 1000 },
   groq:       { max: 25,  windowMs: 60 * 1000 },
   mistral:    { max: 30,  windowMs: 60 * 1000 },           // mistral generous

@@ -1001,7 +1001,7 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               }
             }
 
-          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
+          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
             let endpoint = "https://api.openai.com/v1/chat/completions";
             if (selectedProvider === 'deepseek') endpoint = "https://api.deepseek.com/chat/completions";
             else if (selectedProvider === 'groq') endpoint = "https://api.groq.com/openai/v1/chat/completions";
@@ -1032,7 +1032,7 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
             ];
             let finalModel = smartModelOverride(selectedProvider, selectedModel, noi_dung, req.body.thinking_level);
             if (selectedProvider === 'agentrouter') finalModel = finalModel.replace(/^agentrouter\//, '');
-            if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink'].includes(selectedProvider)) finalModel = finalModel.replace(new RegExp('^' + selectedProvider + '/'), '');
+            if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink'].includes(selectedProvider)) finalModel = finalModel.replace(new RegExp('^' + selectedProvider + '/'), '');
             if (selectedProvider === 'opencode') finalModel = finalModel.replace(/^opencode\//, '');
 
             const fetchHeaders = {
@@ -1537,7 +1537,7 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
       }
       let finalModel = smartModelOverride(selectedProvider, selectedModel, noi_dung, thinking_level);
       if (selectedProvider === 'agentrouter') finalModel = finalModel.replace(/^agentrouter\//, '');
-      if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink'].includes(selectedProvider)) finalModel = finalModel.replace(new RegExp('^' + selectedProvider + '/'), '');
+      if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink'].includes(selectedProvider)) finalModel = finalModel.replace(new RegExp('^' + selectedProvider + '/'), '');
       if (selectedProvider === 'opencode') finalModel = finalModel.replace(/^opencode\//, '');
       // ─── THÔNG BÁO ĐỊNH TUYẾN: cho khách biết đang dùng provider/model nào ───
       if (isAutoModel) {
@@ -1559,10 +1559,10 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
           const t = chunk.text();
           if (t) { fullText += t; sendSSE({ type: 'token', text: t }); }
         }
-      } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
+      } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
         // ─── FALLBACK CHUỖI (stream): provider lỗi/429 → tự thử candidate kế tiếp ───
         const quotaStream = require('../services/quotaManager');
-        const OPENAI_STYLE = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'kiraai', 'bazaarlink', 'opencode'];
+        const OPENAI_STYLE = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode'];
         const attempts = [{ provider: selectedProvider, model: finalModel }];
         if (autoRouteInfo && autoRouteInfo.route && autoRouteInfo.route.candidates) {
           for (const c of autoRouteInfo.route.candidates.slice(1)) {

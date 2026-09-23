@@ -9,13 +9,13 @@ const { resolveProvider, recordLatency } = require('./modelRouter');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const quota = require('./quotaManager');
 
-const OPENAI_COMPAT = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter'];
+const OPENAI_COMPAT = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter'];
 
 function stripProviderPrefix(provider, model) {
   let m = String(model || '');
   if (provider === 'agentrouter') m = m.replace(/^agentrouter\//, '');
   if (provider === 'opencode') m = m.replace(/^opencode\//, '');
-  if (['nvidia', 'mistral', 'cerebras', 'openrouter'].includes(provider)) m = m.replace(new RegExp('^' + provider + '/'), '');
+  if (['nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter'].includes(provider)) m = m.replace(new RegExp('^' + provider + '/'), '');
   if (provider === 'gemini') m = m.replace(/^models\//, '');
   return m;
 }
@@ -40,6 +40,7 @@ function defaultBase(provider) {
     cerebras: 'https://api.cerebras.ai/v1',
     cohere: 'https://api.cohere.com/v1',
     openrouter: 'https://openrouter.ai/api/v1',
+    mintrouter: 'https://mintrouter.ai/v1',
     agentrouter: 'https://agentrouter.org/v1',
     bai: 'https://api.b.ai/v1',
     kiosapi: 'https://router.kiosapi.com/v1',

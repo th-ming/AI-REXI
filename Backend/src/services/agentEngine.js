@@ -85,7 +85,7 @@ function runAgentEngine(engine, prompt, modelName, cwd, extraEnv = {}) {
       // Model phải có đủ prefix provider (vd: xkiro/deepseek/...) để opencode route đúng.
       // Frontend gửi model_name có thể chỉ là 'deepseek/deepseek-v4-pro' → tự thêm xkiro/.
       const rawModel = (modelName || '').trim();
-      const knownProviders = /^(xkiro|nvidia|groq|mistral|cerebras|gemini|openrouter|cohere|agentrouter|bai|kiosapi|unorouter|opencode)\//i;
+      const knownProviders = /^(xkiro|nvidia|groq|mistral|cerebras|gemini|openrouter|mintrouter|cohere|agentrouter|bai|kiosapi|unorouter|opencode)\//i;
       const opencodeModel = knownProviders.test(rawModel)
         ? rawModel
         : rawModel.includes('/')
@@ -133,7 +133,7 @@ function runAgentEngineStream(engine, prompt, modelName, cwd, extraEnv, sendSSE,
   } else {
     // Model phải có đủ prefix provider (vd: xkiro/deepseek/...) để opencode route đúng.
     const rawModel = (modelName || '').trim();
-    const knownProviders = /^(xkiro|nvidia|groq|mistral|cerebras|gemini|openrouter|cohere|agentrouter|bai|kiosapi|unorouter|opencode)\//i;
+    const knownProviders = /^(xkiro|nvidia|groq|mistral|cerebras|gemini|openrouter|mintrouter|cohere|agentrouter|bai|kiosapi|unorouter|opencode)\//i;
     const opencodeModel = knownProviders.test(rawModel)
       ? rawModel
       : rawModel.includes('/')
