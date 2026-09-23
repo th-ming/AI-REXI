@@ -172,7 +172,7 @@ async function getVideoStream(urlOrId) {
       };
     } catch (e) {
       lastErr = e;
-      console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && e.message) || e}`);
+      console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
     }
   }
   throw toError(lastErr || new Error('yt-dlp không trả được URL stream'));
@@ -231,7 +231,7 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
       return { ok: true, title: info.title, file, duration: info.duration };
     } catch (e) {
       lastErr = e;
-      console.log(`[ytdlpService] downloadAudio client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && e.message) || e}`);
+      console.log(`[ytdlpService] downloadAudio client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
     }
   }
   throw toError(lastErr || new Error('yt-dlp không tải được audio'));
