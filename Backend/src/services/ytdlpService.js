@@ -199,12 +199,11 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
         noPlaylist: true,
         quiet: true,
         noWarnings: true,
-        // Client android (cloud) CHỈ trả format 18 (combined) — không có audio-only,
-        // nên phải fallback sang combined để ffmpeg tách audio.
         format: 'bestaudio[ext=m4a]/bestaudio/best[acodec!=none][vcodec!=none]/best',
         output: outPath + '.%(ext)s',
-        downloadSections: `*0-${SUMMARY_MAX_SECONDS}`,
-        forceKeyframesAtCuts: true,
+        // KHÔNG dùng --download-sections/--force-keyframes-at-cuts: ffmpeg-static
+        // trên Render free bị SIGSEGV (code -11). Cắt 10 phút bằng postprocessor
+        // ffmpeg (-t) ở bước extract-audio (1 lần decode duy nhất).
         extractAudio: true,
         audioFormat: 'mp3',
         audioQuality: '64',
@@ -266,6 +265,15 @@ async function getStatus() {
 async function debugRun(urlOrId, { client, listFormats, noCookies, extraArgs } = {}) {
   const bin = getBinaryPath();
   if (!bin) throw new Error('Không tìm thấy binary yt-dlp');
+  // mode test ffmpeg: chạy ffmpeg-static -version để chẩn đoán segfault trên Render
+  if (urlOrId === '__ffmpeg__') {
+    if (!ffmpegPath) return { code: 1, stdout: '', stderr: 'ffmpeg-static không có' };
+    return await new Promise((resolve) => {
+      require('child_process').execFile(ffmpegPath, ['-hide_banner', '-version'], { timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+        resolve({ code: err ? (err.code || 1) : 0, stdout: String(stdout || '').slice(0, 1200), stderr: String(stderr || '').slice(0, 1200) });
+      });
+    });
+  }
   const args = [normalizeUrl(urlOrId), '--no-playlist', '--no-warnings'];
   if (!noCookies) {
     const cookies = getCookiesOption();
