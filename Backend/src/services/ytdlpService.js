@@ -112,40 +112,64 @@ async function searchVideos(query, limit = 12) {
  * Lấy thông tin video + URL stream trực tiếp (không quảng cáo, không tracking).
  * @returns {Promise<{id,title,author,duration,views,description,stream_url,format_id,ext,height}>}
  */
+// Ladder player_client: IP datacenter (Render) bị YouTube trả lỗi PHỤ THUỘC CLIENT
+// ("The page needs to be reloaded." / "Requested format is not available.").
+// Có YOUTUBE_COOKIES (login thật) → thử lần lượt từng client tới khi lấy được stream.
+// KHÔNG dùng android/ios (yt-dlp bỏ qua cookies với 2 client này). tv/web_safari/mweb
+// hay qua được datacenter; default để cuối cùng.
+const CLIENT_LADDER = [
+  'youtube:player_client=default,-web,-web_safari', // loại client web (gây "page needs reload")
+  'youtube:player_client=tv',                        // tv: hay qua datacenter, không cần PO token
+  'youtube:player_client=web_embedded',
+  'youtube:player_client=mweb,web_embedded',
+  'youtube:player_client=default,-web',
+  'youtube:player_client=tv,web_safari',
+  null, // để yt-dlp tự chọn client mặc định
+];
+
+// Format chuẩn: combined ≤720p ưu tiên, fallback dần xuống audio-only.
+// Video dài/music mix thường KHÔNG có progressive → bestaudio m4a phát được
+// trong <video> như audio-only (phù hợp nghe nhạc).
+const STREAM_FORMAT = 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best/bestaudio[ext=m4a]/bestaudio/b';
+
 async function getVideoStream(urlOrId) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
-  try {
-    const info = await withTimeout(ytdl(normalizeUrl(urlOrId), {
-      dumpSingleJson: true,
-      noPlaylist: true,
-      skipDownload: true,
-      quiet: true,
-      noWarnings: true,
-      // Chuẩn format như helper cũ: combined ≤720p ưu tiên, fallback dần xuống
-      // Video dài/music mix thường KHÔNG có progressive format → fallback audio-only
-      // (bestaudio m4a phát được trong <video> như audio-only, phù hợp nghe nhạc)
-      format: 'best[height<=720][acodec!=none][vcodec!=none]/best[height<=720]/best/bestaudio[ext=m4a]/bestaudio',
-      // Có YOUTUBE_COOKIES (login thật) thì để yt-dlp tự chọn client mặc định.
-      // KHÔNG ép player_client nữa: tv_embedded bị bỏ (unsupported), android
-      // không hỗ trợ cookies → client set hỏng, YouTube trả "Requested format
-      // is not available" trên IP datacenter.
-      socketTimeout: 20,
-      ...getCookiesOption(),
-    }), DEFAULT_TIMEOUT, 'Lấy stream');
-    if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
-    return {
-      id: info.id,
-      title: info.title,
-      author: info.channel || info.uploader || '',
-      duration: info.duration,
-      views: info.view_count,
-      description: String(info.description || '').slice(0, 2000),
-      stream_url: info.url,
-      format_id: info.format_id,
-      ext: info.ext,
-      height: info.height,
-    };
-  } catch (e) { throw toError(e); }
+  const url = normalizeUrl(urlOrId);
+  const cookies = getCookiesOption();
+  let lastErr = null;
+  for (const client of CLIENT_LADDER) {
+    try {
+      const opts = {
+        dumpSingleJson: true,
+        noPlaylist: true,
+        skipDownload: true,
+        quiet: true,
+        noWarnings: true,
+        format: STREAM_FORMAT,
+        socketTimeout: 20,
+        ...cookies,
+      };
+      if (client) opts.extractorArgs = client;
+      const info = await withTimeout(ytdl(url, opts), 30000, 'Lấy stream');
+      if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
+      return {
+        id: info.id,
+        title: info.title,
+        author: info.channel || info.uploader || '',
+        duration: info.duration,
+        views: info.view_count,
+        description: String(info.description || '').slice(0, 2000),
+        stream_url: info.url,
+        format_id: info.format_id,
+        ext: info.ext,
+        height: info.height,
+      };
+    } catch (e) {
+      lastErr = e;
+      console.log(`[ytdlpService] getVideoStream client="${client || 'default'}" failed: ${(e && e.message) || e}`);
+    }
+  }
+  throw toError(lastErr || new Error('yt-dlp không trả được URL stream'));
 }
 
 // Giới hạn độ dài audio tải về cho Tóm tắt AI (giây) — tránh 413 Groq
@@ -159,41 +183,50 @@ const SUMMARY_MAX_SECONDS = 600;
 async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   if (!outPath) throw new Error('Thiếu đường dẫn file đích');
-  try {
-    // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
-    // → không tải file nào cả. Phải dùng printJson (in JSON sau khi tải xong).
-    const out = await withTimeout(ytdl.exec(normalizeUrl(urlOrId), {
-      printJson: true,
-      noPlaylist: true,
-      quiet: true,
-      noWarnings: true,
-      format: 'bestaudio/best',
-      output: outPath + '.%(ext)s',
-      downloadSections: `*0-${SUMMARY_MAX_SECONDS}`,
-      forceKeyframesAtCuts: true,
-      extractAudio: true,
-      audioFormat: 'mp3',
-      audioQuality: '64',
-      // mono 16kHz + cắt 10 phút: chuẩn Whisper, tránh file >25MB bị Groq từ chối
-      postprocessorArgs: `ffmpeg:-ar 16000 -ac 1 -t ${SUMMARY_MAX_SECONDS}`,
-      ...(ffmpegPath ? { ffmpegLocation: ffmpegPath } : {}),
-      socketTimeout: 30,
-      ...getCookiesOption(),
-    }), timeoutMs, 'Tải audio');
-    const stdout = typeof out === 'string' ? out : ((out && out.stdout) || '');
-    const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
-    let info = null;
-    for (let i = lines.length - 1; i >= 0; i--) {
-      try { info = JSON.parse(lines[i]); break; } catch (e) { /* dòng progress — bỏ qua */ }
+  let lastErr = null;
+  for (const client of CLIENT_LADDER) {
+    try {
+      // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
+      // → không tải file nào cả. Phải dùng printJson (in JSON sau khi tải xong).
+      const opts = {
+        printJson: true,
+        noPlaylist: true,
+        quiet: true,
+        noWarnings: true,
+        format: 'bestaudio/best',
+        output: outPath + '.%(ext)s',
+        downloadSections: `*0-${SUMMARY_MAX_SECONDS}`,
+        forceKeyframesAtCuts: true,
+        extractAudio: true,
+        audioFormat: 'mp3',
+        audioQuality: '64',
+        // mono 16kHz + cắt 10 phút: chuẩn Whisper, tránh file >25MB bị Groq từ chối
+        postprocessorArgs: `ffmpeg:-ar 16000 -ac 1 -t ${SUMMARY_MAX_SECONDS}`,
+        ...(ffmpegPath ? { ffmpegLocation: ffmpegPath } : {}),
+        socketTimeout: 30,
+        ...getCookiesOption(),
+      };
+      if (client) opts.extractorArgs = client;
+      const out = await withTimeout(ytdl.exec(normalizeUrl(urlOrId), opts), timeoutMs, 'Tải audio');
+      const stdout = typeof out === 'string' ? out : ((out && out.stdout) || '');
+      const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
+      let info = null;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try { info = JSON.parse(lines[i]); break; } catch (e) { /* dòng progress — bỏ qua */ }
+      }
+      let file = '';
+      try { file = info.requested_downloads[0].filepath; } catch (e) { /* fallback bên dưới */ }
+      if (!file || !fs.existsSync(file)) {
+        file = outPath + '.mp3';
+      }
+      if (!fs.existsSync(file)) throw new Error('Không tìm thấy file mp3 sau khi tải: ' + file);
+      return { ok: true, title: info.title, file, duration: info.duration };
+    } catch (e) {
+      lastErr = e;
+      console.log(`[ytdlpService] downloadAudio client="${client || 'default'}" failed: ${(e && e.message) || e}`);
     }
-    let file = '';
-    try { file = info.requested_downloads[0].filepath; } catch (e) { /* fallback bên dưới */ }
-    if (!file || !fs.existsSync(file)) {
-      file = outPath + '.mp3';
-    }
-    if (!fs.existsSync(file)) throw new Error('Không tìm thấy file mp3 sau khi tải: ' + file);
-    return { ok: true, title: info.title, file, duration: info.duration };
-  } catch (e) { throw toError(e); }
+  }
+  throw toError(lastErr || new Error('yt-dlp không tải được audio'));
 }
 
 /**
