@@ -123,6 +123,49 @@ const getGeminiClient = async () => {
   return new GoogleGenerativeAI(key);
 };
 
+// Dịch bất kỳ ngôn ngữ → tiếng Việt.
+// Google Translate free bị CHẶN từ IP datacenter (Render trả HTML consent) → fallback
+// LLM dùng key sẵn trong khoa_api (Groq → Gemini). Nếu văn bản đã là tiếng Việt thì trả y nguyên.
+async function translateToVietnamese(text, srcLang = 'auto') {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  try {
+    const res = await fetch(
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${srcLang === 'auto' ? 'auto' : srcLang}&tl=vi&dt=t&q=${encodeURIComponent(t)}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    const raw = await res.text();
+    if (raw.trim().startsWith('[')) {
+      const data = JSON.parse(raw);
+      const out = (data[0] || []).map(s => (s && s[0]) || '').join('').trim();
+      if (out) return out;
+    }
+  } catch (e) { /* Google chặn/không JSON → rơi xuống LLM */ }
+  const prompt = `Dịch đoạn văn bản sau sang tiếng Việt tự nhiên, giữ nguyên ý nghĩa. Nếu văn bản ĐÃ LÀ tiếng Việt thì trả lại y nguyên. CHỈ trả về bản dịch, không giải thích, không thêm bất kỳ chữ nào khác:\n\n${t}`;
+  try {
+    const groq = await getGroqClient();
+    if (groq) {
+      const model = process.env.GROQ_TRANSLATE_MODEL || process.env.GROSS_SUMMARY_MODEL || 'openai/gpt-oss-20b';
+      const r = await withTimeout(groq.chat.completions.create({
+        model, temperature: 0.2, max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      }), 60000, 'Dịch');
+      const out = String((r && r.choices && r.choices[0] && r.choices[0].message && r.choices[0].message.content) || '').trim();
+      if (out) return out;
+    }
+  } catch (e) { console.log('[Translate] Groq error:', e.message); }
+  try {
+    const genAI = await getGeminiClient();
+    if (genAI) {
+      const model = genAI.getGenerativeModel({ model: process.env.GEMINI_TRANSLATE_MODEL || 'gemini-2.5-flash' });
+      const r = await withTimeout(model.generateContent(prompt), 60000, 'Dịch');
+      const out = String((r && r.response && r.response.text && r.response.text()) || '').trim();
+      if (out) return out;
+    }
+  } catch (e) { console.log('[Translate] Gemini error:', e.message); }
+  return t;
+}
+
 // Office packages
 const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle } = require('docx');
 const PptxGenJS = require('pptxgenjs');
@@ -1627,19 +1670,14 @@ router.post('/transcribe', authMiddleware, upload.single('audio'), async (req, r
       return res.json({ success: true, text: '', original: '' });
     }
 
-    // Dịch sang Tiếng Việt qua Google Translate (miễn phí, không cần key)
+    // Dịch sang tiếng Việt: Google (local) → LLM Groq/Gemini (cloud — Google bị chặn từ datacenter)
     let vietnameseText = originalText;
-    try {
-      const translateRes = await fetch(
-        `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${srcLang === 'auto' ? 'auto' : srcLang}&tl=vi&dt=t&q=${encodeURIComponent(originalText)}`,
-        { signal: AbortSignal.timeout(5000) }
-      );
-      const translateData = await translateRes.json();
-      if (translateData?.[0]?.[0]?.[0]) {
-        vietnameseText = translateData[0].map(s => s?.[0] || '').join('');
+    if (srcLang !== 'vi') {
+      try {
+        vietnameseText = await translateToVietnamese(originalText, srcLang);
+      } catch (transErr) {
+        console.log('[Transcribe] Translate error:', transErr.message);
       }
-    } catch (transErr) {
-      console.log('[Transcribe] Translate fallback error:', transErr.message);
     }
 
     res.json({ success: true, text: vietnameseText, original: originalText });
