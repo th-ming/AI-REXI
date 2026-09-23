@@ -253,4 +253,29 @@ async function getStatus() {
   };
 }
 
-module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus };
+// DEBUG (admin): chạy yt-dlp trực tiếp để dò player_client / format trên datacenter.
+// Dùng cho route GET /api/services/youtube/debug — sẽ gỡ sau khi chốt được client.
+async function debugRun(urlOrId, { client, listFormats } = {}) {
+  const bin = getBinaryPath();
+  if (!bin) throw new Error('Không tìm thấy binary yt-dlp');
+  const args = [normalizeUrl(urlOrId), '--no-playlist', '--no-warnings'];
+  const cookies = getCookiesOption();
+  if (cookies.cookies) args.push('--cookies', cookies.cookies);
+  if (client) args.push('--extractor-args', `youtube:player_client=${client}`);
+  if (listFormats) {
+    args.push('-F');
+  } else {
+    args.push('-f', STREAM_FORMAT, '--skip-download', '--print', '%(format_id)s %(ext)s %(height)s');
+  }
+  return await new Promise((resolve) => {
+    require('child_process').execFile(bin, args, { timeout: 40000, maxBuffer: 2 * 1024 * 1024 }, (err, stdout, stderr) => {
+      resolve({
+        code: err ? (err.code || 1) : 0,
+        stdout: String(stdout || '').trim().slice(0, 6000),
+        stderr: String(stderr || '').trim().slice(0, 3000),
+      });
+    });
+  });
+}
+
+module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, debugRun };
