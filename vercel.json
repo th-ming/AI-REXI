@@ -1,16 +1,9 @@
 {
-    "rewrites": [
-        {
-            "source": "/api/(.*)",
-            "destination": "https://ai-rexi-backend.onrender.com/api/$1"
-        },
-        {
-            "source": "/ws/(.*)",
-            "destination": "https://ai-rexi-backend.onrender.com/ws/$1"
-        },
+    "redirects": [
         {
             "source": "/(.*)",
-            "destination": "/index.html"
+            "destination": "https://ai-rexi-backend.onrender.com/$1",
+            "permanent": false
         }
     ]
 }
