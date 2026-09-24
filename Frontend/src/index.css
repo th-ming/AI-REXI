@@ -514,3 +514,79 @@ select {
   .rx-view, .rx-rise, .rx-shimmer::after, .animate-slide-up { animation: none !important; }
   .rx-press:active { transform: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   THEME REPAIR 24/9 — bù remap còn thiếu (nguyên nhân "cái trắng cái đen loạn").
+   Components viết dark-first (bg-[#181920]…) nhưng bảng remap LIGHT thiếu nhiều
+   màu → light mode lòi mảng tối; ngược lại dark mode lòi mảng sáng.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* --- LIGHT: bù remap cho các hex tối đang dùng nhiều --- */
+[data-theme="light"] .bg-\[\#181920\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#0d0e11\] { background-color: #eef1f7; }
+[data-theme="light"] .bg-\[\#1e1f20\] { background-color: #f4f5fa; }
+[data-theme="light"] .bg-\[\#141622\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#0d0e14\] { background-color: #eef1f7; }
+[data-theme="light"] .bg-\[\#0e0f17\],
+[data-theme="light"] .bg-\[\#0e0f15\],
+[data-theme="light"] .bg-\[\#0b0c10\],
+[data-theme="light"] .bg-\[\#0a0b0e\] { background-color: #eef1f7; }
+[data-theme="light"] .bg-\[\#1b1c2e\] { background-color: #f4f5fa; }
+[data-theme="light"] .bg-\[\#2f3236\],
+[data-theme="light"] .bg-\[\#26282b\] { background-color: #eef1f7; }
+[data-theme="light"] .bg-\[\#1a1b23\],
+[data-theme="light"] .bg-\[\#16171f\],
+[data-theme="light"] .bg-\[\#16171d\],
+[data-theme="light"] .bg-\[\#171922\],
+[data-theme="light"] .bg-\[\#14151c\],
+[data-theme="light"] .bg-\[\#141522\],
+[data-theme="light"] .bg-\[\#12141c\],
+[data-theme="light"] .bg-\[\#2f3236\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#131416\],
+[data-theme="light"] .bg-\[\#13141a\],
+[data-theme="light"] .bg-\[\#13141c\],
+[data-theme="light"] .bg-\[\#16171f\] { background-color: #f4f5fa; }
+[data-theme="light"] .bg-\[\#2b1845\] { background-color: #f3e8ff; }
+[data-theme="light"] .bg-\[\#1a1b24\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#131417\] { background-color: #e9edf4; }
+[data-theme="light"] .bg-\[\#141522\],
+[data-theme="light"] .bg-\[\#1a1b23\] { background-color: #ffffff; }
+
+/* --- LIGHT: text/white trên nền tối đã remap → phải đổi màu chữ --- */
+[data-theme="light"] .text-slate-50,
+[data-theme="light"] .text-white { color: #1a2033; }
+[data-theme="light"] .hover\:text-white:hover { color: #1a2033; }
+
+/* --- DARK: remap các class SÁNG cứng (bg-white, slate-*, text-black…) --- */
+[data-theme="dark"] .bg-white { background-color: var(--bg-card); }
+[data-theme="dark"] .bg-slate-50 { background-color: #1e1f20; }
+[data-theme="dark"] .bg-slate-100 { background-color: #282a2c; }
+[data-theme="dark"] .bg-slate-200 { background-color: #3a3d40; }
+[data-theme="dark"] .hover\:bg-slate-50:hover,
+[data-theme="dark"] .hover\:bg-slate-100:hover { background-color: #282a2c; }
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-slate-800,
+[data-theme="dark"] .text-slate-700,
+[data-theme="dark"] .text-black { color: var(--text-main); }
+[data-theme="dark"] .text-slate-600 { color: #cbd5e1; }
+[data-theme="dark"] .border-slate-200,
+[data-theme="dark"] .border-slate-300 { border-color: rgba(255,255,255,0.12); }
+[data-theme="dark"] .divide-slate-200 > * + * { border-color: rgba(255,255,255,0.12); }
+[data-theme="dark"] .bg-red-50,
+[data-theme="dark"] .bg-red-100 { background-color: rgba(239,68,68,0.14); }
+[data-theme="dark"] .bg-green-50,
+[data-theme="dark"] .bg-emerald-50 { background-color: rgba(16,185,129,0.14); }
+[data-theme="dark"] .bg-amber-50 { background-color: rgba(245,158,11,0.14); }
+[data-theme="dark"] .bg-blue-50 { background-color: rgba(59,130,246,0.14); }
+[data-theme="dark"] .text-red-600,
+[data-theme="dark"] .text-red-700 { color: #f87171; }
+[data-theme="dark"] .text-green-600,
+[data-theme="dark"] .text-emerald-600,
+[data-theme="dark"] .text-emerald-700 { color: #34d399; }
+[data-theme="dark"] .text-amber-600,
+[data-theme="dark"] .text-amber-700 { color: #fbbf24; }
+[data-theme="dark"] .text-blue-600,
+[data-theme="dark"] .text-blue-700 { color: #60a5fa; }
+[data-theme="dark"] input.bg-white,
+[data-theme="dark"] textarea.bg-white,
+[data-theme="dark"] select.bg-white { background-color: #131417; color: var(--text-main); }
