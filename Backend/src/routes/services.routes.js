@@ -1100,20 +1100,6 @@ router.get('/youtube/stream', async (req, res) => {
   }
 });
 
-// DEBUG tạm (admin): dò player_client/format trên IP datacenter — gỡ sau khi chốt client
-router.get('/youtube/debug', [authMiddleware, adminMiddleware], async (req, res) => {
-  const { url, client, list, nocookies, args } = req.query;
-  if (!url) return res.status(400).json({ success: false, error: 'Thiếu url' });
-  let extraArgs = [];
-  if (args) { try { extraArgs = JSON.parse(args); } catch (e) { return res.status(400).json({ success: false, error: 'args phải là JSON array' }); } }
-  try {
-    const r = await ytdlp.debugRun(url, { client, listFormats: list === '1', noCookies: nocookies === '1', extraArgs });
-    res.json({ success: true, ...r });
-  } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
-  }
-});
-
 // Proxy stream video (chống CORS + SSRF) — copy pattern từ iptv/proxy
 router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth, async (req, res) => {
   const { url } = req.query;

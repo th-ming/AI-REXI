@@ -40,6 +40,31 @@ function getCookiesOption() {
 let ffmpegPath = null;
 try { ffmpegPath = require('ffmpeg-static'); } catch (e) { ffmpegPath = null; }
 
+// ─── PO Token (bgutil) — vượt gate "Sign in to confirm you're not a bot" trên IP datacenter ───
+// Kiến trúc: 1 service Docker riêng chạy bgutil POT provider (HTTP, xem docs/DEPLOY-YTPOT.md),
+// main backend cài plugin `bgutil-ytdlp-pot-provider` (zip vendor trong Backend/vendor/ytdlp-plugins)
+// và trỏ tới provider qua YTPOT_BASE_URL. Bật bằng env — tắt (không set) thì mọi thứ như cũ.
+const PLUGIN_DIR = path.join(__dirname, '..', '..', 'vendor', 'ytdlp-plugins');
+function potBaseUrl() {
+  const u = (process.env.YTPOT_BASE_URL || '').trim();
+  return u || null;
+}
+function potEnabled() { return !!potBaseUrl(); }
+function potOptions() {
+  if (!potEnabled()) return {};
+  const o = {};
+  if (fs.existsSync(PLUGIN_DIR)) o.pluginDirs = PLUGIN_DIR;
+  return o;
+}
+// Ghép extractor-args: player_client + base_url provider (nhiều arg ngăn bằng ';').
+function buildExtractorArgs(client) {
+  const parts = [];
+  if (client) parts.push(`youtube:player_client=${client}`);
+  const base = potBaseUrl();
+  if (base) parts.push(`youtubepot-bgutilhttp:base_url=${base}`);
+  return parts.length ? parts.join(';') : null;
+}
+
 // Đường dẫn binary yt-dlp do youtube-dl-exec tải (check trạng thái / debug)
 function getBinaryPath() {
   try {
@@ -143,7 +168,9 @@ async function getVideoStream(urlOrId) {
   const url = normalizeUrl(urlOrId);
   const cookies = getCookiesOption();
   let lastErr = null;
-  for (const attempt of ATTEMPT_LADDER) {
+  // Khi có PO token: thử client `web` trước (PO token dùng cho web/GVS) rồi mới ladder cũ.
+  const attempts = potEnabled() ? [{ client: 'web', cookies: false }, ...ATTEMPT_LADDER] : ATTEMPT_LADDER;
+  for (const attempt of attempts) {
     try {
       const opts = {
         dumpSingleJson: true,
@@ -153,9 +180,11 @@ async function getVideoStream(urlOrId) {
         noWarnings: true,
         format: STREAM_FORMAT,
         socketTimeout: 20,
+        ...potOptions(),
         ...(attempt.cookies ? cookies : {}),
       };
-      if (attempt.client) opts.extractorArgs = `youtube:player_client=${attempt.client}`;
+      const xargs = buildExtractorArgs(attempt.client);
+      if (xargs) opts.extractorArgs = xargs;
       const info = await withTimeout(ytdl(url, opts), 30000, 'Lấy stream');
       if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
       return {
@@ -190,7 +219,8 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   if (!outPath) throw new Error('Thiếu đường dẫn file đích');
   let lastErr = null;
-  for (const attempt of ATTEMPT_LADDER) {
+  const attempts = potEnabled() ? [{ client: 'web', cookies: false }, ...ATTEMPT_LADDER] : ATTEMPT_LADDER;
+  for (const attempt of attempts) {
     try {
       // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
       // → không tải file nào cả. Phải dùng printJson (in JSON sau khi tải xong).
@@ -211,9 +241,11 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
         postprocessorArgs: `ffmpeg:-ar 16000 -ac 1 -t ${SUMMARY_MAX_SECONDS}`,
         ...(ffmpegPath ? { ffmpegLocation: ffmpegPath } : {}),
         socketTimeout: 30,
+        ...potOptions(),
         ...(attempt.cookies ? getCookiesOption() : {}),
       };
-      if (attempt.client) opts.extractorArgs = `youtube:player_client=${attempt.client}`;
+      const xargs = buildExtractorArgs(attempt.client);
+      if (xargs) opts.extractorArgs = xargs;
       const out = await withTimeout(ytdl.exec(normalizeUrl(urlOrId), opts), timeoutMs, 'Tải audio');
       const stdout = typeof out === 'string' ? out : ((out && out.stdout) || '');
       const lines = stdout.split('\n').map(l => l.trim()).filter(Boolean);
@@ -256,45 +288,11 @@ async function getStatus() {
     yt_dlp: version,
     ffmpeg: !!(ffmpegPath && fs.existsSync(ffmpegPath)),
     cookies: !!process.env.YOUTUBE_COOKIES,
+    po_token: potEnabled(),
+    pot_provider: potBaseUrl(),
+    pot_plugin: fs.existsSync(PLUGIN_DIR),
     ready: !!version,
   };
 }
 
-// DEBUG (admin): chạy yt-dlp trực tiếp để dò player_client / format trên datacenter.
-// Dùng cho route GET /api/services/youtube/debug — sẽ gỡ sau khi chốt được client.
-async function debugRun(urlOrId, { client, listFormats, noCookies, extraArgs } = {}) {
-  const bin = getBinaryPath();
-  if (!bin) throw new Error('Không tìm thấy binary yt-dlp');
-  // mode test ffmpeg: chạy ffmpeg-static -version để chẩn đoán segfault trên Render
-  if (urlOrId === '__ffmpeg__') {
-    if (!ffmpegPath) return { code: 1, stdout: '', stderr: 'ffmpeg-static không có' };
-    return await new Promise((resolve) => {
-      require('child_process').execFile(ffmpegPath, ['-hide_banner', '-version'], { timeout: 20000, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
-        resolve({ code: err ? (err.code || 1) : 0, stdout: String(stdout || '').slice(0, 1200), stderr: String(stderr || '').slice(0, 1200) });
-      });
-    });
-  }
-  const args = [normalizeUrl(urlOrId), '--no-playlist', '--no-warnings'];
-  if (!noCookies) {
-    const cookies = getCookiesOption();
-    if (cookies.cookies) args.push('--cookies', cookies.cookies);
-  }
-  if (client) args.push('--extractor-args', `youtube:player_client=${client}`);
-  if (Array.isArray(extraArgs)) args.push(...extraArgs.map(String));
-  if (listFormats) {
-    args.push('-F');
-  } else {
-    args.push('-f', STREAM_FORMAT, '--skip-download', '--print', '%(format_id)s %(ext)s %(height)s');
-  }
-  return await new Promise((resolve) => {
-    require('child_process').execFile(bin, args, { timeout: 40000, maxBuffer: 2 * 1024 * 1024 }, (err, stdout, stderr) => {
-      resolve({
-        code: err ? (err.code || 1) : 0,
-        stdout: String(stdout || '').trim().slice(0, 6000),
-        stderr: String(stderr || '').trim().slice(0, 3000),
-      });
-    });
-  });
-}
-
-module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, debugRun };
+module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus };

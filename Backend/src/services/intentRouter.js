@@ -20,7 +20,7 @@ const INTENTS = [
     id: 'image',
     tab: 'image',
     label: 'Tạo ảnh AI',
-    patterns: /(\btao (anh|hinh anh)\b|\bve (mot |buc |mot buc )?anh\b|\bve buc tranh\b|\bhinh anh ai\b|\banh con\b|\blogo cho\b|\bbackground cho\b|\banh nen\b|\bgenerate (an )?image\b|\bdraw (an? |the )?image\b|\bmake (an )?image\b|\bcreate (an )?image\b)/i,
+    patterns: /(\btao (anh|hinh anh)\b|\bve (cho|giup|minh|toi)\b[^.!?\n]{0,25}\b(meo|tranh|phong canh|chan dung|logo|icon|nhan vat|con vat|buc tranh|hinh ve)\b|\bve\b[^.!?\n]{0,12}\b(meo|tranh|phong canh|chan dung|buc tranh|hinh ve|con vat)\b|\bve buc tranh\b|\bhinh anh ai\b|\banh con\b|\blogo cho\b|\bbackground cho\b|\banh nen\b|\bgenerate (an )?image\b|\b(draw|paint)\b[^.!?\n]{0,24}\b(cat|dog|image|picture|landscape|portrait|logo|illustration|art)\b|\bmake (an )?image\b|\bcreate (an )?image\b)/i,
   },
   {
     id: 'iptv',
