@@ -158,6 +158,18 @@ const ATTEMPT_LADDER = [
   { client: 'web_safari', cookies: true },
 ];
 
+// Ladder có chèn PO token: android (nhanh, no-cookie) → web/web_safari no-cookie (dùng PO token)
+// → cookies. Chỉ thêm khi YTPOT_BASE_URL bật; video thường vẫn dừng ở android nên không chậm.
+function potLadder() {
+  if (!potEnabled()) return ATTEMPT_LADDER;
+  return [
+    ...ATTEMPT_LADDER.slice(0, 4),
+    { client: 'web', cookies: false },
+    { client: 'web_safari', cookies: false },
+    ...ATTEMPT_LADDER.slice(4),
+  ];
+}
+
 // Format chuẩn: combined ≤720p ưu tiên, rồi combined bất kỳ, rồi audio-only
 // (bestaudio m4a phát được trong <video> như audio-only). KHÔNG ưu tiên video-only
 // vì sẽ mất tiếng khi phát trực tiếp.
@@ -168,8 +180,9 @@ async function getVideoStream(urlOrId) {
   const url = normalizeUrl(urlOrId);
   const cookies = getCookiesOption();
   let lastErr = null;
-  // Khi có PO token: thử client `web` trước (PO token dùng cho web/GVS) rồi mới ladder cũ.
-  const attempts = potEnabled() ? [{ client: 'web', cookies: false }, ...ATTEMPT_LADDER] : ATTEMPT_LADDER;
+  // Khi có PO token: chèn client `web`/`web_safari` (dùng PO token GVS) vào SAU các client
+  // no-cookie nhanh (android...) nhưng TRƯỚC khi thử cookies — không làm chậm video thường.
+  const attempts = potLadder();
   for (const attempt of attempts) {
     try {
       const opts = {
@@ -219,7 +232,7 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   if (!outPath) throw new Error('Thiếu đường dẫn file đích');
   let lastErr = null;
-  const attempts = potEnabled() ? [{ client: 'web', cookies: false }, ...ATTEMPT_LADDER] : ATTEMPT_LADDER;
+  const attempts = potLadder();
   for (const attempt of attempts) {
     try {
       // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
