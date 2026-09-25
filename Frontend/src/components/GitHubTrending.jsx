@@ -692,7 +692,9 @@ export default function GitHubTrending({ token, showToast }) {
         setNotifications(data.notifications || []);
         setUnreadCount(data.unread_count || 0);
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('[GitHubTrending] Không tải được thông báo:', e.message);
+    }
   }, [token]);
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
@@ -782,7 +784,10 @@ export default function GitHubTrending({ token, showToast }) {
         body: JSON.stringify({ ids }),
       });
       fetchNotifications();
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.error('[GitHubTrending] Đánh dấu đã đọc thất bại:', e.message);
+      showToast?.('Không đánh dấu đã đọc được: ' + (e.message || 'lỗi mạng'), 'error');
+    }
   };
 
 

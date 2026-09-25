@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Download, Volume2, Mic, RotateCw, Loader2, Clock, Type, Hash, User, MapPin } from 'lucide-react';
+import { Play, Pause, Download, Volume2, Mic, RotateCw, Loader2, Clock, Type, Hash, User, MapPin, Upload, Sparkles } from 'lucide-react';
 
 // Giọng THẬT của engine Microsoft Edge TTS (lấy đúng từ voices/list — không bịa).
 // Backend /services/tts/voices cũng trả động danh sách này; đây chỉ là fallback khi offline.
@@ -44,9 +44,18 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
   const [history, setHistory] = useState([]);
   const [showVoicePanel, setShowVoicePanel] = useState(false);
   const [previewingVoice, setPreviewingVoice] = useState(null);
+  // Engine VieNeu có khả dụng không (server báo qua /tts/voices) → mở UI chọn engine + clone giọng
+  const [vieneuAvailable, setVieneuAvailable] = useState(false);
+  const [showClone, setShowClone] = useState(false);
+  const [cloneFile, setCloneFile] = useState(null);
+  const [cloneText, setCloneText] = useState('');
+  const [cloneRefText, setCloneRefText] = useState('');
+  const [cloneLoading, setCloneLoading] = useState(false);
+  const [cloneAudioUrl, setCloneAudioUrl] = useState(null);
   const audioRef = useRef(null);
   const previewAudioRef = useRef(null);
   const textareaRef = useRef(null);
+  const cloneFileRef = useRef(null);
 
   const selectedVoice = voices.find(v => v.id === voice);
 
@@ -57,35 +66,47 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
   const estimatedSeconds = Math.ceil(wordCount * 0.4);
 
+  // Tải danh sách giọng theo engine ('vieneu' | 'edge-tts' | '' = mặc định server)
+  const loadVoices = async (eng) => {
+    try {
+      const headers = {};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      const query = eng ? `?engine=${encodeURIComponent(eng)}` : '';
+      const res = await fetch(`${API_BASE}/services/tts/voices${query}`, { headers, credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.success || !Array.isArray(data.voices) || !data.voices.length) return;
+      const mapped = data.voices.map((v, i) => ({
+        id: v.id,
+        label: v.label || v.id,
+        gender: v.gender,
+        region: v.locale || v.region,
+        color: v.color || COLOR_KEYS[i % COLOR_KEYS.length],
+      }));
+      setVoices(mapped);
+      const resolvedEngine = data.engine || eng || null;
+      setEngine(resolvedEngine);
+      if (resolvedEngine === 'vieneu' && data.voice_clone) setVieneuAvailable(true);
+      if (data.default && !mapped.some(v => v.id === voice)) {
+        setVoice(data.default);
+      } else if (!mapped.some(v => v.id === voice)) {
+        setVoice(mapped[0].id);
+      }
+    } catch (err) {
+      console.error('[StudioTab] Không tải được danh sách giọng:', err);
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const headers = {};
-        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-        const res = await fetch(`${API_BASE}/services/tts/voices`, { headers, credentials: 'include' });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (cancelled || !data.success || !Array.isArray(data.voices) || !data.voices.length) return;
-        const mapped = data.voices.map((v, i) => ({
-          id: v.id,
-          label: v.label || v.id,
-          gender: v.gender,
-          region: v.locale || v.region,
-          color: v.color || COLOR_KEYS[i % COLOR_KEYS.length],
-        }));
-        setVoices(mapped);
-        setEngine(data.engine || null);
-        if (data.default && !mapped.some(v => v.id === voice)) {
-          setVoice(data.default);
-        } else if (!mapped.some(v => v.id === voice)) {
-          setVoice(mapped[0].id);
-        }
-      } catch {}
-    };
-    load();
-    return () => { cancelled = true; };
+    loadVoices();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Đổi engine: nạp lại danh sách giọng tương ứng, đóng panel clone khi rời VieNeu
+  const changeEngine = (eng) => {
+    if (!eng || eng === engine) return;
+    if (eng !== 'vieneu') setShowClone(false);
+    loadVoices(eng);
+  };
 
   const handlePreviewVoice = async (voiceId) => {
     if (previewingVoice === voiceId) {
@@ -99,7 +120,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
       const res = await fetch(`${API_BASE}/services/tts`, {
         method: 'POST', headers, credentials: 'include',
-        body: JSON.stringify({ text: 'Xin chào, đây là giọng nói mẫu.', voice: voiceId, rate: '+0%', pitch: '+0Hz' }),
+        body: JSON.stringify({ text: 'Xin chào, đây là giọng nói mẫu.', voice: voiceId, rate: '+0%', pitch: '+0Hz', engine }),
       });
       if (res.status === 401) {
         setPreviewingVoice(null);
@@ -119,7 +140,11 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
         setPreviewingVoice(null);
         if (data.error) showToast(data.error, 'error');
       }
-    } catch { setPreviewingVoice(null); }
+    } catch (err) {
+      console.error('[StudioTab] Nghe thử giọng thất bại:', err);
+      showToast?.('Không nghe thử được giọng này', 'error');
+      setPreviewingVoice(null);
+    }
   };
 
   const handleGenerate = async () => {
@@ -137,6 +162,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
           voice,
           rate: formatRate(rate),
           pitch: formatPitch(pitch),
+          engine,
         }),
       });
       if (res.status === 401) {
@@ -164,6 +190,49 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
       showToast('Lỗi: ' + err.message, 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Clone giọng: gửi file mẫu + văn bản tới backend (forward sang VieNeu /v1/clone)
+  const handleClone = async () => {
+    if (!cloneFile || !cloneText.trim()) return;
+    setCloneLoading(true);
+    setCloneAudioUrl(null);
+    try {
+      const form = new FormData();
+      form.append('audio', cloneFile);
+      form.append('text', cloneText.trim());
+      if (cloneRefText.trim()) form.append('ref_text', cloneRefText.trim());
+      const headers = {};
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      // KHÔNG set Content-Type để browser tự thêm boundary multipart
+      const res = await fetch(`${API_BASE}/services/tts/clone`, {
+        method: 'POST', headers, credentials: 'include', body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        showToast?.('Vui lòng đăng nhập để dùng TTS', 'error');
+        return;
+      }
+      if (!res.ok || !data.success || !data.audio) {
+        showToast?.(data.error || 'Clone giọng thất bại', 'error');
+        return;
+      }
+      const url = 'data:audio/wav;base64,' + data.audio;
+      setCloneAudioUrl(url);
+      setHistory(prev => [{
+        text: '[Clone] ' + cloneText.trim().substring(0, 50),
+        voice: data.voice_label || 'Giọng đã clone',
+        format: 'wav',
+        time: new Date().toLocaleTimeString('vi-VN'),
+        url
+      }, ...prev].slice(0, 10));
+      showToast?.('Clone giọng thành công!', 'success');
+    } catch (err) {
+      console.error('[StudioTab] Clone lỗi:', err);
+      showToast?.('Lỗi clone: ' + err.message, 'error');
+    } finally {
+      setCloneLoading(false);
     }
   };
 
@@ -222,7 +291,22 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {engine && (
+            {vieneuAvailable ? (
+              <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-[var(--bg-card)] border border-white/10">
+                {[['vieneu', 'VieNeu'], ['edge-tts', 'Edge']].map(([eng, lab]) => (
+                  <button
+                    key={eng}
+                    onClick={() => changeEngine(eng)}
+                    title={eng === 'vieneu' ? 'VieNeu v3 Turbo (tự host, có clone giọng)' : 'Microsoft Edge TTS'}
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${engine === eng
+                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                      : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
+                  >
+                    {lab}
+                  </button>
+                ))}
+              </div>
+            ) : engine && (
               <span className="px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-semibold">
                 {engine === 'vieneu' ? 'VieNeu v3 Turbo' : 'Edge TTS'}
               </span>
@@ -399,6 +483,91 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
                   <Download size={14} /> Tải {audioFormat.toUpperCase()}
                 </button>
               </div>
+            </div>
+          )}
+
+          {vieneuAvailable && (
+            <div className="border border-white/10 rounded-2xl overflow-hidden bg-[var(--bg-card)]">
+              <button
+                onClick={() => setShowClone(!showClone)}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-all"
+              >
+                <span className="flex items-center gap-2 text-xs font-bold text-[var(--text-main)]">
+                  <Sparkles size={14} className="text-fuchsia-400" /> Clone giọng
+                </span>
+                <span className="text-[10px] text-slate-500">{showClone ? 'Thu gọn' : 'Mở'}</span>
+              </button>
+              {showClone && (
+                <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/10">
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    Tải file ghi âm mẫu <b>3–8 giây</b> (.wav/.mp3), nhập câu cần đọc — AI sẽ đọc bằng giọng của bạn.
+                    Càng rõ, càng ít tạp âm, clone càng giống.
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      ref={cloneFileRef}
+                      type="file"
+                      accept="audio/*"
+                      className="hidden"
+                      onChange={e => setCloneFile(e.target.files?.[0] || null)}
+                    />
+                    <button
+                      onClick={() => cloneFileRef.current?.click()}
+                      className="px-3 py-2 rounded-xl bg-[var(--bg-main)] border border-white/10 text-[11px] text-slate-300 hover:border-fuchsia-500/40 flex items-center gap-1.5 transition-all"
+                    >
+                      <Upload size={12} /> {cloneFile ? cloneFile.name.slice(0, 28) : 'Chọn file mẫu'}
+                    </button>
+                    {cloneFile && (
+                      <button
+                        onClick={() => { setCloneFile(null); if (cloneFileRef.current) cloneFileRef.current.value = ''; }}
+                        className="text-[10px] text-slate-500 hover:text-rose-300 transition-colors"
+                      >
+                        Xóa
+                      </button>
+                    )}
+                    {cloneFile && (
+                      <span className="text-[10px] text-slate-500">{Math.round(cloneFile.size / 1024)} KB</span>
+                    )}
+                  </div>
+                  <textarea
+                    value={cloneText}
+                    onChange={e => setCloneText(e.target.value)}
+                    placeholder="Câu cần đọc bằng giọng clone..."
+                    maxLength={1000}
+                    className="w-full h-20 p-3 bg-[#12131a] border border-white/10 rounded-xl text-sm text-slate-200 placeholder-slate-500 outline-none resize-none focus:border-fuchsia-500/50 transition-all"
+                  />
+                  <input
+                    value={cloneRefText}
+                    onChange={e => setCloneRefText(e.target.value)}
+                    placeholder="(Tùy chọn) Nội dung đúng của file mẫu — giúp clone chính xác hơn"
+                    maxLength={500}
+                    className="w-full px-3 py-2 bg-[#12131a] border border-white/10 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-fuchsia-500/50 transition-all"
+                  />
+                  <button
+                    onClick={handleClone}
+                    disabled={cloneLoading || !cloneFile || !cloneText.trim()}
+                    className="w-full py-3 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-300 font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-fuchsia-500/30 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                  >
+                    {cloneLoading ? (
+                      <><Loader2 size={14} className="animate-spin" /> Đang clone...</>
+                    ) : (
+                      <><Sparkles size={14} /> Clone &amp; Đọc thử</>
+                    )}
+                  </button>
+                  {cloneAudioUrl && (
+                    <div className="p-3 rounded-xl bg-[var(--bg-main)] border border-fuchsia-500/30 flex items-center gap-3">
+                      <audio controls src={cloneAudioUrl} className="flex-1 h-9" />
+                      <a
+                        href={cloneAudioUrl}
+                        download={`rexi_clone_${Date.now()}.wav`}
+                        className="px-3 py-2 rounded-lg bg-fuchsia-500/20 border border-fuchsia-500/30 text-fuchsia-300 text-[10px] font-bold flex items-center gap-1 hover:bg-fuchsia-500/30 transition-all"
+                      >
+                        <Download size={12} /> WAV
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -2132,9 +2132,9 @@ useEffect(() => {
               {/* Nhóm AI */}
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">{t(lang, 'fabAi')}</p>
               {[
-                { tab: 'chat', icon: <MessageSquare size={17} />, label: 'Chat AI', color: 'text-cyan-400', desc: 'Trò chuyện với AI' },
-                { tab: 'code', icon: <Code size={17} />, label: t(lang, 'fabEditor'), color: 'text-blue-400', desc: 'Code + xem trước HTML' },
-                { tab: 'browser', icon: <Bot size={17} />, label: t(lang, 'fabBrowser'), color: 'text-purple-400', desc: 'AI điều khiển trình duyệt' },
+                { tab: 'chat', icon: <MessageSquare size={17} />, label: 'Chat AI', color: 'text-cyan-400', desc: t(lang, 'fabChatDesc') },
+                { tab: 'code', icon: <Code size={17} />, label: t(lang, 'fabEditor'), color: 'text-blue-400', desc: t(lang, 'fabEditorDesc') },
+                { tab: 'browser', icon: <Bot size={17} />, label: t(lang, 'fabBrowser'), color: 'text-purple-400', desc: t(lang, 'fabBrowserDesc') },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}
@@ -2142,12 +2142,12 @@ useEffect(() => {
               {/* Nhóm Sáng Tạo */}
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">{t(lang, 'fabCreate')}</p>
               {[
-                { tab: 'tts', icon: <Mic size={17} />, label: t(lang, 'fabTts'), color: 'text-cyan-400', desc: 'Chữ → giọng nói MP3' },
-                { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: 'AI hiểu nội dung PDF/Word/TXT' },
-                { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: 'Tạo video từ mẫu' },
-                { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: 'Edit video chuyên sâu' },
-                { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: 'Xem video không quảng cáo' },
-                { tab: 'games', icon: <Gamepad2 size={17} />, label: t(lang, 'fabGames'), color: 'text-fuchsia-400', desc: 'Chơi game HTML5 miễn phí' },
+                { tab: 'tts', icon: <Mic size={17} />, label: t(lang, 'fabTts'), color: 'text-cyan-400', desc: t(lang, 'fabTtsDesc') },
+                { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: t(lang, 'fabDocsDesc') },
+                { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: t(lang, 'fabVideoDesc') },
+                { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: t(lang, 'fabOpenCutDesc') },
+                { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: t(lang, 'fabYoutubeDesc') },
+                { tab: 'games', icon: <Gamepad2 size={17} />, label: t(lang, 'fabGames'), color: 'text-fuchsia-400', desc: t(lang, 'fabGamesDesc') },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}
@@ -2155,10 +2155,10 @@ useEffect(() => {
               {/* Nhóm Giải Trí & Hệ Thống */}
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">{t(lang, 'fabEnt')}</p>
               {[
-                { tab: 'iptv', icon: <Tv size={17} />, label: t(lang, 'fabIptv'), color: 'text-rose-400', desc: 'Xem TV trực tuyến' },
-                { tab: 'files', icon: <Folder size={17} />, label: t(lang, 'fabFiles'), color: 'text-amber-400', desc: 'Quản lý file dự án' },
-                { tab: 'desktop', icon: <Monitor size={17} />, label: t(lang, 'fabDesktop'), color: 'text-emerald-400', desc: 'Điều khiển màn hình' },
-                ...(currentUser?.phan_quyen === 'admin' ? [{ tab: 'admin', icon: <Shield size={17} />, label: t(lang, 'fabAdmin'), color: 'text-amber-400', desc: 'Bảng điều khiển admin' }] : []),
+                { tab: 'iptv', icon: <Tv size={17} />, label: t(lang, 'fabIptv'), color: 'text-rose-400', desc: t(lang, 'fabIptvDesc') },
+                { tab: 'files', icon: <Folder size={17} />, label: t(lang, 'fabFiles'), color: 'text-amber-400', desc: t(lang, 'fabFilesDesc') },
+                { tab: 'desktop', icon: <Monitor size={17} />, label: t(lang, 'fabDesktop'), color: 'text-emerald-400', desc: t(lang, 'fabDesktopDesc') },
+                ...(currentUser?.phan_quyen === 'admin' ? [{ tab: 'admin', icon: <Shield size={17} />, label: t(lang, 'fabAdmin'), color: 'text-amber-400', desc: t(lang, 'fabAdminDesc') }] : []),
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}
@@ -2173,7 +2173,7 @@ useEffect(() => {
                 <span className="text-sky-400"><BookOpen size={17} /></span>
                 <div className="flex flex-col items-start whitespace-nowrap">
                   <span>{t(lang, 'fabGuide')}</span>
-                  <span className="text-[11px] text-slate-500 font-normal line-clamp-1">Học cách dùng mọi tính năng</span>
+                  <span className="text-[11px] text-slate-500 font-normal line-clamp-1">{t(lang, 'fabGuideDesc')}</span>
                 </div>
               </button>
 

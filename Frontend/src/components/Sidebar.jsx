@@ -39,7 +39,9 @@ export default function Sidebar({
     try {
       const token = localStorage.getItem('rexi_token');
       if (token) fetch(`${API_BASE}/auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
-    } catch {}
+    } catch (e) {
+      console.warn('[Sidebar] Logout API lỗi (vẫn xóa phiên cục bộ):', e.message);
+    }
     setCurrentUser(null);
     setAuthToken('');
     localStorage.removeItem('rexi_token');

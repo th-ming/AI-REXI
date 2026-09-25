@@ -505,8 +505,10 @@ const VIENEU_VOICE_ALIAS = {
 // GET: Lấy danh sách giọng nói TTS tiếng Việt
 // VieNeu active (env VIENEU_BASE_URL) → trả 25 preset giọng v3 Turbo; ngược lại 2 giọng Edge.
 router.get('/tts/voices', async (req, res) => {
-  const { lang } = req.query;
-  if (VIENEU_BASE_URL) {
+  const { lang, engine: engineQuery } = req.query;
+  // FE có thể yêu cầu rõ engine: ?engine=edge-tts buộc trả danh sách Edge dù đã cấu hình VieNeu.
+  const wantEdge = String(engineQuery || '').trim().toLowerCase() === 'edge-tts';
+  if (VIENEU_BASE_URL && !wantEdge) {
     const ids = (await fetchVieNeuVoices()) || VIENEU_PRESET_VOICES;
     return res.json({
       success: true,
@@ -586,7 +588,7 @@ async function runEdgeTtsPython(voiceName, trimmedText, validRate, validPitch, t
 // FREE-ALL (QA 22/9/2026): TTS free cho mọi user kể cả khách vãng lai (user yêu cầu)
 // — edge-tts/VieNeu đều miễn phí không tốn key, chỉ giữ rateLimit chống abuse.
 router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
-  const { text, voice, rate, pitch } = req.body;
+  const { text, voice, rate, pitch, engine: engineInput } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'Văn bản không được để trống' });
   }
@@ -594,10 +596,14 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
   const maxLength = 1000;
   const trimmedText = text.trim().substring(0, maxLength);
   const voiceInput = String(voice || '').trim();
+  // FE chọn engine: 'vieneu' (buộc) | 'edge-tts' (buộc) | '' (mặc định ưu tiên VieNeu nếu có)
+  const enginePref = String(engineInput || '').trim().toLowerCase();
+  const forceEdge = enginePref === 'edge-tts';
+  const forceVieNeu = enginePref === 'vieneu';
 
   // Ưu tiên số 1 khi cấu hình: VieNeu v3 Turbo (tự host, 48kHz) — voice là tên preset có dấu
   // (nhận cả voice Edge cũ qua alias, cả giọng clone đã enroll trên server VieNeu)
-  if (VIENEU_BASE_URL) {
+  if (VIENEU_BASE_URL && !forceEdge) {
     try {
       const vnVoice = VIENEU_VOICE_ALIAS[voiceInput]
         || (voiceInput && !isEdgeVoiceId(voiceInput) ? voiceInput : VIENEU_DEFAULT_VOICE);
@@ -613,6 +619,16 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
         text_length: trimmedText.length
       });
     } catch (vnErr) {
+      // Người dùng chủ động chọn VieNeu → báo lỗi thật, KHÔNG lặng lẽ đổi sang Edge.
+      if (forceVieNeu) {
+        console.error('[TTS] VieNeu (forced) failed:', vnErr.message);
+        return res.status(502).json({
+          success: false,
+          engine: 'vieneu',
+          error: 'VieNeu tạm thời không phản hồi: ' + vnErr.message,
+          hint: 'Engine VieNeu chạy trên máy tự host — kiểm tra server local (port 8124) và tunnel.'
+        });
+      }
       console.warn('[TTS] VieNeu failed, falling back to Edge TTS:', vnErr.message);
     }
   }
@@ -683,6 +699,74 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
     });
   }
 });
+
+// Clone giọng (VieNeu): nhận file mẫu 3-8s + văn bản → forward multipart tới
+// {VIENEU_BASE_URL}/v1/clone → trả WAV base64 (cùng định dạng với /services/tts).
+const cloneUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('audio/')) cb(null, true);
+    else cb(new Error('Chỉ chấp nhận file audio mẫu (wav/mp3/m4a/ogg/webm)'), false);
+  }
+});
+
+router.post('/tts/clone', rateLimit({ windowMs: 60000, max: 10 }), cloneUpload.single('audio'), async (req, res) => {
+  try {
+    if (!VIENEU_BASE_URL) {
+      return res.status(503).json({
+        success: false,
+        error: 'Clone giọng cần engine VieNeu (VIENEU_BASE_URL chưa được cấu hình trên server).'
+      });
+    }
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      return res.status(400).json({ success: false, error: 'Thiếu file audio mẫu (3-8 giây).' });
+    }
+    const cloneText = String(req.body?.text || '').trim().substring(0, 1000);
+    if (!cloneText) {
+      return res.status(400).json({ success: false, error: 'Thiếu văn bản cần đọc bằng giọng clone.' });
+    }
+    const refText = String(req.body?.ref_text || '').trim().substring(0, 500);
+
+    const form = new FormData();
+    form.append('file', new Blob([req.file.buffer], { type: req.file.mimetype || 'audio/wav' }), req.file.originalname || 'ref.wav');
+    form.append('text', cloneText);
+    if (refText) form.append('ref_text', refText);
+
+    const upstream = await fetch(`${VIENEU_BASE_URL}/v1/clone`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(VIENEU_TIMEOUT_MS),
+    });
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => '');
+      console.error('[TTS clone] VieNeu HTTP', upstream.status, detail.substring(0, 200));
+      return res.status(502).json({
+        success: false,
+        engine: 'vieneu',
+        error: `VieNeu clone HTTP ${upstream.status}`,
+        detail: detail.substring(0, 200)
+      });
+    }
+    const wavBuffer = Buffer.from(await upstream.arrayBuffer());
+    if (!wavBuffer.length) {
+      return res.status(502).json({ success: false, engine: 'vieneu', error: 'VieNeu clone trả audio rỗng' });
+    }
+    return res.json({
+      success: true,
+      audio: wavBuffer.toString('base64'),
+      format: 'wav',
+      engine: 'vieneu',
+      voice: 'clone',
+      voice_label: 'Giọng đã clone',
+      text_length: cloneText.length
+    });
+  } catch (err) {
+    console.error('[TTS clone] Error:', err.message);
+    return res.status(500).json({ success: false, error: 'Lỗi clone giọng: ' + err.message });
+  }
+});
+
 const getCountryFlag = (code) => {
   if (!code || code.length !== 2) return '🌐';
   const codePoints = code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0));
