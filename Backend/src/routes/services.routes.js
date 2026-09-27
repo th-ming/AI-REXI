@@ -2246,11 +2246,13 @@ router.post('/video/save', authMiddleware, (req, res) => {
 // {success:false} để nơi gọi tự xử lý. KHÔNG đụng renderer Playwright/ffmpeg.
 const HF_VIDEO_T2V = { host: 'https://hysts-zeroscope-v2.hf.space', fn: '/run' };
 const HF_VIDEO_I2V = { host: 'https://observantdistressed-wan2-2-i2v-v3.hf.space', fn: '/generate_video' };
+// Cloudflare trước một số Space chặn UA lạ → dùng UA trình duyệt cho chắc.
+const HF_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 // Gọi Gradio 5: POST /gradio_api/call/<fn> → event_id, rồi GET SSE .../<event_id>
 // để lấy URL file. Gradio trả SSE dạng `event: ...\ndata: ...`.
 async function gradioCall(host, fn, data, timeoutMs) {
-  const hdrs = { 'Content-Type': 'application/json', 'User-Agent': 'AI-REXI/1.0', Origin: host, Referer: host + '/' };
+  const hdrs = { 'Content-Type': 'application/json', 'User-Agent': HF_UA, Origin: host, Referer: host + '/' };
   const post = await fetch(`${host}/gradio_api/call${fn}`, {
     method: 'POST', headers: hdrs, body: JSON.stringify({ data }), signal: AbortSignal.timeout(60000)
   });
@@ -2259,7 +2261,7 @@ async function gradioCall(host, fn, data, timeoutMs) {
   const eventId = j && j.event_id;
   if (!eventId) throw new Error('Gradio không trả event_id');
   const stream = await fetch(`${host}/gradio_api/call${fn}/${eventId}`, {
-    headers: { 'User-Agent': 'AI-REXI/1.0', Accept: 'text/event-stream', Origin: host, Referer: host + '/' },
+    headers: { 'User-Agent': HF_UA, Accept: 'text/event-stream', Origin: host, Referer: host + '/' },
     signal: AbortSignal.timeout(timeoutMs)
   });
   if (!stream.ok) throw new Error(`Gradio SSE HTTP ${stream.status}`);
@@ -2278,33 +2280,46 @@ async function gradioCall(host, fn, data, timeoutMs) {
   return videoUrl;
 }
 
-// prompt → video. Có image_url thì dùng Wan I2V, không thì zeroscope T2V.
+// Tải MP4 từ URL Space → Buffer + xác thực magic bytes.
+async function fetchVideoBuffer(url) {
+  const dl = await fetch(url, { headers: { 'User-Agent': HF_UA }, signal: AbortSignal.timeout(120000) });
+  if (!dl.ok) throw new Error(`Tải MP4 HTTP ${dl.status}`);
+  const buf = Buffer.from(await dl.arrayBuffer());
+  if (!buf.length) throw new Error('Video trả về rỗng');
+  // magic bytes: MP4 có 'ftyp' ở offset 4; WebM bắt đầu bằng EBML 1A 45 DF A3.
+  const isMp4 = buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70;
+  const isWebm = buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3;
+  if (!isMp4 && !isWebm) throw new Error('Dữ liệu tải về không phải video');
+  return { buf, mime: isMp4 ? 'video/mp4' : 'video/webm' };
+}
+
+// prompt → video (HuggingFace Spaces, miễn phí nhưng có thể xếp hàng/chập chờn).
+// Có image_url → thử Wan 2.2 I2V trước; lỗi thì tự rơi về zeroscope T2V để vẫn có video.
 // Trả về cùng dạng với generateImage*: {success, video:"data:<mime>;base64,...", mimeType, provider}.
 async function generateVideoHF(prompt, imageUrl) {
-  try {
-    const p = String(prompt || '').slice(0, 800);
-    let url;
-    if (imageUrl) {
+  const p = String(prompt || '').slice(0, 800);
+  let lastErr = '';
+  if (imageUrl) {
+    try {
       const img = { path: imageUrl, url: imageUrl, orig_name: 'input.png', meta: { _type: 'gradio.FileData' } };
       const data = [img, null, p || 'make this image come alive, cinematic motion, smooth animation',
         6, '', 3.5, 1, 1, 42, true, 6, 'UniPCMultistep', 3.0, 16, true, [], true, true];
-      url = await gradioCall(HF_VIDEO_I2V.host, HF_VIDEO_I2V.fn, data, 300000);
-    } else {
-      const data = [p || 'a cinematic scene', 0, 24, 20];
-      url = await gradioCall(HF_VIDEO_T2V.host, HF_VIDEO_T2V.fn, data, 300000);
+      const url = await gradioCall(HF_VIDEO_I2V.host, HF_VIDEO_I2V.fn, data, 300000);
+      const { buf, mime } = await fetchVideoBuffer(url);
+      return { success: true, video: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'hf-wan2.2-i2v', bytes: buf.length };
+    } catch (e) {
+      console.log('[generate-video] Wan I2V lỗi → rơi về zeroscope T2V:', e.message);
+      lastErr = e.message;
     }
-    const dl = await fetch(url, { signal: AbortSignal.timeout(120000) });
-    if (!dl.ok) return { success: false, error: `Tải MP4 HTTP ${dl.status}` };
-    const buf = Buffer.from(await dl.arrayBuffer());
-    if (!buf.length) return { success: false, error: 'Video trả về rỗng' };
-    // magic bytes: MP4 có 'ftyp' ở offset 4; WebM bắt đầu bằng EBML 1A 45 DF A3.
-    const isMp4 = buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70;
-    const isWebm = buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3;
-    if (!isMp4 && !isWebm) return { success: false, error: 'Dữ liệu tải về không phải video' };
-    return { success: true, video: `data:${isMp4 ? 'video/mp4' : 'video/webm'};base64,${buf.toString('base64')}`, mimeType: isMp4 ? 'video/mp4' : 'video/webm', provider: imageUrl ? 'hf-wan2.2-i2v' : 'hf-zeroscope', bytes: buf.length };
+  }
+  try {
+    const data = [p || 'a cinematic scene', 0, 24, 20];
+    const url = await gradioCall(HF_VIDEO_T2V.host, HF_VIDEO_T2V.fn, data, 300000);
+    const { buf, mime } = await fetchVideoBuffer(url);
+    return { success: true, video: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'hf-zeroscope', bytes: buf.length };
   } catch (e) {
     console.log('[generate-video] HF Space error:', e.message);
-    return { success: false, error: e.message };
+    return { success: false, error: e.message + (lastErr ? ' | i2v: ' + lastErr : '') };
   }
 }
 
