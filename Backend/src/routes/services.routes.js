@@ -2198,6 +2198,59 @@ router.post('/video/save', authMiddleware, (req, res) => {
 // trả ảnh trực tiếp qua URL, không cần key → dùng làm đường lui cho /generate-image.
 // QA 28/9: thêm HuggingFace free inference (SD3-medium, hf-inference provider) —
 // free tier, cần env HF_TOKEN (token có quyền `inference`). Ưu tiên trước pollinations.
+// ─── xKiro image generation (SenseNova U1.5 Lite) — async job API ───
+// QA 28/9: xKiro POST /v1/images/generations → 202 job → GET /v1/images/generations/{id}
+// tới status=succeeded → data[0].url (cdn.xkiro.com). Key đọc từ DB (khoa_api, 'xkiro').
+async function generateImageXkiro(prompt) {
+  try {
+    const row = await new Promise((resolve) => {
+      db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'xkiro' AND gia_tri_khoa IS NOT NULL AND TRIM(gia_tri_khoa) <> '' LIMIT 1", [], (e, r) => resolve(r));
+    });
+    if (!row) return { success: false, error: 'Không có key xkiro trong DB' };
+    let key = '';
+    try { key = decryptKey(row.gia_tri_khoa).trim(); } catch (e) { key = ''; }
+    if (!key) return { success: false, error: 'Giải mã key xkiro thất bại' };
+    const MODEL = 'sensenova/sensenova-u1.5-lite';
+    const create = await fetch('https://api.xkiro.com/v1/images/generations', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, prompt: String(prompt).slice(0, 800), n: 1, size: '1024x1024' }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const job = await create.json().catch(() => null);
+    if (!job || (!create.ok && create.status !== 202)) {
+      return { success: false, error: `xKiro HTTP ${create.status}: ${String(JSON.stringify(job)).slice(0, 140)}` };
+    }
+    const id = job.id;
+    if (!id) return { success: false, error: 'xKiro không trả job id' };
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 4000));
+      const st = await fetch(`https://api.xkiro.com/v1/images/generations/${id}`, {
+        headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(30000)
+      });
+      const sd = await st.json().catch(() => null);
+      if (!sd) continue;
+      if (sd.status === 'succeeded' || sd.status === 'completed') {
+        const url = (sd.data && sd.data[0] && sd.data[0].url) || sd.url;
+        if (!url) return { success: false, error: 'xKiro không trả url ảnh' };
+        const img = await fetch(url, { signal: AbortSignal.timeout(60000) });
+        if (!img.ok) return { success: false, error: `Tải ảnh xKiro HTTP ${img.status}` };
+        const mime = (img.headers.get('content-type') || 'image/png').split(';')[0];
+        const buf = Buffer.from(await img.arrayBuffer());
+        if (!buf.length) return { success: false, error: 'Ảnh xKiro rỗng' };
+        return { success: true, image: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'xkiro' };
+      }
+      if (sd.status === 'failed' || sd.status === 'error') {
+        return { success: false, error: 'xKiro job thất bại: ' + String(JSON.stringify(sd)).slice(0, 140) };
+      }
+    }
+    return { success: false, error: 'xKiro timeout chờ ảnh' };
+  } catch (e) {
+    console.log('[generate-image] xKiro error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 async function generateImageHF(prompt, size = 1024) {
   const token = (process.env.HF_TOKEN || '').trim();
   if (!token) return { success: false, error: 'Chưa cấu hình HF_TOKEN' };
@@ -2224,6 +2277,8 @@ async function generateImageHF(prompt, size = 1024) {
 }
 
 async function generateImageFallback(prompt, size = 1024) {
+  const xk = await generateImageXkiro(prompt);
+  if (xk.success) return xk;
   const hf = await generateImageHF(prompt, size);
   if (hf.success) return hf;
   try {
