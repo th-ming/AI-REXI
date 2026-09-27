@@ -502,6 +502,28 @@ const VIENEU_VOICE_ALIAS = {
   'vi-VN-NamMinhNeural': 'Minh Quân Pro',
 };
 
+// ── ahm7xmakki TTS (provider TTS free, không cần key — CHỈ dùng làm chốt chặn
+//    cuối khi Edge TTS/VieNeu đều lỗi) ──────────────────────────────────────
+// QA 28/9: POST https://ahm7xmakki.com/api/tts {text, voiceIndex} → audio/mpeg (MP3).
+// /api/voices trả 583 giọng; giọng Việt: index 314 HoaiMy (Nữ), 315 NamMinh (Nam).
+const AHM_TTS_VOICE_INDEX = { 'vi-VN-HoaiMyNeural': 314, 'vi-VN-NamMinhNeural': 315 };
+const AHM_TTS_DEFAULT_INDEX = 314;
+async function generateAhmTTS(text, voiceIndex) {
+  const r = await fetch('https://ahm7xmakki.com/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: String(text || '').slice(0, 1000), voiceIndex: Number(voiceIndex) || AHM_TTS_DEFAULT_INDEX }),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!r.ok) {
+    const detail = await r.text().catch(() => '');
+    throw new Error(`ahm HTTP ${r.status}${detail ? ': ' + detail.substring(0, 120) : ''}`);
+  }
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (!buf.length) throw new Error('ahm trả về audio rỗng');
+  return buf;
+}
+
 // GET: Lấy danh sách giọng nói TTS tiếng Việt
 // VieNeu active (env VIENEU_BASE_URL) → trả 25 preset giọng v3 Turbo; ngược lại 2 giọng Edge.
 router.get('/tts/voices', async (req, res) => {
@@ -692,6 +714,25 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
     throw new Error('Không thể tạo âm thanh TTS');
   } catch (err) {
     console.error('[TTS] Error:', err.message);
+    // QA 28/9: Edge TTS + Python fallback đều lỗi → thử provider TTS free ahm7xmakki
+    // (đã verify trả MP3 tiếng Việt). Không thay đổi hành vi khi Edge chạy bình thường.
+    try {
+      const ahmBuf = await generateAhmTTS(trimmedText, AHM_TTS_VOICE_INDEX[voiceName]);
+      console.warn('[TTS] Edge thất bại, dùng ahm7xmakki fallback.');
+      return res.json({
+        success: true,
+        audio: ahmBuf.toString('base64'),
+        format: 'mp3',
+        engine: 'ahm-tts',
+        provider: 'ahm7xmakki TTS',
+        voice: voiceName,
+        locale: voiceLang,
+        voice_label: edgeEntry?.friendlyName || voiceName,
+        text_length: trimmedText.length
+      });
+    } catch (ahmErr) {
+      console.error('[TTS] ahm fallback cũng lỗi:', ahmErr.message);
+    }
     res.status(500).json({
       success: false,
       error: 'Lỗi phát âm thanh: ' + err.message,
@@ -2276,9 +2317,51 @@ async function generateImageHF(prompt, size = 1024) {
   }
 }
 
+// ─── NVIDIA FLUX.1-dev (build.nvidia.com) ───
+// QA 28/9: POST https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev →
+// HTTP 200, JSON { artifacts: [{ base64 }] } (ảnh JPEG, đôi khi PNG). Key đọc từ
+// DB (khoa_api, 'nvidia', đã mã hóa) → fallback env NVIDIA_API_KEY. Đã verify:
+// 3 key khác nhau đều trả ảnh ~44-46KB; flux.1-schnell validate được nhưng
+// generation TREO vô hạn (>300s) nên chỉ dùng flux.1-dev.
+async function generateImageNvidia(prompt, size = 1024) {
+  try {
+    let key = '';
+    const row = await new Promise((resolve) => {
+      db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'nvidia' AND gia_tri_khoa IS NOT NULL AND TRIM(gia_tri_khoa) <> '' LIMIT 1", [], (e, r) => resolve(r));
+    });
+    if (row) { try { key = decryptKey(row.gia_tri_khoa).trim(); } catch (e) { key = ''; } }
+    if (!key) key = (process.env.NVIDIA_API_KEY || '').trim();
+    if (!key) return { success: false, error: 'Không có key NVIDIA (DB/env)' };
+    const dim = Math.max(256, Math.min(1024, Number(size) || 1024));
+    const r = await fetch('https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: String(prompt).slice(0, 800), mode: 'base', cfg_scale: 3.5, width: dim, height: dim, seed: 0, steps: 10 }),
+      signal: AbortSignal.timeout(180000)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      return { success: false, error: `NVIDIA HTTP ${r.status}: ${String(t).slice(0, 140)}` };
+    }
+    const data = await r.json().catch(() => null);
+    const b64 = data && data.artifacts && data.artifacts[0] && data.artifacts[0].base64;
+    if (!b64) return { success: false, error: 'NVIDIA không trả artifacts[0].base64' };
+    const buf = Buffer.from(b64, 'base64');
+    if (!buf.length) return { success: false, error: 'NVIDIA trả ảnh rỗng' };
+    // Nhận diện mime theo magic bytes (NVIDIA thường trả JPEG).
+    const mime = (buf[0] === 0x89 && buf[1] === 0x50) ? 'image/png' : 'image/jpeg';
+    return { success: true, image: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'nvidia' };
+  } catch (e) {
+    console.log('[generate-image] NVIDIA error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 async function generateImageFallback(prompt, size = 1024) {
   const xk = await generateImageXkiro(prompt);
   if (xk.success) return xk;
+  const nv = await generateImageNvidia(prompt, size);
+  if (nv.success) return nv;
   const hf = await generateImageHF(prompt, size);
   if (hf.success) return hf;
   try {
