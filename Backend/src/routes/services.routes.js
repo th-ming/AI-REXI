@@ -2018,6 +2018,10 @@ router.get('/video/status', authMiddleware, async (req, res) => {
       playwright: playwrightOk,
       playwrightBrowser,
       playwrightError,
+      // QA 28/9: tạo video AI miễn phí qua HuggingFace Spaces (endpoint /generate-video),
+      // độc lập với renderer composition (Playwright+ffmpeg) ở trên.
+      aiVideo: true,
+      aiVideoProviders: ['huggingface-spaces: zeroscope-v2 (text→video)', 'huggingface-spaces: wan2.2-14b-i2v (ảnh→video)'],
       ready: ffmpegOk && playwrightOk
     });
   } catch (err) {
@@ -2230,6 +2234,88 @@ router.post('/video/save', authMiddleware, (req, res) => {
   fs.writeFileSync(filePath, html, 'utf8');
 
   res.json({ success: true, path: filePath, name: safeName });
+});
+
+
+// ─── VIDEO AI MIỄN PHÍ (HuggingFace Spaces — Gradio API) ───────────
+// QA 28/9: kiểm chứng thật bằng HTTP + magic bytes — 2 Space công khai trả MP4
+// (magic `ftyp`), KHÔNG cần key, KHÔNG tốn tiền:
+//   · hysts/zeroscope-v2               → text→video (model zeroscope-v2, ~24 frame)
+//   · observantdistressed/wan2-2-i2v-v3 → ảnh→video (Wan 2.2 14B I2V, chất lượng cao)
+// Space free nhưng xếp hàng (queue) nên có thể chậm; lỗi/timeout thì trả
+// {success:false} để nơi gọi tự xử lý. KHÔNG đụng renderer Playwright/ffmpeg.
+const HF_VIDEO_T2V = { host: 'https://hysts-zeroscope-v2.hf.space', fn: '/run' };
+const HF_VIDEO_I2V = { host: 'https://observantdistressed-wan2-2-i2v-v3.hf.space', fn: '/generate_video' };
+
+// Gọi Gradio 5: POST /gradio_api/call/<fn> → event_id, rồi GET SSE .../<event_id>
+// để lấy URL file. Gradio trả SSE dạng `event: ...\ndata: ...`.
+async function gradioCall(host, fn, data, timeoutMs) {
+  const hdrs = { 'Content-Type': 'application/json', 'User-Agent': 'AI-REXI/1.0', Origin: host, Referer: host + '/' };
+  const post = await fetch(`${host}/gradio_api/call${fn}`, {
+    method: 'POST', headers: hdrs, body: JSON.stringify({ data }), signal: AbortSignal.timeout(60000)
+  });
+  if (!post.ok) throw new Error(`Gradio POST HTTP ${post.status}`);
+  const j = await post.json().catch(() => null);
+  const eventId = j && j.event_id;
+  if (!eventId) throw new Error('Gradio không trả event_id');
+  const stream = await fetch(`${host}/gradio_api/call${fn}/${eventId}`, {
+    headers: { 'User-Agent': 'AI-REXI/1.0', Accept: 'text/event-stream', Origin: host, Referer: host + '/' },
+    signal: AbortSignal.timeout(timeoutMs)
+  });
+  if (!stream.ok) throw new Error(`Gradio SSE HTTP ${stream.status}`);
+  const text = await stream.text();
+  let videoUrl = null;
+  for (const line of text.split('\n')) {
+    if (!line.startsWith('data:')) continue;
+    const raw = line.slice(5).trim();
+    if (!raw || raw === 'null') continue;
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (e) { continue; } // heartbeat / mảnh khác
+    const m = JSON.stringify(parsed).match(/https?:\/\/[^"\\]+\.mp4/);
+    if (m) videoUrl = m[0]; // bản ghi `complete` cuối cùng là kết quả
+  }
+  if (!videoUrl) throw new Error('Gradio không trả URL video (.mp4)');
+  return videoUrl;
+}
+
+// prompt → video. Có image_url thì dùng Wan I2V, không thì zeroscope T2V.
+// Trả về cùng dạng với generateImage*: {success, video:"data:<mime>;base64,...", mimeType, provider}.
+async function generateVideoHF(prompt, imageUrl) {
+  try {
+    const p = String(prompt || '').slice(0, 800);
+    let url;
+    if (imageUrl) {
+      const img = { path: imageUrl, url: imageUrl, orig_name: 'input.png', meta: { _type: 'gradio.FileData' } };
+      const data = [img, null, p || 'make this image come alive, cinematic motion, smooth animation',
+        6, '', 3.5, 1, 1, 42, true, 6, 'UniPCMultistep', 3.0, 16, true, [], true, true];
+      url = await gradioCall(HF_VIDEO_I2V.host, HF_VIDEO_I2V.fn, data, 300000);
+    } else {
+      const data = [p || 'a cinematic scene', 0, 24, 20];
+      url = await gradioCall(HF_VIDEO_T2V.host, HF_VIDEO_T2V.fn, data, 300000);
+    }
+    const dl = await fetch(url, { signal: AbortSignal.timeout(120000) });
+    if (!dl.ok) return { success: false, error: `Tải MP4 HTTP ${dl.status}` };
+    const buf = Buffer.from(await dl.arrayBuffer());
+    if (!buf.length) return { success: false, error: 'Video trả về rỗng' };
+    // magic bytes: MP4 có 'ftyp' ở offset 4; WebM bắt đầu bằng EBML 1A 45 DF A3.
+    const isMp4 = buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70;
+    const isWebm = buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3;
+    if (!isMp4 && !isWebm) return { success: false, error: 'Dữ liệu tải về không phải video' };
+    return { success: true, video: `data:${isMp4 ? 'video/mp4' : 'video/webm'};base64,${buf.toString('base64')}`, mimeType: isMp4 ? 'video/mp4' : 'video/webm', provider: imageUrl ? 'hf-wan2.2-i2v' : 'hf-zeroscope', bytes: buf.length };
+  } catch (e) {
+    console.log('[generate-video] HF Space error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// POST: tạo video AI miễn phí từ prompt (và tuỳ chọn ảnh nguồn) qua HuggingFace Spaces.
+router.post('/generate-video', authMiddleware, rateLimit({ windowMs: 3600000, max: 10, message: 'Bạn đã tạo 10 video trong giờ này. Vui lòng chờ thêm rồi thử lại.' }), async (req, res) => {
+  const { prompt, image_url } = req.body || {};
+  if ((!prompt || !prompt.trim()) && !image_url) {
+    return res.json({ success: false, error: 'Vui lòng nhập mô tả video (hoặc ảnh nguồn).' });
+  }
+  const out = await generateVideoHF(prompt, image_url);
+  res.json(out);
 });
 
 
