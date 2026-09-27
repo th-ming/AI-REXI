@@ -2252,7 +2252,11 @@ const HF_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHT
 // Gọi Gradio 5: POST /gradio_api/call/<fn> → event_id, rồi GET SSE .../<event_id>
 // để lấy URL file. Gradio trả SSE dạng `event: ...\ndata: ...`.
 async function gradioCall(host, fn, data, timeoutMs) {
-  const hdrs = { 'Content-Type': 'application/json', 'User-Agent': HF_UA, Origin: host, Referer: host + '/' };
+  // HF_TOKEN (env, Render đã set) nâng quota ZeroGPU lên mức tài khoản — không có token
+  // thì ZeroGPU chỉ cho ~60s/IP rồi báo "quota exceeded" cho mọi request.
+  const hfTok = (process.env.HF_TOKEN || '').trim();
+  const auth = hfTok ? { Authorization: `Bearer ${hfTok}` } : {};
+  const hdrs = { 'Content-Type': 'application/json', 'User-Agent': HF_UA, Origin: host, Referer: host + '/', ...auth };
   const post = await fetch(`${host}/gradio_api/call${fn}`, {
     method: 'POST', headers: hdrs, body: JSON.stringify({ data }), signal: AbortSignal.timeout(60000)
   });
@@ -2261,22 +2265,26 @@ async function gradioCall(host, fn, data, timeoutMs) {
   const eventId = j && j.event_id;
   if (!eventId) throw new Error('Gradio không trả event_id');
   const stream = await fetch(`${host}/gradio_api/call${fn}/${eventId}`, {
-    headers: { 'User-Agent': HF_UA, Accept: 'text/event-stream', Origin: host, Referer: host + '/' },
+    headers: { 'User-Agent': HF_UA, Accept: 'text/event-stream', Origin: host, Referer: host + '/', ...auth },
     signal: AbortSignal.timeout(timeoutMs)
   });
   if (!stream.ok) throw new Error(`Gradio SSE HTTP ${stream.status}`);
   const text = await stream.text();
   let videoUrl = null;
+  let errMsg = '';
+  let curEvent = '';
   for (const line of text.split('\n')) {
+    if (line.startsWith('event:')) { curEvent = line.slice(6).trim(); continue; }
     if (!line.startsWith('data:')) continue;
     const raw = line.slice(5).trim();
     if (!raw || raw === 'null') continue;
     let parsed;
     try { parsed = JSON.parse(raw); } catch (e) { continue; } // heartbeat / mảnh khác
+    if (curEvent === 'error') { errMsg = String(parsed && (parsed.error || parsed.message) || raw).slice(0, 200); continue; }
     const m = JSON.stringify(parsed).match(/https?:\/\/[^"\\]+\.mp4/);
     if (m) videoUrl = m[0]; // bản ghi `complete` cuối cùng là kết quả
   }
-  if (!videoUrl) throw new Error('Gradio không trả URL video (.mp4)');
+  if (!videoUrl) throw new Error(errMsg ? `Space lỗi: ${errMsg}` : 'Gradio không trả URL video (.mp4)');
   return videoUrl;
 }
 
