@@ -2196,7 +2196,36 @@ router.post('/video/save', authMiddleware, (req, res) => {
 // ─── Provider ảnh DỰ PHÒNG miễn phí (không cần API key) ───
 // QA 17/9: quota Gemini cạn là tính năng tạo ảnh chết hẳn. Pollinations (Flux)
 // trả ảnh trực tiếp qua URL, không cần key → dùng làm đường lui cho /generate-image.
+// QA 28/9: thêm HuggingFace free inference (SD3-medium, hf-inference provider) —
+// free tier, cần env HF_TOKEN (token có quyền `inference`). Ưu tiên trước pollinations.
+async function generateImageHF(prompt, size = 1024) {
+  const token = (process.env.HF_TOKEN || '').trim();
+  if (!token) return { success: false, error: 'Chưa cấu hình HF_TOKEN' };
+  try {
+    const r = await fetch('https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-3-medium-diffusers', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputs: String(prompt).slice(0, 800) }),
+      signal: AbortSignal.timeout(180000)
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => '');
+      return { success: false, error: `HF HTTP ${r.status}: ${String(t).slice(0, 140)}` };
+    }
+    const mime = (r.headers.get('content-type') || 'image/jpeg').split(';')[0];
+    if (!mime.startsWith('image/')) return { success: false, error: 'HF không trả ảnh' };
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (!buf.length) return { success: false, error: 'HF trả ảnh rỗng' };
+    return { success: true, image: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'huggingface' };
+  } catch (e) {
+    console.log('[generate-image] HF error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
 async function generateImageFallback(prompt, size = 1024) {
+  const hf = await generateImageHF(prompt, size);
+  if (hf.success) return hf;
   try {
     const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(prompt).slice(0, 800))}?width=${size}&height=${size}&nologo=true&model=flux`;
     const r = await fetch(url, { signal: AbortSignal.timeout(120000) });
