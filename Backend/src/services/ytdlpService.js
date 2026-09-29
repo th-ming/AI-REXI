@@ -192,6 +192,11 @@ async function getVideoStream(urlOrId) {
   const url = normalizeUrl(urlOrId);
   const cookies = getCookiesOption();
   let lastErr = null;
+  // R3 29/9: deadline tổng — YouTube cờ IP Render thì mọi attempt fail chậm
+  // (PO token ~20s/lần × 11 client ≈ 300s+). Capped: hết 150s thì bỏ phần còn
+  // lại của ladder, chạy fallback rồi báo lỗi rõ ràng (UX, đừng treo 6 phút).
+  const startedAt = Date.now();
+  const LADDER_DEADLINE_MS = 150000;
   // R2 29/9: chia ladder làm 2 pha — no-cookie (nhanh, PO) → publicFallback →
   // cookie attempts (cuối). Video gated hỏng toàn bộ ladder thì fallback trả
   // sớm hơn ~100s; cookie chỉ giúp khi user nạp cookies logged-in mới.
@@ -235,6 +240,7 @@ async function getVideoStream(urlOrId) {
     }
   };
   for (const attempt of attempts.filter(a => !a.cookies)) {
+    if (Date.now() - startedAt > LADDER_DEADLINE_MS) break;
     const out = await tryAttempt(attempt);
     if (out) return out;
   }
@@ -251,10 +257,18 @@ async function getVideoStream(urlOrId) {
   }
   // Cuối cùng: các attempt có cookies (session login user nếu có)
   for (const attempt of attempts.filter(a => a.cookies)) {
+    if (Date.now() - startedAt > LADDER_DEADLINE_MS) break;
     const out = await tryAttempt(attempt);
     if (out) return out;
   }
-  throw toError(lastErr || new Error('yt-dlp không trả được URL stream'));
+  // R3: hết ladder + fallback → lỗi rõ ràng cho user (thay vì "Requested format
+  // is not available" khó hiểu). Ghi kỹ thuật vào server log thôi.
+  const err = new Error(
+    'YouTube đang chặn video này với IP của server (bot-check / video age-restricted). ' +
+    'Video thường vẫn xem được — thử video khác, hoặc cấp cookies.txt đăng nhập cho backend.'
+  );
+  err.detail = (lastErr && (lastErr.stderr || lastErr.message)) || '';
+  throw toError(err);
 }
 
 // ─── Fallback public instances (Invidious → Piped) ─────────────────────────
