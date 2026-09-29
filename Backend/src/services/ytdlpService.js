@@ -156,25 +156,27 @@ const ATTEMPT_LADDER = [
   { client: 'android', cookies: false },
   { client: 'ios,android', cookies: false },
   { client: 'android_vr', cookies: false },
-  { client: null, cookies: false },          // default (visionos...) — có thể chỉ video-only
+  { client: 'tv_embedded', cookies: false },  // 29/9 R2: bypass age-gate lịch sử, chưa từng test từ IP cloud
+  { client: null, cookies: false },           // default (visionos...) — có thể chỉ video-only
   { client: null, cookies: true },           // session login (local OK, cloud có thể bị "reload")
+  { client: 'web_music', cookies: true },     // 29/9 R2: combo mạnh nhất cho age-restricted KHI user cung cấp cookies logged-in
   { client: 'tv', cookies: true },
   { client: 'web_safari', cookies: true },
 ];
 
-// Ladder có chèn PO token: android (nhanh, no-cookie) → các client web no-cookie
-// (mweb/web_embedded/web_music/web/web_safari — đều nhận PO token GVS từ provider)
-// → cookies. Chỉ thêm khi YTPOT_BASE_URL bật; video thường vẫn dừng ở android nên không chậm.
+// Ladder có chèn PO token: android (nhanh, no-cookie) → tv_embedded + default →
+// các client web no-cookie (mweb/web_embedded/web_music/web/web_safari — đều nhận
+// PO token GVS từ provider) → cookies (cuối cùng, hiếm khi thắng từ IP cloud).
 function potLadder() {
   if (!potEnabled()) return ATTEMPT_LADDER;
   return [
-    ...ATTEMPT_LADDER.slice(0, 4),
+    ...ATTEMPT_LADDER.slice(0, 5),
     { client: 'mweb', cookies: false },
     { client: 'web_embedded', cookies: false },
     { client: 'web_music', cookies: false },
     { client: 'web', cookies: false },
     { client: 'web_safari', cookies: false },
-    ...ATTEMPT_LADDER.slice(4),
+    ...ATTEMPT_LADDER.slice(5),
   ];
 }
 
@@ -190,10 +192,11 @@ async function getVideoStream(urlOrId) {
   const url = normalizeUrl(urlOrId);
   const cookies = getCookiesOption();
   let lastErr = null;
-  // Khi có PO token: chèn các client web no-cookie (nhận PO token GVS) vào SAU các client
-  // no-cookie nhanh (android...) nhưng TRƯỚC khi thử cookies — không làm chậm video thường.
+  // R2 29/9: chia ladder làm 2 pha — no-cookie (nhanh, PO) → publicFallback →
+  // cookie attempts (cuối). Video gated hỏng toàn bộ ladder thì fallback trả
+  // sớm hơn ~100s; cookie chỉ giúp khi user nạp cookies logged-in mới.
   const attempts = potLadder();
-  for (const attempt of attempts) {
+  const tryAttempt = async (attempt) => {
     try {
       const opts = {
         dumpSingleJson: true,
@@ -228,9 +231,14 @@ async function getVideoStream(urlOrId) {
     } catch (e) {
       lastErr = e;
       console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
+      return null;
     }
+  };
+  for (const attempt of attempts.filter(a => !a.cookies)) {
+    const out = await tryAttempt(attempt);
+    if (out) return out;
   }
-  // Mọi attempt yt-dlp thua (bot-check / "Requested format is not available" / reload)
+  // Mọi attempt no-cookie thua (bot-check / "Requested format is not available")
   // → thử chuỗi public instance (Invidious → Piped): stream đi qua IP instance, né IP Render.
   const vid = extractVideoId(urlOrId);
   if (vid) {
@@ -240,6 +248,11 @@ async function getVideoStream(urlOrId) {
     } catch (e) {
       console.log(`[ytdlpService] publicFallback(${vid}) failed: ${(e && e.message) || e}`);
     }
+  }
+  // Cuối cùng: các attempt có cookies (session login user nếu có)
+  for (const attempt of attempts.filter(a => a.cookies)) {
+    const out = await tryAttempt(attempt);
+    if (out) return out;
   }
   throw toError(lastErr || new Error('yt-dlp không trả được URL stream'));
 }
