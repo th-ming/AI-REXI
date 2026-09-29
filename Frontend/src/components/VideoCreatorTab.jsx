@@ -262,6 +262,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   const [previewTemplate, setPreviewTemplate] = useState(null);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiImageUrl, setAiImageUrl] = useState('');
+  const [aiScenes, setAiScenes] = useState(1);
   const [aiBusy, setAiBusy] = useState(false);
 
   const selectedFormat = FORMATS.find(f => f.id === format);
@@ -358,13 +359,15 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
     if (!aiPrompt.trim()) { showToast('Nhập mô tả video trước nhé.', 'error'); return; }
     setAiBusy(true);
     setVideoUrl(null);
-    setRenderProgress('AI đang tạo video... (20-90 giây, dùng Space công khai miễn phí)');
+    setRenderProgress(aiScenes > 1
+      ? `AI đang kể truyện: chia ${aiScenes} cảnh, tạo từng clip rồi ghép lại... (có thể mất ~${aiScenes * 25} giây)`
+      : 'AI đang tạo video... (20-90 giây, dùng Space công khai miễn phí)');
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
       const res = await fetch(`${API_BASE}/services/generate-video`, {
         method: 'POST', headers, credentials: 'include',
-        body: JSON.stringify({ prompt: aiPrompt.trim(), image_url: aiImageUrl.trim() || undefined })
+        body: JSON.stringify({ prompt: aiPrompt.trim(), image_url: aiImageUrl.trim() || undefined, scenes: aiScenes })
       });
       const data = await res.json();
       if (data.success && data.video) {
@@ -372,7 +375,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         setVideoSize(data.bytes || 0);
         setRenderProgress('');
         setStep(4);
-        showToast(`Video AI xong! (${data.provider || 'ai'})`, 'success');
+        showToast(`Video AI xong! (${data.provider || 'ai'}${data.scenes ? `, ${data.scenes} cảnh ~${data.durationSec}s` : ''})`, 'success');
       } else {
         setRenderProgress('');
         showToast(data.error || 'Tạo video AI thất bại', 'error');
@@ -538,6 +541,21 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 placeholder="VD: chú mèo vàng đội kính râm đi dạo trên bãi biển lúc hoàng hôn"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
               />
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <label className="text-[10px] text-slate-500 whitespace-nowrap">Số cảnh (1 cảnh ≈ 3 giây):</label>
+                <select
+                  value={aiScenes}
+                  onChange={(e) => setAiScenes(parseInt(e.target.value, 10) || 1)}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
+                >
+                  {[1, 2, 3, 4, 6].map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                {aiScenes > 1 && (
+                  <span className="text-[10px] text-[#4a7dff]">
+                    Kể truyện ngắn — AI tự chia {aiScenes} cảnh rồi ghép thành video ~{aiScenes * 3} giây
+                  </span>
+                )}
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 mt-2">
                 <input
                   value={aiImageUrl}

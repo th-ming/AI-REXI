@@ -2021,7 +2021,7 @@ router.get('/video/status', authMiddleware, async (req, res) => {
       // QA 28/9: tạo video AI miễn phí qua HuggingFace Spaces (endpoint /generate-video),
       // độc lập với renderer composition (Playwright+ffmpeg) ở trên.
       aiVideo: true,
-      aiVideoProviders: ['huggingface-spaces: zeroscope-v2 (text→video)', 'huggingface-spaces: wan2.2-14b-i2v (ảnh→video)'],
+      aiVideoProviders: ['huggingface-spaces: zeroscope-v2 (text→video)', 'huggingface-spaces: wan2.2-14b-i2v (ảnh→video)', 'storyboard: ghép N cảnh ~3s thành video dài (param scenes 1-6)'],
       ready: ffmpegOk && playwrightOk
     });
   } catch (err) {
@@ -2301,10 +2301,11 @@ async function fetchVideoBuffer(url) {
   return { buf, mime: isMp4 ? 'video/mp4' : 'video/webm' };
 }
 
-// prompt → video (HuggingFace Spaces, miễn phí nhưng có thể xếp hàng/chập chờn).
+// prompt → buffer video (HuggingFace Spaces, miễn phí nhưng có thể xếp hàng/chập chờn).
 // Có image_url → thử Wan 2.2 I2V trước; lỗi thì tự rơi về zeroscope T2V để vẫn có video.
-// Trả về cùng dạng với generateImage*: {success, video:"data:<mime>;base64,...", mimeType, provider}.
-async function generateVideoHF(prompt, imageUrl) {
+// Storyboard mode gọi hàm này cho TỪNG cảnh (không kèm image_url — tránh trộn resolution
+// giữa wan-i2v và zeroscope làm concat ffmpeg vỡ).
+async function generateVideoBufferHF(prompt, imageUrl) {
   const p = String(prompt || '').slice(0, 800);
   let lastErr = '';
   if (imageUrl) {
@@ -2314,7 +2315,7 @@ async function generateVideoHF(prompt, imageUrl) {
         6, '', 3.5, 1, 1, 42, true, 6, 'UniPCMultistep', 3.0, 16, true, [], true, true];
       const url = await gradioCall(HF_VIDEO_I2V.host, HF_VIDEO_I2V.fn, data, 300000);
       const { buf, mime } = await fetchVideoBuffer(url);
-      return { success: true, video: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'hf-wan2.2-i2v', bytes: buf.length };
+      return { buf, mime, provider: 'hf-wan2.2-i2v' };
     } catch (e) {
       console.log('[generate-video] Wan I2V lỗi → rơi về zeroscope T2V:', e.message);
       lastErr = e.message;
@@ -2324,21 +2325,163 @@ async function generateVideoHF(prompt, imageUrl) {
     const data = [p || 'a cinematic scene', 0, 24, 20];
     const url = await gradioCall(HF_VIDEO_T2V.host, HF_VIDEO_T2V.fn, data, 300000);
     const { buf, mime } = await fetchVideoBuffer(url);
-    return { success: true, video: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider: 'hf-zeroscope', bytes: buf.length };
+    return { buf, mime, provider: 'hf-zeroscope' };
   } catch (e) {
-    console.log('[generate-video] HF Space error:', e.message);
-    return { success: false, error: e.message + (lastErr ? ' | i2v: ' + lastErr : '') };
+    throw new Error(e.message + (lastErr ? ' | i2v: ' + lastErr : ''));
   }
 }
 
+// Trả về cùng dạng với generateImage*: {success, video:"data:<mime>;base64,...", mimeType, provider}.
+async function generateVideoHF(prompt, imageUrl) {
+  try {
+    const { buf, mime, provider } = await generateVideoBufferHF(prompt, imageUrl);
+    return { success: true, video: `data:${mime};base64,${buf.toString('base64')}`, mimeType: mime, provider, bytes: buf.length };
+  } catch (e) {
+    console.log('[generate-video] HF Space error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+// ─── STORYBOARD MODE (29/9): video DÀI từ model free chỉ sinh được ~3s/cảnh ───
+// → chia truyện thành N prompt cảnh, sinh từng clip rồi ghép bằng ffmpeg.
+// Chia cảnh bằng Groq free (key env GROQ_API_KEY hoặc DB khoa_api 'groq'),
+// lỗi/thiếu key thì rơi về tách câu thủ công — luôn trả đủ N prompt.
+async function storyboardScenes(prompt, n) {
+  const story = String(prompt || '').slice(0, 1200);
+  const fallback = () => {
+    const sents = story.split(/(?<=[.!?…])\s+/).map(s => s.trim()).filter(Boolean);
+    if (!sents.length) return Array.from({ length: n }, () => story);
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(sents[i % sents.length]);
+    return out;
+  };
+  try {
+    let key = (process.env.GROQ_API_KEY || '').trim();
+    if (!key || key === 'YOUR_GROQ_API_KEY_HERE') {
+      key = await new Promise((resolve) => {
+        db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'groq'", [], (e, r) => {
+          if (e || !r || !r.gia_tri_khoa) return resolve('');
+          try { resolve((decryptKey(r.gia_tri_khoa) || '').trim()); } catch (err) { resolve(''); }
+        });
+      });
+    }
+    if (!key) return fallback();
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.GROQ_STORY_MODEL || 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: `You split a story into exactly ${n} consecutive video scene prompts. Reply ONLY a JSON array of ${n} strings. Each string: one vivid English visual scene description (max 40 words), same characters and setting across all scenes, chronological story flow. No numbering, no extra text.` },
+          { role: 'user', content: story }
+        ],
+        temperature: 0.7, max_tokens: 700
+      }),
+      signal: AbortSignal.timeout(30000)
+    });
+    if (!r.ok) return fallback();
+    const j = await r.json().catch(() => null);
+    const txt = (j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+    const mArr = txt.match(/\[[\s\S]*\]/);
+    if (!mArr) return fallback();
+    let arr;
+    try { arr = JSON.parse(mArr[0]); } catch (e) { return fallback(); }
+    const scenes = (Array.isArray(arr) ? arr : []).filter(x => typeof x === 'string' && x.trim()).map(x => x.trim().slice(0, 300));
+    if (scenes.length < 2) return fallback();
+    while (scenes.length < n) scenes.push(scenes[scenes.length - 1]);
+    return scenes.slice(0, n);
+  } catch (e) {
+    console.log('[storyboard] Groq split lỗi → tách câu thủ công:', e.message);
+    return fallback();
+  }
+}
+
+// Ghép N buffer MP4 (cùng model → cùng codec/resolution) thành 1 file.
+// Re-encode libx264 + -r 24 cho đồng bộ timestamp — đã test bằng tay 29/9.
+function stitchClips(buffers) {
+  return new Promise((resolve, reject) => {
+    const dir = fs.mkdtempSync(path.join(videoTempDir, 'story_'));
+    let outFile = null;
+    try {
+      const lines = buffers.map((b, i) => {
+        const f = path.join(dir, `s${i}.mp4`);
+        fs.writeFileSync(f, b);
+        return `file '${f.replace(/'/g, "'\\''")}'`;
+      });
+      const listFile = path.join(dir, 'list.txt');
+      fs.writeFileSync(listFile, lines.join('\n'), 'utf8');
+      outFile = path.join(dir, 'out.mp4');
+      const proc = spawn(ffmpegPath, ['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-r', '24', outFile]);
+      let err = '';
+      proc.stderr.on('data', d => { err += d; });
+      proc.on('error', reject);
+      proc.on('close', code => {
+        if (code !== 0) return reject(new Error('ffmpeg concat exit ' + code + ': ' + err.slice(-300)));
+        try {
+          resolve(fs.readFileSync(outFile));
+        } catch (e) { reject(e); }
+      });
+    } catch (e) { reject(e); }
+  });
+}
+
 // POST: tạo video AI miễn phí từ prompt (và tuỳ chọn ảnh nguồn) qua HuggingFace Spaces.
+// Body: { prompt, image_url?, scenes? (1-6), prompts? ([cảnh 1, cảnh 2...]) }.
+// scenes > 1 (hoặc gửi mảng prompts) → storyboard mode: Groq chia truyện thành
+// các cảnh → sinh từng clip ~3s → ghép ffmpeg thành 1 video dài.
 router.post('/generate-video', authMiddleware, rateLimit({ windowMs: 3600000, max: 10, message: 'Bạn đã tạo 10 video trong giờ này. Vui lòng chờ thêm rồi thử lại.' }), async (req, res) => {
   const { prompt, image_url } = req.body || {};
-  if ((!prompt || !prompt.trim()) && !image_url) {
+  const reqScenes = Math.min(Math.max(parseInt((req.body || {}).scenes, 10) || 1, 1), 6);
+  const promptsArr = Array.isArray((req.body || {}).prompts)
+    ? (req.body || {}).prompts.filter(p => typeof p === 'string' && p.trim()).map(p => p.trim().slice(0, 800)).slice(0, 6)
+    : null;
+  if ((!prompt || !prompt.trim()) && !image_url && !(promptsArr && promptsArr.length)) {
     return res.json({ success: false, error: 'Vui lòng nhập mô tả video (hoặc ảnh nguồn).' });
   }
-  const out = await generateVideoHF(prompt, image_url);
-  res.json(out);
+  const n = promptsArr && promptsArr.length > 1 ? Math.min(promptsArr.length, 6) : reqScenes;
+  if (n <= 1 && !(promptsArr && promptsArr.length > 1)) {
+    const out = await generateVideoHF(prompt, image_url);
+    return res.json(out);
+  }
+  // ─── Storyboard: video dài ~3s x N cảnh ───
+  const sceneList = promptsArr && promptsArr.length > 1 ? promptsArr : await storyboardScenes(prompt, n);
+  const results = [];
+  const errs = [];
+  for (let i = 0; i < sceneList.length; i++) {
+    try {
+      const r = await generateVideoBufferHF(sceneList[i]);
+      results.push(r);
+    } catch (e) { errs.push(`cảnh ${i + 1}: ${String(e.message).slice(0, 120)}`); }
+  }
+  if (!results.length) {
+    return res.json({ success: false, error: 'Tất cả cảnh đều lỗi — ' + errs.join(' | ').slice(0, 300) });
+  }
+  let buf;
+  let provider = results[0].provider;
+  if (results.length === 1) {
+    buf = results[0].buf;
+  } else {
+    try {
+      buf = await stitchClips(results.map(r => r.buf));
+      provider += '-story';
+    } catch (e) {
+      console.log('[generate-video] ghép cảnh lỗi → trả cảnh đầu:', e.message);
+      buf = results[0].buf;
+      errs.push('ghép lỗi: ' + String(e.message).slice(0, 120));
+    }
+  }
+  res.json({
+    success: true,
+    video: `data:video/mp4;base64,${buf.toString('base64')}`,
+    mimeType: 'video/mp4',
+    provider,
+    bytes: buf.length,
+    scenes: results.length,
+    scenesRequested: sceneList.length,
+    durationSec: results.length * 3,
+    partial: results.length < sceneList.length,
+    ...(errs.length ? { warn: errs.join(' | ').slice(0, 200) } : {})
+  });
 });
 
 
