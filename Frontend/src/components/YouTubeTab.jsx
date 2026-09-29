@@ -184,7 +184,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
   };
 
   const handleBack = () => {
-    if (videoRef.current) { try { videoRef.current.pause(); videoRef.current.removeAttribute('src'); videoRef.current.load(); } catch {} }
+    if (videoRef.current) { try { videoRef.current.pause(); videoRef.current.removeAttribute('src'); videoRef.current.load(); } catch (e) { console.warn('[rexi] video cleanup failed', e); } }
     setSelected(null);
     setSummary(null);
     setShowTranscript(false);

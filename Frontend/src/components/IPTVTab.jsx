@@ -116,11 +116,11 @@ export default function IPTVTab({
     if (!iptvSubtitleOn) {
       // Stop capture
       if (mediaRecorderRef.current) {
-        try { mediaRecorderRef.current.stop(); } catch {}
+        try { mediaRecorderRef.current.stop(); } catch (e) { console.warn('[rexi] recorder stop failed', e); }
         mediaRecorderRef.current = null;
       }
       if (audioStreamRef.current) {
-        try { audioStreamRef.current.getTracks().forEach(t => t.stop()); } catch {}
+        try { audioStreamRef.current.getTracks().forEach(t => t.stop()); } catch (e) { console.warn('[rexi] track stop failed', e); }
         audioStreamRef.current = null;
       }
       setSubtitleText('');
@@ -260,9 +260,9 @@ export default function IPTVTab({
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
       retryEvents.forEach(eventName => video.removeEventListener(eventName, startRecorder));
-      if (recorder) { try { recorder.stop(); } catch {} }
-      if (audioStreamRef.current) { try { audioStreamRef.current.getTracks().forEach(t => t.stop()); } catch {} }
-      if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch {} }
+      if (recorder) { try { recorder.stop(); } catch (e) { console.warn('[rexi] recorder stop failed', e); } }
+      if (audioStreamRef.current) { try { audioStreamRef.current.getTracks().forEach(t => t.stop()); } catch (e) { console.warn('[rexi] track stop failed', e); } }
+      if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch (e) { console.warn('[rexi] stream stop failed', e); } }
       mediaRecorderRef.current = null;
       audioStreamRef.current = null;
     };

@@ -611,7 +611,7 @@ export default function App() {
         setAuthToken(e.newValue);
         const savedUser = localStorage.getItem('rexi_user');
         if (savedUser) {
-          try { setCurrentUser(JSON.parse(savedUser)); } catch {}
+          try { setCurrentUser(JSON.parse(savedUser)); } catch (e) { console.warn('[rexi] corrupt rexi_user in storage', e); }
         }
         showToast('Đăng nhập Google thành công!');
       }
@@ -659,7 +659,7 @@ export default function App() {
         const data = JSON.parse(e.data);
         console.log('[SSE] Model scan/update complete:', data);
         fetchAvailableModels();
-      } catch {}
+      } catch (err) { console.warn('[rexi] bad SSE model payload', err); }
     };
     evtSource.onerror = () => {};
     return () => evtSource.close();
@@ -871,7 +871,7 @@ useEffect(() => {
     try {
       const d = await apiFetch('/chat/git/diff', { headers: authHeaders() });
       setGitDiff(d.diff || '');
-    } catch {}
+    } catch (e) { console.warn('[rexi] git diff fetch failed', e); }
   };
 
   useEffect(() => {

@@ -260,6 +260,9 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   const [status, setStatus] = useState(null);
   const [category, setCategory] = useState('all');
   const [previewTemplate, setPreviewTemplate] = useState(null);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiImageUrl, setAiImageUrl] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
 
   const selectedFormat = FORMATS.find(f => f.id === format);
 
@@ -348,6 +351,37 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
       showToast('Lỗi: ' + err.message, 'error');
     } finally {
       setRendering(false);
+    }
+  };
+
+  const handleAiVideo = async () => {
+    if (!aiPrompt.trim()) { showToast('Nhập mô tả video trước nhé.', 'error'); return; }
+    setAiBusy(true);
+    setVideoUrl(null);
+    setRenderProgress('AI đang tạo video... (20-90 giây, dùng Space công khai miễn phí)');
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+      const res = await fetch(`${API_BASE}/services/generate-video`, {
+        method: 'POST', headers, credentials: 'include',
+        body: JSON.stringify({ prompt: aiPrompt.trim(), image_url: aiImageUrl.trim() || undefined })
+      });
+      const data = await res.json();
+      if (data.success && data.video) {
+        setVideoUrl(data.video.startsWith('data:') ? data.video : ('data:' + (data.mimeType || 'video/mp4') + ';base64,' + data.video));
+        setVideoSize(data.bytes || 0);
+        setRenderProgress('');
+        setStep(4);
+        showToast(`Video AI xong! (${data.provider || 'ai'})`, 'success');
+      } else {
+        setRenderProgress('');
+        showToast(data.error || 'Tạo video AI thất bại', 'error');
+      }
+    } catch (err) {
+      setRenderProgress('');
+      showToast('Lỗi: ' + err.message, 'error');
+    } finally {
+      setAiBusy(false);
     }
   };
 
@@ -486,6 +520,40 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
             <div className="text-center mb-5">
               <h2 className="text-lg font-bold text-white">Chọn mẫu video</h2>
               <p className="text-[11px] text-slate-500 mt-1">Bấm chọn mẫu — sau đó điền nội dung của bạn</p>
+            </div>
+
+            {/* Tạo video bằng AI (free) — HF Spaces */}
+            <div className="mb-6 rounded-2xl border border-[#4a7dff]/30 bg-[#4a7dff]/5 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={14} className="text-[#4a7dff]" />
+                <p className="text-xs font-bold text-slate-800">Tạo video bằng AI (miễn phí)</p>
+              </div>
+              <p className="text-[10px] text-slate-500 mb-3">
+                Mô tả cảnh bạn muốn — AI dựng video MP4. Dán URL ảnh để làm video từ ảnh (image → video).
+              </p>
+              <textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={2}
+                placeholder="VD: chú mèo vàng đội kính râm đi dạo trên bãi biển lúc hoàng hôn"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
+              />
+              <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                <input
+                  value={aiImageUrl}
+                  onChange={(e) => setAiImageUrl(e.target.value)}
+                  placeholder="(tuỳ chọn) URL ảnh để tạo video từ ảnh"
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
+                />
+                <button
+                  onClick={handleAiVideo}
+                  disabled={aiBusy}
+                  className={`px-5 py-2 rounded-lg text-xs font-bold text-white shadow transition-all active:scale-95 ${aiBusy ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff]'}`}
+                >
+                  {aiBusy ? 'Đang tạo...' : 'Tạo video AI'}
+                </button>
+              </div>
+              {renderProgress && aiBusy && <p className="text-[10px] text-slate-500 mt-2">{renderProgress}</p>}
             </div>
 
             {/* Category Filter */}

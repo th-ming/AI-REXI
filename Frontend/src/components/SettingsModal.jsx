@@ -55,15 +55,15 @@ export default function SettingsModal({
     localStorage.setItem('rexi_base_url', nextBase);
 
     // P2-23: khi đổi provider, key cũ (session) thuộc provider khác → xóa để tránh gửi nhầm key sang provider mới
-    try { sessionStorage.removeItem('rexi_api_key'); } catch {}
+    try { sessionStorage.removeItem('rexi_api_key'); } catch (e) { console.warn('[rexi] storage clear failed', e); }
 
     // KHÔNG gợi ý model mẫu — để hệ thống tự chọn model working đầu tiên của provider
   };
 
   const handleClearKey = () => {
     setApiKey('');
-    try { localStorage.removeItem('rexi_api_key'); } catch {}
-    try { sessionStorage.removeItem('rexi_api_key'); } catch {}
+    try { localStorage.removeItem('rexi_api_key'); } catch (e) { console.warn('[rexi] storage clear failed', e); }
+    try { sessionStorage.removeItem('rexi_api_key'); } catch (e) { console.warn('[rexi] storage clear failed', e); }
   };
 
   if (!settingsOpen) return null;
@@ -130,7 +130,7 @@ export default function SettingsModal({
                 <input
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
-                  onChange={e => { setApiKey(e.target.value); try { sessionStorage.setItem('rexi_api_key', e.target.value); } catch {} }}
+                  onChange={e => { setApiKey(e.target.value); try { sessionStorage.setItem('rexi_api_key', e.target.value); } catch (err) { console.warn('[rexi] storage save failed', err); } }}
                   placeholder={currentInfo.placeholder || 'Nhập API Key...'}
                   className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-cyan-400 pr-10"
                 />

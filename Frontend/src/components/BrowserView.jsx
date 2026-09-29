@@ -84,7 +84,7 @@ export default function BrowserView({ onClose }) {
     intentionalCloseRef.current = true;
     reconnectAttemptsRef.current = 0;
     if (wsRef.current) {
-      try { wsRef.current.close(); } catch {}
+      try { wsRef.current.close(); } catch (e) { console.warn('[rexi] ws close failed', e); }
       wsRef.current = null;
     }
     setConnected(false);
