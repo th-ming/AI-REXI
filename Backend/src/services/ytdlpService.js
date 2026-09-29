@@ -428,8 +428,12 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   if (!outPath) throw new Error('Thiếu đường dẫn file đích');
   let lastErr = null;
+  // R4: mirror getVideoStream — no-cookie → fallback public instance → cookie,
+  // với deadline 150s (IP Render bị cờ thì ladder thua chậm, đừng treo 5+ phút).
+  const startedAt = Date.now();
+  const LADDER_DEADLINE_MS = 150000;
   const attempts = potLadder();
-  for (const attempt of attempts) {
+  const tryAttempt = async (attempt) => {
     try {
       // LƯU Ý: KHÔNG dùng dumpJson — --dump-json của yt-dlp ÉP SIMULATE MODE
       // → không tải file nào cả. Phải dùng printJson (in JSON sau khi tải xong).
@@ -472,9 +476,15 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
     } catch (e) {
       lastErr = e;
       console.log(`[ytdlpService] downloadAudio client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
+      return null;
     }
+  };
+  for (const attempt of attempts.filter(a => !a.cookies)) {
+    if (Date.now() - startedAt > LADDER_DEADLINE_MS) break;
+    const out = await tryAttempt(attempt);
+    if (out) return out;
   }
-  // Ladder thua → tải audio qua public instance (Invidious/Piped, stream qua IP instance)
+  // Ladder no-cookie thua → tải audio qua public instance (Invidious/Piped, stream qua IP instance)
   const vid = extractVideoId(urlOrId);
   if (vid) {
     try {
@@ -484,7 +494,18 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
       console.log(`[ytdlpService] downloadAudioViaFallback(${vid}) failed: ${(e && e.message) || e}`);
     }
   }
-  throw toError(lastErr || new Error('yt-dlp không tải được audio'));
+  // Cuối cùng: các attempt có cookies
+  for (const attempt of attempts.filter(a => a.cookies)) {
+    if (Date.now() - startedAt > LADDER_DEADLINE_MS) break;
+    const out = await tryAttempt(attempt);
+    if (out) return out;
+  }
+  const err = new Error(
+    'YouTube đang chặn video này với IP của server (bot-check / video age-restricted) nên không tải được audio. ' +
+    'Thử video khác, hoặc cấp cookies.txt đăng nhập cho backend.'
+  );
+  err.detail = (lastErr && (lastErr.stderr || lastErr.message)) || '';
+  throw toError(err);
 }
 
 // Tải audio qua public instance cho /youtube/summarize: fetch stream (audio m4a
