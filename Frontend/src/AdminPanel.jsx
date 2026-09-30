@@ -1600,7 +1600,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
             <div key={h.id} className="flex items-center justify-between px-4 py-2 border-b border-white/5 text-xs">
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${h.status === 'done' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
-                  {h.status === 'done' ? <CheckCircle size={9} /> : <AlertTriangle size={9} />} {h.status}
+                  {h.status === 'done' ? <CheckCircle size={9} /> : <AlertTriangle size={9} />} {{ done: 'Hoàn tất', running: 'Đang quét', interrupted: 'Bị gián đoạn', failed: 'Thất bại' }[h.status] || h.status}
                 </span>
                 <span className="text-slate-300">{new Date(h.started_at).toLocaleString('vi-VN')}</span>
               </div>

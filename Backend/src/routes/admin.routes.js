@@ -43,6 +43,24 @@ async function tableExists(name) {
 
 const NO_DATA = { success: true, no_data: true, message: 'Chưa có dữ liệu scan. Hãy bấm nút "Quét kênh" để bắt đầu lần đầu tiên.' };
 
+// P2-audit: scan_full.js chạy ~25 phút (9201 kênh / concurrency 30) nhưng scan-now
+// chỉ cho exec 10 phút → process con bị SIGTERM giữa chừng, record 'running' không
+// bao giờ được đóng → Admin Panel hiện "đang quét" mãi và /scan-now trả 409 vĩnh viễn.
+// Recovery: mọi record 'running' quá 30 phút được đóng thành 'interrupted' ngay khi
+// admin đọc trạng thái / kích hoạt scan mới.
+const SCAN_STALE_MS = 30 * 60 * 1000;
+async function recoverStaleScans() {
+  try {
+    if (!(await tableExists('iptv_scan_log'))) return;
+    const cutoff = new Date(Date.now() - SCAN_STALE_MS).toISOString();
+    const nowIso = new Date().toISOString();
+    await runQ(
+      "UPDATE iptv_scan_log SET status='interrupted', finished_at=? WHERE status='running' AND started_at < ?",
+      [nowIso, cutoff]
+    );
+  } catch (e) { console.log('[Admin Scan] stale-recovery error:', e.message); }
+}
+
 function getFlag(code) {
   if (!code || code.length !== 2) return '';
   return String.fromCodePoint(...code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0)));
@@ -57,6 +75,7 @@ router.use((req, res, next) => {
 // ─── Trạng thái scan ─────────────────────────────────────────
 router.get('/status', async (req, res) => {
   if (!(await tableExists('iptv_channels'))) return res.json({ success: true, status: 'no_data', lastScan: null, online: 0, total: 0 });
+  await recoverStaleScans();
 
   const lastScan = await getQ("SELECT * FROM iptv_scan_log WHERE status='done' ORDER BY id DESC LIMIT 1").catch(() => null);
   const totalOnline = await getQ("SELECT COUNT(*) as cnt FROM iptv_channels WHERE status='online' AND last_checked IS NOT NULL").catch(() => ({ cnt: 0 }));
@@ -211,6 +230,7 @@ router.get('/countries', async (req, res) => {
 // ─── Lịch sử scan ───────────────────────────────────────────────
 router.get('/scan-history', async (req, res) => {
   if (!(await tableExists('iptv_scan_log'))) return res.json(NO_DATA);
+  await recoverStaleScans();
 
   const history = await allQ(`
     SELECT id, started_at, finished_at, status, total_channels, online_channels, offline_channels, new_channels, lost_channels
@@ -405,6 +425,7 @@ router.delete('/notifications/:id', async (req, res) => {
 
 // ─── Kích hoạt scan thủ công ────────────────────────────────────
 router.post('/scan-now', async (req, res) => {
+  await recoverStaleScans();
   const runningScan = await getQ("SELECT id, created_at FROM iptv_scan_log WHERE status='running' ORDER BY id DESC LIMIT 1").catch(() => null);
   if (runningScan) {
     return res.status(409).json({ success: false, error: 'Quét đang chạy rồi (bắt đầu ' + (runningScan.created_at || '?') + ') — chờ xong đã.' });
@@ -419,7 +440,9 @@ router.post('/scan-now', async (req, res) => {
   } catch {}
 
   const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'scan_full.js');
-  const cp = exec(`node "${scriptPath}" --auto`, { timeout: 600000 }, (err, stdout, stderr) => {
+  // P2-audit: 9201 kênh / concurrency 30 với timeout 8s/link ≈ 25 phút —
+  // exec timeout 10 phút cũ giết process giữa chừng → record kẹt 'running'.
+  const cp = exec(`node "${scriptPath}" --auto`, { timeout: 45 * 60 * 1000 }, (err, stdout, stderr) => {
     if (err) console.error('[Admin Scan] Error:', err.message);
     else console.log('[Admin Scan] OK');
   });

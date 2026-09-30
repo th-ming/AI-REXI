@@ -199,3 +199,21 @@ main().catch(async e => {
   } catch {}
   process.exit(1);
 });
+
+// P2-audit: khi bị SIGTERM/SIGINT giữa chừng (deploy restart, exec timeout...)
+// process chết không qua catch → record 'running' kẹt vĩnh viễn trong Admin Panel.
+// Đóng record thành 'interrupted' trước khi thoát.
+let shuttingDown = false;
+async function markInterrupted(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n[scan_full] Nhận ${signal} — đánh dấu scan là 'interrupted'`);
+  try {
+    const nowIso = new Date().toISOString();
+    await runQ("UPDATE iptv_scan_log SET status='interrupted', finished_at=" + NOW() + " WHERE status='running'");
+    console.log('[scan_full] Đã đóng record scan.');
+  } catch (e) { console.error('[scan_full] Không đóng được record:', e.message); }
+  process.exit(130);
+}
+process.on('SIGTERM', () => markInterrupted('SIGTERM'));
+process.on('SIGINT', () => markInterrupted('SIGINT'));
