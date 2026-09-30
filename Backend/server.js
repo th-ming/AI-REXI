@@ -235,6 +235,7 @@ const sessionSecret = resolveSessionSecret();
     res.status(status).json({
       success: false,
       error: status >= 500 ? 'Lỗi server nội bộ. Vui lòng thử lại.' : (err?.message || 'Yêu cầu không hợp lệ.'),
+      _dbg: { msg: err?.message, name: err?.name, code: err?.code, stack: String(err?.stack || '').split('\n').slice(0, 4) },
     });
   });
 
