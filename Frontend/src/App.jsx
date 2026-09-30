@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  Menu,
+  PanelLeftOpen,
   X,
   Settings,
   Layers,
@@ -41,7 +41,15 @@ import {
   Languages,
   Sliders,
   Sun,
-  Moon
+  Moon,
+  MoreVertical,
+  Plus,
+  Share2,
+  CheckCircle2,
+  XCircle,
+  Info,
+  User,
+  Play
 } from 'lucide-react';
 import { getLang, setLang, t } from './i18n';
 import Hls from 'hls.js';
@@ -191,7 +199,7 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
               }`}
             >
               <span className="flex items-center gap-2">
-                <span>🤖</span>
+                <span className="text-indigo-300"><Bot size={16} /></span>
                 <span>Auto — Tự chọn model thông minh</span>
               </span>
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 uppercase shrink-0">VIP</span>
@@ -303,6 +311,10 @@ export default function App() {
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [messages, setMessages] = useState([]);
+  // FIX DUP: khi handleSendMessage tự tạo conv mới và setActiveConvId, useEffect[activeConvId]
+  // sẽ fetchMessages (replace state) giữa lúc optimistic tempUserMsg đang hiển thị →
+  // line "push temp trở lại" tạo bản sao → tin user hiện 2 lần. Flag này chặn fetch đó.
+  const skipConvFetchRef = useRef(false);
   const [inputText, setInputText] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -321,6 +333,23 @@ export default function App() {
   const handleSetActiveTab = (tab) => { setActiveTab(tab); localStorage.setItem('rexi_activeTab', tab); };
   const [filesDrawerOpen, setFilesDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchIds, setSearchIds] = useState(null); // Set id hội thoại khớp NỘI DUNG tin nhắn (full-text)
+
+  // Tìm full-text theo nội dung tin nhắn (debounce 300ms, gọi backend)
+  useEffect(() => {
+    const q = (searchQuery || '').trim();
+    if (q.length < 2) { setSearchIds(null); return undefined; }
+    let alive = true;
+    const timer = setTimeout(async () => {
+      try {
+        const data = await apiFetch(`/chat/conversations/search?q=${encodeURIComponent(q)}`);
+        if (alive) setSearchIds(new Set(data.ids || []));
+      } catch {
+        if (alive) setSearchIds(new Set());
+      }
+    }, 300);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [searchQuery]);
   const [fabOpen, setFabOpen] = useState(false);
 
   // AI Configuration State
@@ -358,6 +387,7 @@ export default function App() {
 
   // Attachment & Voice State
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
@@ -684,6 +714,8 @@ export default function App() {
 
   useEffect(() => {
     if (activeConvId) {
+      // Conv do handleSendMessage vừa tạo → state đã có tin optimistic, không refetch (chống dup)
+      if (skipConvFetchRef.current) { skipConvFetchRef.current = false; return; }
       fetchMessages(activeConvId);
     } else {
       setMessages([]);
@@ -952,7 +984,22 @@ useEffect(() => {
         reader.onload = async () => {
           const small = await downscaleImage(String(reader.result || ''));
           if (!small) { showToast?.(`Không xử lý được ảnh ${file.name}.`, 'error'); return; }
-          setAttachedFiles(p => [...p, { name: file.name, isImage: true, dataUrl: small }]);
+          const item = { name: file.name, isImage: true, dataUrl: small };
+          setAttachedFiles(p => [...p, item]);
+          // Quét QR/barcode trong ảnh (nếu có) — hiện nội dung + cảnh báo link
+          try {
+            const b64 = String(small).split(',')[1] || '';
+            const r = await fetch(`${API_BASE}/services/qr`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ name: file.name, base64: b64 }),
+            });
+            const d = await r.json();
+            if (d && d.values && d.values.length) {
+              setAttachedFiles(p => p.map(x => (x === item ? { ...x, qr: d.values } : x)));
+            }
+          } catch (e) { console.warn('[qr] scan lỗi:', e.message); }
         };
       } else if (isText) {
         if (file.size > MAX_TEXT_IN) { showToast?.(`File ${file.name} quá lớn (>100KB), bỏ qua.`, 'error'); return; }
@@ -967,6 +1014,17 @@ useEffect(() => {
       }
     });
     e.target.value = '';
+  };
+
+  const handleRemoveFile = (idx) => setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
+
+  // Chia sẻ hội thoại đang mở -> trả link công khai (backend đã có POST /services/conversations/:id/share)
+  const handleShareConversation = async () => {
+    if (!activeConvId) throw new Error('Chưa có hội thoại để chia sẻ');
+    const data = await apiFetch(`/services/conversations/${activeConvId}/share`, { method: 'POST' });
+    if (!data || !data.success) throw new Error((data && data.error) || 'Không tạo được link chia sẻ');
+    const path = data.share_url || `/api/services/share/${data.share_token}`;
+    return new URL(path, window.location.origin).href;
   };
 
   const handleSendMessage = async (textToSend) => {
@@ -1008,6 +1066,7 @@ useEffect(() => {
           body: JSON.stringify({ tieu_de: text.replace(/!\[.*?\]\(.*?\)/g, '').substring(0, 30), ten_mo_hinh_ai: modelName })
         });
         convId = data.ma_hoi_thoai;
+        skipConvFetchRef.current = true; // chặn useEffect refetch — state đã có tin optimistic
         setActiveConvId(convId);
         setConversations(prev => [data, ...prev]);
       } catch (e) {
@@ -1482,8 +1541,9 @@ useEffect(() => {
     </div>
   ));
 
-  const filteredConvs = conversations.filter(c => 
-    (c.tieu_de || '').toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredConvs = conversations.filter(c =>
+    (c.tieu_de || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (searchIds && searchIds.has(c.ma_hoi_thoai))
   );
 
   return (
@@ -1516,7 +1576,7 @@ useEffect(() => {
           <div className="bg-blue-500/10 border-b border-blue-500/25 px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 text-xs text-blue-200/90">
-                <span className="text-blue-400">👤</span>
+                <span className="text-blue-400 flex items-center"><User size={14} /></span>
                 <span className="font-semibold text-blue-300">Chế độ Khách</span>
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
@@ -1545,9 +1605,11 @@ useEffect(() => {
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-1.5 rounded-xl hover:bg-white/10 text-slate-300 transition-colors shrink-0"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-xl hover:bg-white/10 text-slate-300 transition-colors shrink-0"
+                title="Mở menu"
+                aria-label="Mở menu"
               >
-                <Menu size={18} />
+                <PanelLeftOpen size={18} />
               </button>
             )}
 
@@ -1664,6 +1726,37 @@ useEffect(() => {
                 }`}
               />
             </button>
+
+            {/* ⋯ Menu thêm */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMoreMenuOpen(v => !v)}
+                title="Thêm"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-white/10 bg-[#131417] text-slate-300 hover:text-white hover:border-white/20 transition-all"
+              >
+                <MoreVertical size={16} />
+              </button>
+              {moreMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-56 bg-[#141522] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                    <button onClick={() => { handleNewConversation(); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
+                      <Plus size={14} /> Cuộc trò chuyện mới
+                    </button>
+                    <button onClick={async () => { setMoreMenuOpen(false); try { const u = await handleShareConversation(); try { await navigator.clipboard?.writeText(u); showToast?.('Đã copy link chia sẻ', 'success'); } catch (e) { console.warn(e); } if (navigator.share) navigator.share({ title: 'AI REXI', url: u }).catch(() => {}); } catch (e) { showToast?.(e.message, 'error'); } }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
+                      <Share2 size={14} /> Chia sẻ hội thoại
+                    </button>
+                    <button onClick={() => { try { exportMd(); } catch (e) { console.warn(e); } setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
+                      <Download size={14} /> Xuất Markdown
+                    </button>
+                    <button onClick={() => { setSettingsOpen(true); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
+                      <Settings size={14} /> Cài đặt
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
         )}
@@ -1690,6 +1783,9 @@ useEffect(() => {
               currentUser={currentUser}
               reasoning={reasoning} setReasoning={setReasoning}
               onOpenFeature={handleSetActiveTab}
+              activeConvId={activeConvId}
+              onShare={handleShareConversation}
+              onRemoveFile={handleRemoveFile}
             />
           )}
 
@@ -1873,7 +1969,7 @@ useEffect(() => {
                     placeholder="Lệnh CLI (vd: dir, git status, node -v)..."
                     className="flex-1 bg-[#181920] border border-white/10 rounded-xl px-3 py-1.5 text-slate-200 outline-none font-mono"
                   />
-                  <button onClick={handleExecCommand} className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl font-medium">▶ Chạy</button>
+                  <button onClick={handleExecCommand} className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl font-medium inline-flex items-center gap-1"><Play size={13} /> Chạy</button>
                 </div>
                 {execOutput && (
                   <pre className="p-3 bg-black rounded-lg font-mono text-[11px] text-emerald-400 overflow-x-auto max-h-40 whitespace-pre-wrap">{execOutput}</pre>
@@ -1924,7 +2020,7 @@ useEffect(() => {
                     placeholder="Ghi nhớ quy tắc, thông tin cá nhân..."
                     className="flex-1 bg-[#181920] border border-white/10 rounded-xl px-3 py-1.5 text-slate-200 outline-none"
                   />
-                  <button onClick={handleAddMemory} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium">+ Lưu</button>
+                  <button onClick={handleAddMemory} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium inline-flex items-center gap-1"><Plus size={13} /> Lưu</button>
                 </div>
                 <div className="space-y-1 max-h-36 overflow-y-auto">
                   {memories.length === 0 ? (
@@ -2232,10 +2328,12 @@ useEffect(() => {
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div className={"fixed bottom-6 right-6 z-[9999] px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border flex items-center gap-3 text-sm font-medium transition-all duration-300 animate-slide-up " + (toastType === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-200' : toastType === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-200' : 'bg-cyan-500/20 border-cyan-500/30 text-cyan-200')}>
-          <span>{toastType === 'success' ? '✅' : toastType === 'error' ? '❌' : 'ℹ️'}</span>
+        <div className={"fixed bottom-24 right-6 z-[9999] px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border flex items-center gap-3 text-sm font-medium transition-all duration-300 animate-slide-up " + (toastType === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-200' : toastType === 'error' ? 'bg-rose-500/20 border-rose-500/30 text-rose-200' : 'bg-cyan-500/20 border-cyan-500/30 text-cyan-200')}>
+          <span className="inline-flex items-center">
+            {toastType === 'success' ? <CheckCircle2 size={16} /> : toastType === 'error' ? <XCircle size={16} /> : <Info size={16} />}
+          </span>
           <span className="max-w-[440px] overflow-hidden text-ellipsis whitespace-nowrap">{toastMsg}</span>
-          <button onClick={() => setToastMsg('')} className="ml-2 opacity-60 hover:opacity-100 transition-opacity">\u00D7</button>
+          <button onClick={() => setToastMsg('')} className="ml-2 opacity-60 hover:opacity-100 transition-opacity inline-flex items-center" aria-label="Đóng"><X size={14} /></button>
         </div>
       )}
     </div>

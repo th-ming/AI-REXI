@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-   Menu, Plus, MessageSquare,
+   PanelLeftClose, Plus, MessageSquare,
    Layers, Zap, Search, Trash2, ChevronDown, FolderOpen,
    User, Settings, LogOut, Headphones, Shield
   } from 'lucide-react';
@@ -91,7 +91,7 @@ export default function Sidebar({
       md:relative md:shrink-0
     `}>
       {/* Header Branding */}
-      <div className="flex items-center justify-between p-4 border-b border-white/5">
+      <div className="flex items-center justify-between h-14 px-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <RexiLogo className="w-8 h-8" />
           <div>
@@ -103,9 +103,11 @@ export default function Sidebar({
         </div>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+          title={t(lang, 'collapseSidebar') || 'Thu gọn'}
+          aria-label="Thu gọn menu"
         >
-          <Menu size={18} />
+          <PanelLeftClose size={18} />
         </button>
       </div>
 
@@ -208,7 +210,7 @@ export default function Sidebar({
               </div>
               <div className="truncate max-w-[110px]">
                 <p className="text-xs font-semibold text-slate-200 truncate">{currentUser.ten_day_du}</p>
-                <p className="text-[10px] text-emerald-400 font-medium">● Connected</p>
+                <p className="text-[10px] text-emerald-400 font-medium flex items-center gap-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Connected</p>
               </div>
             </button>
             {userMenuOpen && (

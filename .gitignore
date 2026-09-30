@@ -75,3 +75,7 @@ tts_demo/
 package-lock.json
 
 Database/backups/
+
+# Local credential/artifact
+Tempopencodegh-push-cred.txt
+*cred*.txt

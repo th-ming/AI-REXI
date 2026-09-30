@@ -2819,6 +2819,23 @@ router.get('/conversations/:id/export', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== GIẢI MÃ QR / BARCODE TRONG ẢNH (0 dependency) ==========
+router.post('/qr', async (req, res) => {
+  try {
+    const { name, base64 } = req.body || {};
+    if (!base64) return res.status(400).json({ error: 'base64 required' });
+    let buf;
+    try { buf = Buffer.from(String(base64), 'base64'); } catch { return res.status(400).json({ error: 'bad base64' }); }
+    if (!buf.length || buf.length > 12 * 1024 * 1024) return res.status(400).json({ error: 'ảnh trống hoặc > 12MB' });
+    const isPng = buf.length > 8 && buf.readUInt32BE(0) === 0x89504e47;
+    if (!isPng && !/\.png$/i.test(String(name || ''))) return res.json({ ok: true, values: [], note: 'chỉ hỗ trợ PNG' });
+    const out = require('../utils/qr').decodeQR(buf);
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: 'qr: ' + e.message });
+  }
+});
+
 // ========== CHIA SẺ HỘI THOẠI (link) ==========
 router.post('/conversations/:id/share', authMiddleware, async (req, res) => {
   try {

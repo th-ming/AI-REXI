@@ -497,22 +497,8 @@ select {
 
 /* ═════════ MOTION SYSTEM — bê từ mẫu Storeify (Emil numbers) ═════════ */
 :root { --ease-out: cubic-bezier(.23,1,.32,1); }
-.rx-press { transition: transform 160ms ease-out; }
-.rx-press:active { transform: scale(.97); }
-.rx-view { animation: rx-view-in .3s var(--ease-out); }
-@keyframes rx-view-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.rx-rise { animation: rx-rise-in .45s var(--ease-out) both; }
-@keyframes rx-rise-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-.rx-toast-bar { transform-origin: left; animation: rx-tbar 2.2s linear forwards; }
-@keyframes rx-tbar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
-.rx-tgl { transition: background .2s ease-out; }
-.rx-tgl::after { transition: left .22s cubic-bezier(.3,1.5,.5,1); }
-.rx-shimmer { position: relative; overflow: hidden; }
-.rx-shimmer::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%); animation: rx-shimmer-go 1.2s ease-out; pointer-events: none; }
-@keyframes rx-shimmer-go { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) {
-  .rx-view, .rx-rise, .rx-shimmer::after, .animate-slide-up { animation: none !important; }
-  .rx-press:active { transform: none; }
+  .animate-slide-up { animation: none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════

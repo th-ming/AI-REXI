@@ -263,6 +263,37 @@ router.get('/conversations', (req, res, next) => {
   });
 });
 
+// Tìm kiếm hội thoại theo NỘI DUNG tin nhắn (full-text LIKE) — trả về danh sách id khớp
+router.get('/conversations/search', (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return guestMiddleware(req, res, next);
+  }
+  return authMiddleware(req, res, next);
+}, (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ ids: [] });
+  const like = '%' + q.toLowerCase() + '%';
+  let where;
+  const params = [];
+  if (req.user) {
+    where = 'ch.ma_nguoi_dung = ?';
+    params.push(req.user.id);
+  } else {
+    if (!req.sessionID) return res.json({ ids: [] });
+    where = 'ch.ma_nguoi_dung = ? AND ch.ma_phien = ?';
+    params.push(GUEST_USER_ID, req.sessionID);
+  }
+  params.push(like);
+  const sql = `SELECT DISTINCT ch.ma_hoi_thoai AS id
+    FROM cuoc_hoi_thoai ch JOIN tin_nhan tn ON tn.ma_hoi_thoai = ch.ma_hoi_thoai
+    WHERE ${where} AND ch.ngay_xoa IS NULL AND LOWER(tn.noi_dung) LIKE ? LIMIT 200`;
+  db.all(sql, params, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ ids: (rows || []).map((r) => r.id) });
+  });
+});
+
 router.post('/conversations', (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
