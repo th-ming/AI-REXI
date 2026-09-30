@@ -1815,6 +1815,20 @@ router.post('/transcribe', authMiddleware, upload.single('audio'), async (req, r
   }
   const tmpPath = audioFile.path;
 
+  // P2-audit: nhiều client (curl, upload file lạ) gửi audio với Content-Type
+  // application/octet-stream → Groq từ chối và request rơi xuống 500 HTML.
+  // Sniff lại mimetype theo đuôi file khi client không khai báo đúng.
+  const EXT_MIME = {
+    '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.webm': 'audio/webm', '.m4a': 'audio/mp4',
+    '.mp4': 'audio/mp4', '.ogg': 'audio/ogg', '.opus': 'audio/ogg', '.oga': 'audio/ogg',
+    '.flac': 'audio/flac', '.amr': 'audio/amr', '.aac': 'audio/aac',
+  };
+  let sendMime = audioFile.mimetype || '';
+  if (!sendMime || sendMime === 'application/octet-stream') {
+    const ext = path.extname(audioFile.originalname || '').toLowerCase();
+    sendMime = EXT_MIME[ext] || sendMime || 'application/octet-stream';
+  }
+
   try {
     const groq = await getGroqClient();
     if (!groq) {
@@ -1834,7 +1848,7 @@ router.post('/transcribe', authMiddleware, upload.single('audio'), async (req, r
       file: await Groq.toFile(
         fs.createReadStream(tmpPath),
         path.basename(tmpPath),
-        { type: audioFile.mimetype || 'application/octet-stream' }
+        { type: sendMime }
       ),
       model: 'whisper-large-v3',
       response_format: 'json',

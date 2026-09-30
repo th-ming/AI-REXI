@@ -1870,14 +1870,24 @@ router.post('/exec', authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // Git APIs
+// P2-audit: tách lệnh branch khỏi git status — trên Render checkout detached HEAD
+// khiến `git branch --show-current` trả rỗng, và lines.pop() cũ nhặt nhầm
+// dòng cuối của git status làm tên branch (" M deploy/deploy.sh").
 router.get('/git/status', authMiddleware, async (req, res) => {
   const rootDir = path.join(__dirname, '..', '..', '..');
   const { safeExec } = require('../utils/safeExec');
-  const result = await safeExec('git status --short && git branch --show-current', { cwd: rootDir, maxOutput: 10 * 1024 });
+  const result = await safeExec('git status --short', { cwd: rootDir, maxOutput: 10 * 1024 });
   if (!result.success) return res.json({ isGit: false, message: 'Thư mục không phải Git repo' });
-  const lines = result.stdout.trim().split('\n');
-  const branch = lines.pop() || 'main';
-  res.json({ isGit: true, branch, changes: lines });
+  const changes = result.stdout.trim() ? result.stdout.trim().split('\n') : [];
+
+  const br = await safeExec('git rev-parse --abbrev-ref HEAD', { cwd: rootDir, maxOutput: 1024 });
+  let branch = (br.stdout || '').trim();
+  if (!br.success || !branch || branch === 'HEAD') {
+    // Detached HEAD (deploy từ commit cụ thể) → hiện "detached@<hash>" thay vì branch sai
+    const h = await safeExec('git rev-parse --short HEAD', { cwd: rootDir, maxOutput: 1024 });
+    branch = 'detached@' + ((h.stdout || '').trim() || 'unknown');
+  }
+  res.json({ isGit: true, branch, changes });
 });
 
 router.get('/git/diff', authMiddleware, async (req, res) => {

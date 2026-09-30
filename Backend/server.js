@@ -223,6 +223,21 @@ const sessionSecret = resolveSessionSecret();
       });
   }
 
+  // P2-audit: Global JSON error handler
+  // Truoc day moi loi nem ra ngoai route handler (multer, async throw...) roi vao
+  // default error handler cua Express -> tra trang HTML "Internal Server Error"
+  // -> FE goi r.json() vo ("Unexpected token <"). Gio moi loi tra JSON.
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, next) => {
+    const status = typeof err?.status === 'number' && err.status >= 400 ? err.status : 500;
+    if (status >= 500) console.error('[Error]', req.method, req.originalUrl, err?.message);
+    if (res.headersSent) return next(err);
+    res.status(status).json({
+      success: false,
+      error: status >= 500 ? 'Lỗi server nội bộ. Vui lòng thử lại.' : (err?.message || 'Yêu cầu không hợp lệ.'),
+    });
+  });
+
   // Khá»Ÿi Ä‘á»™ng server + auto-scanner IPTV + Model Health Scanner
   const { startScheduler } = require('./src/scheduler');
   const { startGitHubScheduler } = require('./src/github-trending-scheduler');
