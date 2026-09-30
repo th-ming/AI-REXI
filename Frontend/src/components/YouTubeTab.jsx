@@ -79,6 +79,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
   const [summary, setSummary] = useState(null); // { title, transcript, summary }
   const [summaryStep, setSummaryStep] = useState('');
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showSrt, setShowSrt] = useState(false);
   const videoRef = useRef(null);
   const [engineReady, setEngineReady] = useState(null);
   const [engineNote, setEngineNote] = useState('');
@@ -164,6 +165,8 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     if (!selected || summarizing) return;
     setSummarizing(true);
     setSummary(null);
+    setShowTranscript(false);
+    setShowSrt(false);
     setSummaryStep('Đang tải audio từ video...');
     try {
       const res = await fetch(`${API_BASE}/services/youtube/summarize`, {
@@ -188,6 +191,15 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     setSelected(null);
     setSummary(null);
     setShowTranscript(false);
+    setShowSrt(false);
+  };
+
+  const downloadSrt = () => {
+    if (!summary?.srt) return;
+    const a = document.createElement('a');
+    a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(summary.srt);
+    a.download = `${(selected?.title || 'youtube').replace(/[^\w\d]+/g, '_').slice(0, 60)}.srt`;
+    a.click();
   };
 
   // Dùng proxy backend để tránh CORS
@@ -405,6 +417,25 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                         {showTranscript ? 'Ẩn transcript' : 'Xem transcript'}
                         {showTranscript ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                       </button>
+                    )}
+                    {summary.srt && (
+                      <>
+                        <button
+                          onClick={() => setShowSrt(!showSrt)}
+                          className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
+                        >
+                          <Subtitles size={11} />
+                          {showSrt ? 'Ẩn phụ đề' : 'Xem phụ đề'}
+                          {showSrt ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                        </button>
+                        <button
+                          onClick={downloadSrt}
+                          className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
+                          title="Tải file .srt"
+                        >
+                          <Download size={11} /> SRT
+                        </button>
+                      </>
                     )}
                   </div>
                   <div className="px-4 py-3 max-h-80 overflow-y-auto">
