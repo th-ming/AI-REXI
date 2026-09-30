@@ -16,6 +16,14 @@ function stripDiacritics(s) {
 // Bảng intent: pattern (không dấu, word-boundary) → tab + hành động gợi ý
 // LƯU Ý M1: text đầu vào đã stripDiacritics → pattern chứa dấu không bao giờ match.
 const INTENTS = [
+  // P1-audit: 'video' phải đứng TRƯỚC 'image' — câu "tạo video từ ảnh con mèo"
+  // chứa cả "tao video" lẫn "anh con" → nếu image match trước sẽ gợi ý sai tab.
+  {
+    id: 'video',
+    tab: 'video',
+    label: 'Tạo video',
+    patterns: /(\btao video\b|\blam video\b|\bvideo tu (anh|hinh|mau)\b|\bcreate a video\b|\bmake a video\b|\bvideo creator\b)/i,
+  },
   {
     id: 'image',
     tab: 'image',
@@ -45,12 +53,6 @@ const INTENTS = [
     tab: 'tts',
     label: 'Chuyển giọng nói',
     patterns: /(\bchuyen (van ban|text|chu) thanh giong\b|\bdoc (van ban|text) thanh tieng\b|\btts\b|\btext to speech\b|\bgiong noi\b|\bchuyen chu thanh giong\b)/i,
-  },
-  {
-    id: 'video',
-    tab: 'video',
-    label: 'Tạo video',
-    patterns: /(\btao video\b|\blam video\b|\bvideo tu (anh|hinh|mau)\b|\bcreate a video\b|\bmake a video\b|\bvideo creator\b)/i,
   },
   {
     id: 'opencut',
