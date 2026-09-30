@@ -73,7 +73,13 @@ const upload = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // P2-20(5): 50MB → 25MB max (multer này chỉ dùng cho /transcribe)
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['audio/webm', 'audio/mp3', 'audio/wav', 'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-wav', 'audio/x-m4a'];
-    if (allowedTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+    // P2-audit: nhiều client (curl, upload từ app lạ) gửi file audio với Content-Type
+    // application/octet-stream → bị chặn ở đây trước khi handler kịp sniff theo đuôi file.
+    // Chấp nhận octet-stream khi ĐUÔI file là audio — handler sẽ map mimetype theo đuôi.
+    const AUDIO_EXT = ['.wav', '.mp3', '.webm', '.m4a', '.mp4', '.ogg', '.opus', '.oga', '.flac', '.amr', '.aac'];
+    if (allowedTypes.includes(file.mimetype)
+      || file.mimetype.startsWith('audio/')
+      || (file.mimetype === 'application/octet-stream' && AUDIO_EXT.includes(path.extname(file.originalname || '').toLowerCase()))) {
       cb(null, true);
     } else {
       cb(new Error('Chỉ chấp nhận file audio (mp3, wav, webm, m4a, ogg, mp4)'), false);
