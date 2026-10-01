@@ -310,8 +310,16 @@ async function getVideoStream(urlOrId) {
 // Render (và trình duyệt user) chỉ nói chuyện với instance. Mọi thứ free.
 // Instances đổi liên tục → hard-code list + health-check runtime (probe stream
 // thật bằng Range request, chỉ nhận 200/206 + content-type video|audio).
-const INVIDIOUS_HOSTS = ['invidious.f5.si', 'iv.melmac.space', 'inv.nadeko.net', 'invidious.jing.rocks', 'yewtu.be'];
-const PIPED_HOSTS = ['api.piped.private.coffee', 'pipedapi.kavin.rocks'];
+const INVIDIOUS_HOSTS = [
+  'invidious.f5.si', 'inv.nadeko.net', 'invidious.nerdvpn.de', 'invidious.privacyredirect.com',
+  'iv.datura.network', 'invidious.einfachzocken.eu', 'yt.artemislena.eu', 'invidious.protokolla.fi',
+  'iv.melmac.space', 'invidious.jing.rocks', 'yewtu.be',
+];
+const PIPED_HOSTS = [
+  'api.piped.private.coffee', 'pipedapi.adminforge.de', 'pipedapi.reallyaweso.me', 'api.piped.yt',
+  'piped-api.lunar.icu', 'api.piped.privacydev.net', 'pipedapi.drgns.space', 'pipedapi.ducks.party',
+  'pipedapi.kavin.rocks',
+];
 
 // Danh sách instance SỐNG ĐỘNG (cache 30 phút). Instance Invidious/Piped chết
 // liên tục — chỉ hard-code vài host là không đủ (đo 1/10: Invidious 1/5 sống,
@@ -342,6 +350,14 @@ async function discoverInstances() {
   return _instCache;
 }
 const uniqHosts = (a) => [...new Set(a.filter(Boolean))];
+
+// Nhớ host vừa phục vụ được → lần sau thử nó trước (giảm thời gian + tăng tỉ lệ thành công).
+const _prefHost = { invidious: null, piped: null };
+function orderHosts(list, pref) {
+  const u = uniqHosts(list);
+  if (pref && u.includes(pref)) return [pref, ...u.filter(h => h !== pref)];
+  return u;
+}
 
 // Cache kết quả stream (success) trong 30 phút — Render free yếu CPU,
 // tránh chạy lại cả ladder + fallback cho mỗi lần user bấm play lại.
@@ -412,8 +428,8 @@ function fallbackShape(vid, meta, streamUrl, { formatId, ext, height, provider, 
  */
 async function publicFallback(vid, opts = {}) {
   try { await discoverInstances(); } catch (e) { /* dùng hard-code */ }
-  const invHosts = uniqHosts([...INVIDIOUS_HOSTS, ..._instCache.invidious]).slice(0, 6);
-  const pipedHosts = uniqHosts([...PIPED_HOSTS, ..._instCache.piped]).slice(0, 5);
+  const invHosts = orderHosts([...INVIDIOUS_HOSTS, ..._instCache.invidious], _prefHost.invidious).slice(0, 8);
+  const pipedHosts = orderHosts([...PIPED_HOSTS, ..._instCache.piped], _prefHost.piped).slice(0, 6);
   // 1) Invidious: GET /api/v1/videos/{id} → formatStreams (progressive) → /latest_version local=true
   for (const host of invHosts) {
     try {
@@ -434,6 +450,7 @@ async function publicFallback(vid, opts = {}) {
         const streamUrl = `https://${host}/latest_version?id=${vid}&itag=${pick.itag}&local=true`;
         if (await probeStream(streamUrl)) {
           const height = parseInt(String(pick.resolution || '').replace('p', ''), 10) || undefined;
+          _prefHost.invidious = host;
           return fallbackShape(vid, { title: j.title, author: j.author, duration: j.lengthSeconds, views: j.viewCount, description: j.description },
             streamUrl, { formatId: `invidious:${pick.itag}`, ext: pick.container || 'mp4', height, provider: `invidious:${host}` });
         }
@@ -443,6 +460,7 @@ async function publicFallback(vid, opts = {}) {
       if (audio) {
         const audioUrl = `https://${host}/latest_version?id=${vid}&itag=140&local=true`;
         if (await probeStream(audioUrl)) {
+          _prefHost.invidious = host;
           return fallbackShape(vid, { title: j.title, author: j.author, duration: j.lengthSeconds, views: j.viewCount, description: j.description },
             audioUrl, { formatId: 'invidious:140', ext: 'm4a', height: 0, provider: `invidious:${host}`, audioOnly: true });
         }
@@ -464,6 +482,7 @@ async function publicFallback(vid, opts = {}) {
       if (opts.preferAudio && as.length) {
         const a = as.find(s => String(s.mimeType || '').includes('m4a')) || as[0];
         if (a && a.url && await probeStream(a.url)) {
+          _prefHost.piped = host;
           return fallbackShape(vid, { title: j.title, author: j.uploader, duration: j.duration, views: j.views, description: j.description },
             a.url, { formatId: `piped:${a.itag}`, ext: 'm4a', height: 0, provider: `piped:${host}`, audioOnly: true });
         }
@@ -474,6 +493,7 @@ async function publicFallback(vid, opts = {}) {
       if (pick && pick.url && await probeStream(pick.url)) {
         const height = parseInt(String(pick.quality || '').replace('p', ''), 10) || undefined;
         const ext = /webm/i.test(pick.mimeType || '') ? 'webm' : 'mp4';
+        _prefHost.piped = host;
         return fallbackShape(vid, { title: j.title, author: j.uploader, duration: j.duration, views: j.views, description: j.description },
           pick.url, { formatId: `piped:${pick.itag}`, ext, height, provider: `piped:${host}` });
       }
