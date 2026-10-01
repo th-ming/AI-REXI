@@ -677,6 +677,20 @@ export default function App() {
     if (!currentUser) fetchGuestLimits();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Login (form/Google) là SPA transition, không reload trang: các fetch ở trên đã chạy
+  // khi CHƯA có token (401 → dữ liệu rỗng cả session). Khi user được set sau mount → tải lại.
+  const authRefetchInitRef = useRef(false);
+  useEffect(() => {
+    if (!authRefetchInitRef.current) { authRefetchInitRef.current = true; return; }
+    if (!currentUser) return;
+    fetchConversations();
+    fetchFileTree();
+    fetchDbSkills();
+    fetchGitStatus();
+    fetchMemories();
+    fetchAvailableModels();
+  }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Khi có model mới được đăng tải hoặc quét xong từ Admin Panel → load lại danh sách model ở Menu Header Trang Chủ
   useEffect(() => {
     fetchAvailableModels();
@@ -895,10 +909,12 @@ useEffect(() => {
         const url = URL.createObjectURL(blob);
         setDesktopScreenshot(url);
       } else {
+        let msg = `Lỗi chụp màn hình (${res.status}). Thử lại sau.`;
+        try { const d = await res.json(); if (d?.error) msg = d.error; } catch (e) {}
         setDesktopScreenshot(null);
         setDesktopError(res.status === 401
           ? 'Cần đăng nhập để dùng Remote Desktop.'
-          : `Lỗi chụp màn hình (${res.status}). Thử lại sau.`);
+          : msg);
       }
     } catch (e) {
       setDesktopScreenshot(null);
