@@ -65,6 +65,38 @@ function buildExtractorArgs(client) {
   return parts.length ? parts.join(';') : null;
 }
 
+// ─── Chẩn đoán ladder (hiển thị /youtube/status) ───────────────────────────
+// Lưu lỗi gần nhất của từng client để debug từ xa không cần log Render.
+const _ladderErrors = [];
+function recordLadderError(client, cookies, err) {
+  const msg = String((err && (err.stderr || err.message)) || err || '')
+    .split('\n').map(s => s.trim()).filter(Boolean).slice(-1)[0] || 'yt-dlp lỗi';
+  _ladderErrors.push({ client: client || 'default', cookies: !!cookies, err: msg.slice(0, 240), at: Date.now() });
+  if (_ladderErrors.length > 24) _ladderErrors.shift();
+}
+function getLadderErrors() { return _ladderErrors.slice(-24); }
+
+// ─── Giữ POT provider "ấm" ──────────────────────────────────────────────────
+// Provider là Render free → spin-down; cold start ~30-60s khiến mọi attempt
+// (dùng PO token) timeout → direct ladder thua oan và phải rơi xuống Piped.
+// Ping /ping mỗi 5 phút để giữ nó thức. unref() để không giữ process sống.
+let _potKeepAliveStarted = false;
+async function warmPotProvider() {
+  const base = potBaseUrl();
+  if (!base) return false;
+  try {
+    const res = await fetch(`${base.replace(/\/$/, '')}/ping`, { signal: AbortSignal.timeout(15000) });
+    return res.ok;
+  } catch { return false; }
+}
+function startPotKeepAlive() {
+  if (_potKeepAliveStarted || !potEnabled()) return;
+  _potKeepAliveStarted = true;
+  warmPotProvider().catch(() => {});
+  const t = setInterval(() => warmPotProvider().catch(() => {}), 5 * 60 * 1000);
+  if (t.unref) t.unref();
+}
+
 // Đường dẫn binary yt-dlp do youtube-dl-exec tải (check trạng thái / debug)
 function getBinaryPath() {
   try {
@@ -235,6 +267,7 @@ async function getVideoStream(urlOrId) {
       return out;
     } catch (e) {
       lastErr = e;
+      recordLadderError(attempt.client, attempt.cookies, e);
       console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
       return null;
     }
@@ -279,6 +312,36 @@ async function getVideoStream(urlOrId) {
 // thật bằng Range request, chỉ nhận 200/206 + content-type video|audio).
 const INVIDIOUS_HOSTS = ['invidious.f5.si', 'iv.melmac.space', 'inv.nadeko.net', 'invidious.jing.rocks', 'yewtu.be'];
 const PIPED_HOSTS = ['api.piped.private.coffee', 'pipedapi.kavin.rocks'];
+
+// Danh sách instance SỐNG ĐỘNG (cache 30 phút). Instance Invidious/Piped chết
+// liên tục — chỉ hard-code vài host là không đủ (đo 1/10: Invidious 1/5 sống,
+// Piped 1/2). Gộp hard-code + list public, thử lần lượt tới khi có host chạy.
+const _instCache = { at: 0, invidious: [], piped: [] };
+async function discoverInstances() {
+  if (Date.now() - _instCache.at < 30 * 60 * 1000) return _instCache;
+  try {
+    const res = await fetch('https://api.invidious.io/instances.json?sort_by=type,users', { signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const arr = await res.json();
+      _instCache.invidious = (Array.isArray(arr) ? arr : [])
+        .map(x => (Array.isArray(x) ? x[1] : x))
+        .filter(o => o && (!o.type || o.type === 'https') && o.uri)
+        .map(o => String(o.uri).replace(/^https?:\/\//, '').replace(/\/$/, ''));
+    }
+  } catch (e) { /* giữ cache cũ */ }
+  try {
+    const res = await fetch('https://piped-instances.kavin.rocks/', { signal: AbortSignal.timeout(8000) });
+    if (res.ok) {
+      const arr = await res.json();
+      _instCache.piped = (Array.isArray(arr) ? arr : [])
+        .map(o => (o && o.api_url) ? String(o.api_url).replace(/^https?:\/\//, '').replace(/\/$/, '') : null)
+        .filter(Boolean);
+    }
+  } catch (e) { /* giữ cache cũ */ }
+  _instCache.at = Date.now();
+  return _instCache;
+}
+const uniqHosts = (a) => [...new Set(a.filter(Boolean))];
 
 // Cache kết quả stream (success) trong 30 phút — Render free yếu CPU,
 // tránh chạy lại cả ladder + fallback cho mỗi lần user bấm play lại.
@@ -348,8 +411,11 @@ function fallbackShape(vid, meta, streamUrl, { formatId, ext, height, provider, 
  * @returns shape getVideoStream hoặc null
  */
 async function publicFallback(vid, opts = {}) {
+  try { await discoverInstances(); } catch (e) { /* dùng hard-code */ }
+  const invHosts = uniqHosts([...INVIDIOUS_HOSTS, ..._instCache.invidious]).slice(0, 6);
+  const pipedHosts = uniqHosts([...PIPED_HOSTS, ..._instCache.piped]).slice(0, 5);
   // 1) Invidious: GET /api/v1/videos/{id} → formatStreams (progressive) → /latest_version local=true
-  for (const host of INVIDIOUS_HOSTS) {
+  for (const host of invHosts) {
     try {
       const res = await fetch(`https://${host}/api/v1/videos/${vid}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -384,7 +450,7 @@ async function publicFallback(vid, opts = {}) {
     } catch (e) { /* instance chết/time-out → thử con tiếp theo */ }
   }
   // 2) Piped: GET /streams/{id} → videoStreams (URL đã proxied qua proxy của Piped)
-  for (const host of PIPED_HOSTS) {
+  for (const host of pipedHosts) {
     try {
       const res = await fetch(`https://${host}/streams/${vid}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -475,6 +541,7 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
       return { ok: true, title: info.title, file, duration: info.duration };
     } catch (e) {
       lastErr = e;
+      recordLadderError(attempt.client, attempt.cookies, e);
       console.log(`[ytdlpService] downloadAudio client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
       return null;
     }
@@ -560,8 +627,13 @@ async function getStatus() {
     po_token: potEnabled(),
     pot_provider: potBaseUrl(),
     pot_plugin: fs.existsSync(PLUGIN_DIR),
+    pot_warm: _potKeepAliveStarted,
     ready: !!version,
+    ladder_errors: getLadderErrors(),
   };
 }
 
-module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus };
+// Bật keepalive POT ngay khi module được nạp (server require service này lúc boot).
+startPotKeepAlive();
+
+module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, getLadderErrors, warmPotProvider };

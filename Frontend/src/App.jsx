@@ -49,7 +49,8 @@ import {
   XCircle,
   Info,
   User,
-  Play
+  Play,
+  GraduationCap
 } from 'lucide-react';
 import { getLang, setLang, t } from './i18n';
 import Hls from 'hls.js';
@@ -70,6 +71,7 @@ import ImageGenTab from './components/ImageGenTab';
 import DocumentsTab from './components/DocumentsTab';
 import YouTubeTab from './components/YouTubeTab';
 import GameTab from './components/GameTab';
+import ClassroomTab from './components/ClassroomTab';
 import BrowserView from './components/BrowserView';
 import HelpModal from './components/HelpModal';
 
@@ -1895,6 +1897,11 @@ useEffect(() => {
             <GameTab showToast={showToast} />
           )}
 
+          {/* TAB 5f: LỚP HỌC AI (OpenMAIC — multi-agent classroom) */}
+          {activeTab === 'classroom' && (
+            <ClassroomTab showToast={showToast} />
+          )}
+
           {/* TAB 6: REMOTE DESKTOP CONTROL */}
           {activeTab === 'desktop' && (
             <div className="flex flex-col h-full w-full p-4 bg-[#0d0e11] space-y-3">
@@ -2267,6 +2274,7 @@ useEffect(() => {
                 { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: t(lang, 'fabOpenCutDesc') },
                 { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: t(lang, 'fabYoutubeDesc') },
                 { tab: 'games', icon: <Gamepad2 size={17} />, label: t(lang, 'fabGames'), color: 'text-fuchsia-400', desc: t(lang, 'fabGamesDesc') },
+                { tab: 'classroom', icon: <GraduationCap size={17} />, label: t(lang, 'fabClassroom'), color: 'text-teal-400', desc: t(lang, 'fabClassroomDesc') },
               ].map(item => (
                 <FabItem key={item.tab} item={item} activeTab={activeTab} onPick={() => { handleSetActiveTab(item.tab); setFabOpen(false); }} />
               ))}

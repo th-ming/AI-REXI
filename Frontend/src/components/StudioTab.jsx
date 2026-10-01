@@ -291,24 +291,30 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {vieneuAvailable ? (
-              <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-[var(--bg-card)] border border-white/10">
-                {[['vieneu', 'VieNeu'], ['edge-tts', 'Edge']].map(([eng, lab]) => (
-                  <button
-                    key={eng}
-                    onClick={() => changeEngine(eng)}
-                    title={eng === 'vieneu' ? 'VieNeu v3 Turbo (tự host, có clone giọng)' : 'Microsoft Edge TTS'}
-                    className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${engine === eng
-                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
-                      : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
-                  >
-                    {lab}
-                  </button>
-                ))}
-              </div>
-            ) : engine && (
-              <span className="px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-[10px] font-semibold">
-                {engine === 'vieneu' ? 'VieNeu v3 Turbo' : 'Edge TTS'}
+            <div className="flex items-center gap-0.5 p-0.5 rounded-full bg-[var(--bg-card)] border border-white/10">
+              {[
+                ...(vieneuAvailable ? [['vieneu', 'VieNeu', 'VieNeu v3 Turbo (tự host, có clone giọng)']] : []),
+                ['edge-tts', 'Edge', 'Microsoft Edge TTS'],
+                ['auk', 'AuK', 'AuK (Tencent-Hunyuan 1.5B) — tối ưu EN/ZH, tiếng Việt có thể chưa ổn định'],
+              ].map(([eng, lab, tip]) => (
+                <button
+                  key={eng}
+                  onClick={() => changeEngine(eng)}
+                  title={tip}
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all ${engine === eng
+                    ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                    : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
+                >
+                  {lab}
+                </button>
+              ))}
+            </div>
+            {engine === 'auk' && (
+              <span
+                className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-semibold"
+                title="AuK (Tencent) train chủ yếu tiếng Anh/Trung — chất lượng tiếng Việt có thể chưa ổn định."
+              >
+                EN/ZH
               </span>
             )}
             {history.length > 0 && (

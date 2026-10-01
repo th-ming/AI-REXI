@@ -530,12 +530,111 @@ async function generateAhmTTS(text, voiceIndex) {
   return buf;
 }
 
+// ── AuK (Tencent-Hunyuan) — 1.5B foundation model speech generation/editing ──
+// Research 1/10/2026 (repo Tencent-Hunyuan/AuK, MIT weights — nhưng encoder
+// Qwen2.5-Omni-3B theo Qwen Research License = non-commercial; paper train
+// bilingual EN+ZH, tiếng Việt KHÔNG được đảm bảo). Gọi qua Hugging Face Space
+// gradio_api (ZeroGPU); anonymous bị space từ chối (event error null — verified
+// 1/10) nên BẮT BUỘC cấu hình AUK_HF_TOKEN. Instruct TTS: mô tả giọng, không
+// cần audio tham chiếu.
+const AUK_SPACE_BASE = (process.env.AUK_SPACE_BASE || 'https://tencent-auk.hf.space').trim().replace(/\/$/, '');
+const AUK_HF_TOKEN = (process.env.AUK_HF_TOKEN || '').trim();
+const AUK_TIMEOUT_MS = Number(process.env.AUK_TIMEOUT_MS || 180000);
+
+// "Giọng" của AuK = mô tả giọng tự nhiên (Instruct TTS). desc giữ tiếng Anh vì
+// model tối ưu EN/ZH — mô tả tiếng Việt có thể bị hiểu sai.
+const AUK_VOICE_PRESETS = [
+  { id: 'nu-am-diu', label: 'Nữ ấm dịu (warm female)', desc: 'a warm, gentle female voice, calm and clear' },
+  { id: 'nam-tram', label: 'Nam trầm chững (deep male)', desc: 'a deep, confident male voice, professional and steady' },
+  { id: 'nu-tre-vui', label: 'Nữ trẻ vui (cheerful female)', desc: 'a cheerful young female voice, energetic and bright' },
+  { id: 'nam-ke-chuyen', label: 'Nam kể chuyện (storyteller)', desc: 'a calm elderly male storyteller voice, warm and expressive' },
+  { id: 'nu-thi-tham', label: 'Nữ thì thầm (whisper)', desc: 'a soft whispering female voice, intimate and quiet' },
+];
+
+// Gọi HF Space gradio_api: enqueue → poll SSE → tải file audio → Buffer.
+async function aukGenerate(instruction, { variant = 'AuK (Base)', genSeconds = 0, nfe = 32, cfg = 2, seed = 42 } = {}) {
+  if (!AUK_HF_TOKEN) {
+    const e = new Error('thieu AUK_HF_TOKEN');
+    e.code = 'AUK_NO_TOKEN';
+    throw e;
+  }
+  const auth = { Authorization: `Bearer ${AUK_HF_TOKEN}` };
+  // 1. enqueue job
+  const callRes = await fetch(`${AUK_SPACE_BASE}/gradio_api/call/run_generate_with_pe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    body: JSON.stringify({
+      data: [true, variant, null, String(instruction || ''),
+        Number(genSeconds) || 0, Number(nfe) || 32, Number(cfg) || 0, Number(seed) || 42],
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!callRes.ok) throw new Error(`enqueue HTTP ${callRes.status}`);
+  const { event_id } = await callRes.json();
+  if (!event_id) throw new Error('không nhận được event_id');
+  // 2. poll SSE (ZeroGPU queue có thể chờ lâu → timeout rộng)
+  const pollRes = await fetch(`${AUK_SPACE_BASE}/gradio_api/call/run_generate_with_pe/${event_id}`, {
+    headers: { ...auth, Accept: 'text/event-stream' },
+    signal: AbortSignal.timeout(AUK_TIMEOUT_MS),
+  });
+  if (!pollRes.ok) throw new Error(`poll HTTP ${pollRes.status}`);
+  const sse = await pollRes.text();
+  let completeData = null;
+  for (const block of sse.split('\n\n')) {
+    const lines = block.split('\n');
+    const ev = (lines.find(l => l.startsWith('event:')) || '').replace('event:', '').trim();
+    const dv = (lines.find(l => l.startsWith('data:')) || '').replace('data:', '').trim();
+    if (ev === 'error') {
+      throw new Error(`space báo lỗi${dv && dv !== '{"error": null}' ? ': ' + dv.substring(0, 160) : ' (kiểm tra token/quota ZeroGPU)'}`);
+    }
+    if (ev === 'complete') completeData = dv;
+  }
+  if (!completeData) throw new Error('không có event complete');
+  const out = JSON.parse(completeData);
+  // 3. tìm FileData audio trong mảng output (shape có thể đổi theo space → dò phòng thủ)
+  const isFile = (o) => o && typeof o === 'object' && !Array.isArray(o)
+    && (typeof o.url === 'string' || (typeof o.path === 'string' && /\.(wav|mp3|flac|ogg|m4a)$/i.test(o.path)));
+  let file = null;
+  const scan = (o) => {
+    if (file || !o) return;
+    if (isFile(o)) { file = o; return; }
+    if (Array.isArray(o)) o.forEach(scan);
+    else if (typeof o === 'object') Object.values(o).forEach(scan);
+  };
+  scan(out);
+  if (!file) throw new Error('không tìm thấy file audio trong kết quả');
+  const url = file.url
+    ? (file.url.startsWith('http') ? file.url : AUK_SPACE_BASE + file.url)
+    : `${AUK_SPACE_BASE}/gradio_api/file=${file.path}`;
+  // 4. tải audio
+  const audioRes = await fetch(url, { headers: auth, signal: AbortSignal.timeout(60000) });
+  if (!audioRes.ok) throw new Error(`tải audio HTTP ${audioRes.status}`);
+  const buf = Buffer.from(await audioRes.arrayBuffer());
+  if (!buf.length) throw new Error('audio rỗng');
+  return buf;
+}
+
 // GET: Lấy danh sách giọng nói TTS tiếng Việt
 // VieNeu active (env VIENEU_BASE_URL) → trả 25 preset giọng v3 Turbo; ngược lại 2 giọng Edge.
 router.get('/tts/voices', async (req, res) => {
   const { lang, engine: engineQuery } = req.query;
   // FE có thể yêu cầu rõ engine: ?engine=edge-tts buộc trả danh sách Edge dù đã cấu hình VieNeu.
   const wantEdge = String(engineQuery || '').trim().toLowerCase() === 'edge-tts';
+  const wantAuk = String(engineQuery || '').trim().toLowerCase() === 'auk';
+  // Engine AuK (Tencent-Hunyuan 1.5B): "giọng" = mô tả giọng (Instruct TTS).
+  if (wantAuk) {
+    return res.json({
+      success: true,
+      engine: 'auk',
+      provider: 'AuK (Tencent-Hunyuan, 1.5B)',
+      voice_clone: false,
+      voices: AUK_VOICE_PRESETS.map(v => ({ id: v.id, label: v.label, engine: 'auk', desc: v.desc })),
+      count: AUK_VOICE_PRESETS.length,
+      default: AUK_VOICE_PRESETS[0].id,
+      configured: !!AUK_HF_TOKEN,
+      note: 'AuK (Tencent) tối ưu cho tiếng Anh/Trung — tiếng Việt có thể chưa ổn định.',
+    });
+  }
   if (VIENEU_BASE_URL && !wantEdge) {
     const ids = (await fetchVieNeuVoices()) || VIENEU_PRESET_VOICES;
     return res.json({
@@ -581,6 +680,7 @@ router.get('/tts/status', async (req, res) => {
     note: VIENEU_BASE_URL
       ? 'VieNeu self-hosted: hỗ trợ clone giọng.'
       : 'Microsoft Edge TTS công khai — không hỗ trợ clone giọng (cần VIENEU_BASE_URL tự host).',
+    auk: { engine: 'auk', provider: 'AuK (Tencent-Hunyuan 1.5B)', configured: !!AUK_HF_TOKEN, languages: 'EN/ZH (tiếng Việt chưa đảm bảo)' },
     fallback: 'Web Speech API (browser)'
   });
 });
@@ -628,6 +728,48 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
   const enginePref = String(engineInput || '').trim().toLowerCase();
   const forceEdge = enginePref === 'edge-tts';
   const forceVieNeu = enginePref === 'vieneu';
+
+  // Engine AuK (Tencent-Hunyuan 1.5B) — Instruct TTS qua HF Space (ZeroGPU).
+  // Chưa cấu hình token → báo rõ (KHÔNG lặng lẽ đổi sang Edge) + nhắc giới hạn VN.
+  if (enginePref === 'auk') {
+    const preset = AUK_VOICE_PRESETS.find(p => p.id === voiceInput);
+    const desc = preset ? preset.desc : (voiceInput || AUK_VOICE_PRESETS[0].desc);
+    const wantFlash = String(req.body.variant || '').trim().toLowerCase() === 'flash';
+    const variant = wantFlash ? 'AuK-Flash ⚡' : 'AuK (Base)';
+    // Flash khoá NFE 4 / CFG 0 (theo UI space); Base mặc định 32 / 2.
+    const nfe = wantFlash ? 4 : (Number(req.body.nfe) || 32);
+    const cfg = wantFlash ? 0 : (Number.isFinite(Number(req.body.cfg)) ? Number(req.body.cfg) : 2);
+    if (!AUK_HF_TOKEN) {
+      return res.status(503).json({
+        success: false,
+        engine: 'auk',
+        error: 'Engine AuK (Tencent) chưa được cấu hình: thiếu AUK_HF_TOKEN.',
+        hint: 'Admin đặt biến môi trường AUK_HF_TOKEN (token Hugging Face có quota ZeroGPU). AuK tối ưu EN/ZH — tiếng Việt có thể chưa ổn định.',
+      });
+    }
+    try {
+      const instruction = `Say the following with ${desc}: ${trimmedText}`;
+      const buf = await aukGenerate(instruction, { variant, nfe, cfg, seed: req.body.seed });
+      return res.json({
+        success: true,
+        audio: buf.toString('base64'),
+        format: 'wav',
+        engine: 'auk',
+        voice: voiceInput,
+        voice_label: preset ? preset.label : desc,
+        text_length: trimmedText.length,
+        note: 'AuK (Tencent-Hunyuan 1.5B) — tối ưu tiếng Anh/Trung',
+      });
+    } catch (aukErr) {
+      console.error('[TTS] AuK failed:', aukErr.message);
+      return res.status(502).json({
+        success: false,
+        engine: 'auk',
+        error: 'AuK lỗi: ' + aukErr.message,
+        hint: 'Kiểm tra AUK_HF_TOKEN và quota ZeroGPU của Hugging Face Space Tencent-Hunyuan/AuK.',
+      });
+    }
+  }
 
   // Ưu tiên số 1 khi cấu hình: VieNeu v3 Turbo (tự host, 48kHz) — voice là tên preset có dấu
   // (nhận cả voice Edge cũ qua alias, cả giọng clone đã enroll trên server VieNeu)
@@ -1251,16 +1393,20 @@ router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth
 
   try {
     let effectiveUrl = targetUrl;
+    // Giữ Range để player seek được (trước đây bỏ qua → tải NGUYÊN video vào RAM,
+    // video dài trên Render free dễ OOM/502). Timeout dài vì cần stream cả video.
+    const upstreamHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+      'Referer': 'https://www.youtube.com/',
+      'Origin': 'https://www.youtube.com',
+    };
+    if (req.headers.range) upstreamHeaders.Range = req.headers.range;
     let upstream;
     for (let hop = 0; hop <= 5; hop++) {
       upstream = await fetch(effectiveUrl, {
         redirect: 'manual',
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-          'Referer': 'https://www.youtube.com/',
-          'Origin': 'https://www.youtube.com',
-        },
-        signal: AbortSignal.timeout(15000)
+        headers: upstreamHeaders,
+        signal: AbortSignal.timeout(600000)
       });
       if (upstream.status >= 300 && upstream.status < 400 && upstream.headers.get('location')) {
         const nextUrl = new URL(upstream.headers.get('location'), effectiveUrl).toString();
@@ -1274,18 +1420,29 @@ router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth
       break;
     }
 
-    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
     res.setHeader('Cache-Control', 'no-cache, no-store');
-    res.setHeader('Content-Type', contentType);
+    for (const h of ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']) {
+      const v = upstream.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    if (!res.getHeader('content-type')) res.setHeader('Content-Type', 'application/octet-stream');
+    if (!res.getHeader('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
     res.status(upstream.status);
 
-    const buffer = await upstream.arrayBuffer();
-    return res.send(Buffer.from(buffer));
+    if (!upstream.body) return res.end();
+    const { Readable } = require('stream');
+    const nodeStream = Readable.fromWeb(upstream.body);
+    nodeStream.on('error', (e) => {
+      console.error('[YouTube Proxy] stream error:', e.message);
+      try { res.destroy(); } catch (_) {}
+    });
+    res.on('close', () => { try { nodeStream.destroy(); } catch (_) {} });
+    return nodeStream.pipe(res);
   } catch (err) {
     console.error('[YouTube Proxy] Error:', err.message);
     return res.status(502).json({ error: 'Proxy upstream error: ' + err.message });
