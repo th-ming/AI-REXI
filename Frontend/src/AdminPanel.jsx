@@ -821,11 +821,11 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
           <div className="space-y-2">
             {providerIdsWithKeys.map(providerId => {
               const label = PROVIDER_LABELS[providerId] || { name: providerId.toUpperCase(), icon: '🔑', color: 'text-slate-300' };
-              const cache = scanCache[providerId] || { working: [], failed: [] };
+              const cache = scanCache[providerId] || { working: [], failed: [], skipped: [], needs_balance: [] };
               const isExpanded = expandedProviders[providerId];
               const isScanning = scanningProvider === providerId;
               const lastScan = providerScanLog[providerId];
-              const totalModels = cache.working.length + cache.failed.length;
+              const totalModels = cache.working.length + cache.failed.length + (cache.skipped?.length || 0) + (cache.needs_balance?.length || 0);
               const key = keys.find(k => k.ten_nha_cung_cap === providerId);
 
               return (
@@ -857,6 +857,16 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                             <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 font-semibold border border-rose-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
                               {cache.failed.length} Lỗi
+                            </span>
+                          )}
+                          {(cache.needs_balance?.length || 0) > 0 && (
+                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/20" title="Model tồn tại nhưng trả phí — nạp tiền là dùng được">
+                              {cache.needs_balance.length} Trả phí
+                            </span>
+                          )}
+                          {(cache.skipped?.length || 0) > 0 && (
+                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-400 font-semibold border border-slate-500/20" title="Model không dùng cho chat (embed/stt/tts/ảnh) — không phải lỗi">
+                              {cache.skipped.length} Khác loại
                             </span>
                           )}
                         </div>
@@ -915,6 +925,24 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                                   <span className="font-mono text-slate-400 truncate">{m.ma_model}</span>
                                 </div>
                                 <span className="text-[10px] text-rose-400 truncate max-w-[220px]" title={m.loi_chi_tiet}>❌ {m.loi_chi_tiet || 'Lỗi kết nối'}</span>
+                              </div>
+                            ))}
+                            {(cache.needs_balance || []).map(m => (
+                              <div key={m.ma_model} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-500/5 border border-amber-500/10 text-xs opacity-75">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+                                  <span className="font-mono text-slate-400 truncate">{m.ma_model}</span>
+                                </div>
+                                <span className="text-[10px] text-amber-400 truncate max-w-[220px]" title={m.loi_chi_tiet}>💰 {m.loi_chi_tiet || 'Trả phí'}</span>
+                              </div>
+                            ))}
+                            {(cache.skipped || []).map(m => (
+                              <div key={m.ma_model} className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-500/5 border border-slate-500/10 text-xs opacity-60">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0"></span>
+                                  <span className="font-mono text-slate-400 truncate">{m.ma_model}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 shrink-0">⊘ {m.loi_chi_tiet || 'không dùng cho chat'}</span>
                               </div>
                             ))}
                           </>

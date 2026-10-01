@@ -865,14 +865,19 @@ router.get('/admin/models/scan-cache', [authMiddleware, adminMiddleware], async 
           FROM model_scan_cache ORDER BY ma_nha_cung_cap, trang_thai DESC, do_tre_ms ASC`);
     const providers = await allQ('SELECT * FROM provider_scan_log');
 
-    // Group by provider
+    // Group by provider — 4 bucket để UI không hiện "Lỗi" oan:
+    // working = gọi thật được; skipped = non-chat (embed/stt/tts/ảnh) hoặc chưa cần test;
+    // needs_balance = model tồn tại nhưng trả phí; failed = lỗi thật (chết/timeout)
     const grouped = {};
     for (const m of models) {
       if (!grouped[m.ma_nha_cung_cap]) {
-        grouped[m.ma_nha_cung_cap] = { working: [], failed: [] };
+        grouped[m.ma_nha_cung_cap] = { working: [], failed: [], skipped: [], needs_balance: [] };
       }
-      if (m.trang_thai === 'working') grouped[m.ma_nha_cung_cap].working.push(m);
-      else grouped[m.ma_nha_cung_cap].failed.push(m);
+      const g = grouped[m.ma_nha_cung_cap];
+      if (m.trang_thai === 'working') g.working.push(m);
+      else if (m.trang_thai === 'skipped') g.skipped.push(m);
+      else if (m.trang_thai === 'needs_balance') g.needs_balance.push(m);
+      else g.failed.push(m);
     }
 
     res.json({ success: true, grouped, providers, total: models.length });

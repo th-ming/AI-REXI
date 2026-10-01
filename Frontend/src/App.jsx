@@ -283,10 +283,7 @@ const FabItem = ({ item, activeTab, onPick }) => (
     }`}
   >
     <span className={item.color}>{item.icon}</span>
-    <div className="flex flex-col items-start whitespace-nowrap">
-      <span>{item.label}</span>
-      {item.desc && <span className="text-[11px] text-[var(--text-sub)] font-normal line-clamp-1">{item.desc}</span>}
-    </div>
+    <span className="whitespace-nowrap">{item.label}</span>
   </button>
 );
 
@@ -351,6 +348,16 @@ export default function App() {
     return () => { alive = false; clearTimeout(timer); };
   }, [searchQuery]);
   const [fabOpen, setFabOpen] = useState(false);
+  const fabMenuRef = useRef(null);
+  useEffect(() => {
+    if (fabOpen && fabMenuRef.current) fabMenuRef.current.scrollTop = 0;
+  }, [fabOpen]);
+  useEffect(() => {
+    if (!fabOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setFabOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fabOpen]);
 
   // AI Configuration State
   const [provider, setProvider] = useState(() => localStorage.getItem('rexi_provider') || 'xkiro');
@@ -2217,9 +2224,9 @@ useEffect(() => {
 
           <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
             {/* Danh sách các công cụ hiện lên khi bấm mở (Có hỗ trợ cuộn nếu có nhiều tính năng) */}
-            <div className={`
+            <div ref={fabMenuRef} className={`
               flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl transition-all duration-300 origin-bottom-right
-              max-h-[70vh] overflow-y-auto pr-1.5 scrollbar-thin
+              max-h-[calc(100dvh-140px)] overflow-y-auto pr-1.5 scrollbar-thin
               ${fabOpen
                 ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
                 : 'opacity-0 scale-75 translate-y-6 pointer-events-none'
