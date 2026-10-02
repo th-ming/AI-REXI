@@ -484,15 +484,21 @@ async function generateVieNeuTTS(text, voice, { sampleRate } = {}) {
     response_format: 'wav',
   };
   if (sampleRate) body.sample_rate = sampleRate;
-  const res = await fetch(`${VIENEU_BASE_URL}/v1/audio/speech`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(VIENEU_API_KEY && VIENEU_API_KEY !== 'not-needed' ? { Authorization: `Bearer ${VIENEU_API_KEY}` } : {}),
-    },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(VIENEU_TIMEOUT_MS),
-  });
+  let res;
+  try {
+    res = await fetch(`${VIENEU_BASE_URL}/v1/audio/speech`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(VIENEU_API_KEY && VIENEU_API_KEY !== 'not-needed' ? { Authorization: `Bearer ${VIENEU_API_KEY}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(VIENEU_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const c = e && e.cause;
+    throw new Error(`fetch failed (${c ? (c.code || c.message || c.name || 'cause-unknown') : 'no-cause'}${c && c.address ? ` addr=${c.address}` : ''}) -> ${VIENEU_BASE_URL}`);
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`VieNeu HTTP ${res.status}${detail ? ': ' + detail.substring(0, 200) : ''}`);
