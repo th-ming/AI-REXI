@@ -257,6 +257,33 @@ async function searchDocuments(userId, query, limit = 3) {
   try {
     const qVec = await getEmbedding(query);
     if (!qVec) return [];
+
+    // 1) pgvector KNN (Postgres): match_rag_chunk() đã filter user + join tên file
+    if (db.type === 'postgresql') {
+      try {
+        const pgRows = await new Promise((resolve) => {
+          db.all(
+            "SELECT ma_tai_lieu, ten_file, noi_dung, similarity FROM match_rag_chunk(?::halfvec(3072), ?, ?)",
+            [JSON.stringify(qVec), limit, userId],
+            (err, r) => resolve(err ? null : (r || []))
+          );
+        });
+        if (pgRows) {
+          return pgRows
+            .filter(r => Number(r.similarity) >= 0.30)
+            .map(r => ({
+              ma_tai_lieu: r.ma_tai_lieu,
+              ten_file: r.ten_file,
+              noi_dung: r.noi_dung,
+              do_tuong_dong: Math.round(Number(r.similarity) * 100) / 100
+            }));
+        }
+      } catch (ePg) {
+        console.log('[RAG] pgvector KNN lỗi, fallback JS cosine:', ePg.message);
+      }
+    }
+
+    // 2) Fallback: tính cosine bằng JS trên text vector
     const rows = await new Promise((resolve) => {
       db.all(
         `SELECT c.ma_chunk, c.ma_tai_lieu, c.vector, c.noi_dung, d.ten_file

@@ -184,6 +184,38 @@ async function listMemories(userId) {
   );
 }
 
+// ─── VECTOR SEARCH (pgvector KNN, fallback JS cosine) ────────────
+// Ưu tiên match_memory() (halfvec + HNSW) khi DB là PostgreSQL; lỗi/không có
+// (vd SQLite local) → fallback tính cosine bằng JS như cũ.
+async function searchMemoryByVector(userId, qVec, topN, minSim = 0.32) {
+  if (db.type === 'postgresql') {
+    try {
+      const rows = await all(
+        "SELECT ma_bo_nho, similarity FROM match_memory(?::halfvec(3072), ?, ?)",
+        [JSON.stringify(qVec), topN, userId]
+      );
+      return rows
+        .map(r => ({ ma_bo_nho: r.ma_bo_nho, sim: Number(r.similarity) }))
+        .filter(r => r.sim >= minSim);
+    } catch (e) {
+      console.log('[Brain][Memory] pgvector KNN lỗi, fallback JS cosine:', e.message);
+    }
+  }
+  const vecRows = await all(
+    "SELECT me.ma_bo_nho, me.vector FROM memory_embedding me WHERE me.ma_bo_nho IN (SELECT ma_bo_nho FROM bo_nho_dai_han WHERE ma_nguoi_dung = ?)",
+    [userId]
+  );
+  const scored = [];
+  for (const vr of vecRows) {
+    let v;
+    try { v = JSON.parse(vr.vector); } catch (e) { continue; }
+    const sim = cosineSimilarity(qVec, v);
+    if (sim >= minSim) scored.push({ ma_bo_nho: vr.ma_bo_nho, sim });
+  }
+  scored.sort((a, b) => b.sim - a.sim);
+  return scored;
+}
+
 // ─── SMART LOAD ─────────────────────────────────────────────────
 // Load memory ưu tiên cao + memory liên quan từ khoá tin nhắn hiện tại
 async function loadSmartMemory(userId, currentMessage = '') {
@@ -214,18 +246,7 @@ async function loadSmartMemory(userId, currentMessage = '') {
     try {
       const qVec = await getEmbedding(currentMessage);
       if (qVec) {
-        const vecRows = await all(
-          "SELECT me.ma_bo_nho, me.vector FROM memory_embedding me WHERE me.ma_bo_nho IN (SELECT ma_bo_nho FROM bo_nho_dai_han WHERE ma_nguoi_dung = ?)",
-          [userId]
-        );
-        const scored = [];
-        for (const vr of vecRows) {
-          let v;
-          try { v = JSON.parse(vr.vector); } catch (e) { continue; }
-          const sim = cosineSimilarity(qVec, v);
-          if (sim >= 0.32) scored.push({ ma_bo_nho: vr.ma_bo_nho, sim });
-        }
-        scored.sort((a, b) => b.sim - a.sim);
+        const scored = await searchMemoryByVector(userId, qVec, CONTEXT_MATCH_LIMIT, 0.32);
         const topIds = scored.slice(0, CONTEXT_MATCH_LIMIT).map(x => x.ma_bo_nho);
         if (topIds.length) {
           const placeholders = topIds.map(() => '?').join(',');

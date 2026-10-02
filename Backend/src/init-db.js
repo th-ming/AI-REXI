@@ -59,6 +59,20 @@ const INDEXES = [
   'CREATE INDEX idx_sync_queue_status ON _sync_queue(status, created_at)',
   'CREATE INDEX idx_memory_user_type ON bo_nho_dai_han(ma_nguoi_dung, loai)',
   'CREATE INDEX idx_memory_user_priority ON bo_nho_dai_han(ma_nguoi_dung, do_uu_tien DESC, ngay_tao DESC)',
+  // 2/10/2026: index cho query nóng còn thiếu (thêm sau migrate Neon) — idempotent
+  'CREATE INDEX idx_tin_nhan_hoi_thoai ON tin_nhan(ma_hoi_thoai, ngay_gui)',
+  'CREATE INDEX idx_cuoc_hoi_thoai_user ON cuoc_hoi_thoai(ma_nguoi_dung, ngay_cap_nhat DESC)',
+  'CREATE INDEX idx_khoa_api_provider_lc ON khoa_api(LOWER(ten_nha_cung_cap))',
+  'CREATE INDEX idx_khoa_api_user ON khoa_api(ma_nguoi_dung)',
+  'CREATE INDEX idx_thong_bao_user_read ON thong_bao(ma_nguoi_dung, da_doc, ngay_tao DESC)',
+  'CREATE INDEX idx_lich_nhac_due ON lich_nhac(da_nhac, thoi_gian)',
+  'CREATE INDEX idx_lich_nhac_user ON lich_nhac(ma_nguoi_dung, thoi_gian)',
+  'CREATE INDEX idx_nhat_ky_time ON nhat_ky(ngay_tao DESC)',
+  'CREATE INDEX idx_audit_log_time ON audit_log(thoi_gian DESC)',
+  'CREATE INDEX idx_audit_log_user ON audit_log(ma_nguoi_dung)',
+  'CREATE INDEX idx_sessions_expires ON sessions_store(expires_at)',
+  'CREATE INDEX idx_iptv_channels_scan ON iptv_channels(scan_id)',
+  'CREATE INDEX idx_tai_lieu_rag_user ON tai_lieu_rag(ma_nguoi_dung)',
 ];
 
 // Chuyển DDL SQLite → PostgreSQL
