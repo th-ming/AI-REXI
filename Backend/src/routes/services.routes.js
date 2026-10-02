@@ -3158,12 +3158,17 @@ async function openShortsFetch(pathname, init = {}) {
 // Gửi job cắt video (chỉ nhận URL YouTube — hosted plan không cho upload qua proxy)
 router.post('/openshorts/process', authMiddleware, rateLimit({ windowMs: 3600000, max: 5, message: 'Bạn đã gửi 5 job OpenShorts trong giờ này. Quota miễn phí có hạn, đợi chút nhé.' }), async (req, res) => {
   try {
-    const { url, target_clips, captions, auto_hook } = req.body || {};
+    const { url, target_clips, captions, auto_hook, force_low_quality, layouts, clip_min_seconds, clip_max_seconds, max_minutes } = req.body || {};
     if (!url || !/^https?:\/\//i.test(String(url))) return res.status(400).json({ error: 'Thiếu URL video hợp lệ (https://...)' });
     const body = { url: String(url), acknowledged: 'true' };
     if (target_clips) body.target_clips = String(target_clips);
     if (captions != null) body.captions = String(captions);
     if (auto_hook != null) body.auto_hook = String(auto_hook);
+    if (force_low_quality != null) body.force_low_quality = String(force_low_quality);
+    if (layouts) body.layouts = String(layouts);
+    if (clip_min_seconds) body.clip_min_seconds = String(clip_min_seconds);
+    if (clip_max_seconds) body.clip_max_seconds = String(clip_max_seconds);
+    if (max_minutes) body.max_minutes = String(max_minutes);
     const data = await openShortsFetch('/api/process', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
