@@ -295,7 +295,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
               {[
                 ...(vieneuAvailable ? [['vieneu', 'VieNeu', 'VieNeu v3 Turbo (tự host, có clone giọng)']] : []),
                 ['edge-tts', 'Edge', 'Microsoft Edge TTS'],
-                ['auk', 'AuK', 'AuK (Tencent-Hunyuan 1.5B) — tối ưu EN/ZH, tiếng Việt có thể chưa ổn định'],
+                ['ahm', 'ahm', 'ahm7xmakki TTS (miễn phí) — giọng Việt, không cần key'],
               ].map(([eng, lab, tip]) => (
                 <button
                   key={eng}
@@ -309,12 +309,12 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
                 </button>
               ))}
             </div>
-            {engine === 'auk' && (
+            {engine === 'ahm' && (
               <span
-                className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-semibold"
-                title="AuK (Tencent) train chủ yếu tiếng Anh/Trung — chất lượng tiếng Việt có thể chưa ổn định."
+                className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold"
+                title="ahm7xmakki TTS — provider miễn phí, giọng Việt."
               >
-                EN/ZH
+                Free
               </span>
             )}
             {history.length > 0 && (

@@ -621,6 +621,22 @@ router.get('/tts/voices', async (req, res) => {
   // FE có thể yêu cầu rõ engine: ?engine=edge-tts buộc trả danh sách Edge dù đã cấu hình VieNeu.
   const wantEdge = String(engineQuery || '').trim().toLowerCase() === 'edge-tts';
   const wantAuk = String(engineQuery || '').trim().toLowerCase() === 'auk';
+  const wantAhm = String(engineQuery || '').trim().toLowerCase() === 'ahm';
+  // Engine ahm7xmakki — TTS free (không key), giọng Việt (583 giọng, vi: index 314/315).
+  if (wantAhm) {
+    return res.json({
+      success: true,
+      engine: 'ahm',
+      provider: 'ahm7xmakki (free TTS)',
+      voice_clone: false,
+      voices: [
+        { id: 'vi-VN-HoaiMyNeural', label: 'HoaiMy (Nữ) · ahm', engine: 'ahm', gender: 'Nữ' },
+        { id: 'vi-VN-NamMinhNeural', label: 'NamMinh (Nam) · ahm', engine: 'ahm', gender: 'Nam' },
+      ],
+      count: 2,
+      default: 'vi-VN-HoaiMyNeural',
+    });
+  }
   // Engine AuK (Tencent-Hunyuan 1.5B): "giọng" = mô tả giọng (Instruct TTS).
   if (wantAuk) {
     return res.json({
@@ -768,6 +784,26 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
         error: 'AuK lỗi: ' + aukErr.message,
         hint: 'Kiểm tra AUK_HF_TOKEN và quota ZeroGPU của Hugging Face Space Tencent-Hunyuan/AuK.',
       });
+    }
+  }
+
+  // Engine ahm7xmakki — TTS free (không key) giọng Việt; chốt chặn độc lập với Edge/VieNeu.
+  if (enginePref === 'ahm') {
+    const idx = AHM_TTS_VOICE_INDEX[voiceInput] || AHM_TTS_DEFAULT_INDEX;
+    try {
+      const buf = await generateAhmTTS(trimmedText, idx);
+      return res.json({
+        success: true,
+        audio: buf.toString('base64'),
+        format: 'mp3',
+        engine: 'ahm',
+        voice: voiceInput,
+        voice_label: voiceInput,
+        text_length: trimmedText.length,
+      });
+    } catch (ahmErr) {
+      console.error('[TTS] ahm failed:', ahmErr.message);
+      return res.status(502).json({ success: false, engine: 'ahm', error: 'ahm TTS lỗi: ' + ahmErr.message });
     }
   }
 
