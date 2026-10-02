@@ -22,6 +22,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
   const [clips, setClips] = useState([]);
   const [error, setError] = useState('');
   const [quota, setQuota] = useState(null);
+  const [pendingConfirm, setPendingConfirm] = useState(null);
   const timerRef = useRef(null);
   const logsEndRef = useRef(null);
 
@@ -48,24 +49,48 @@ export default function OpenShortsTab({ authToken, showToast }) {
     return '';
   }
 
+  async function submitJob(body) {
+    const d = await apiFetch('/services/openshorts/process', authToken, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    // Video chất lượng thấp → OpenShorts trả về needs_confirmation thay vì job
+    if (d.job && d.job.needs_confirmation) {
+      setPendingConfirm({ body, qc: d.job.quality_check || {} });
+      setLoading(false);
+      showToast('Video chất lượng thấp — cần xác nhận trước khi cắt', 'error');
+      return;
+    }
+    if (!d.job || !d.job.job_id) throw new Error('Server không trả về job_id');
+    setPendingConfirm(null);
+    setJob(d.job);
+    setStatus(d.job.status || 'queued');
+    showToast('Đã gửi job — OpenShorts đang cắt video…', 'success');
+    startPolling(d.job.job_id);
+  }
+
   async function startJob(e) {
     e?.preventDefault();
     const vErr = validate(url.trim());
     if (vErr) { showToast(vErr, 'error'); return; }
     clearInterval(timerRef.current);
-    setLoading(true); setError(''); setClips([]); setLogs([]); setStatus('queued'); setJob(null);
+    setLoading(true); setError(''); setClips([]); setLogs([]); setStatus('queued'); setJob(null); setPendingConfirm(null);
     try {
       const body = { url: url.trim(), captions: captions ? 'true' : 'false', auto_hook: autoHook ? 'true' : 'false' };
       if (targetClips) body.target_clips = String(targetClips);
-      const d = await apiFetch('/services/openshorts/process', authToken, {
-        method: 'POST',
-        body: JSON.stringify(body)
-      });
-      if (!d.job || !d.job.job_id) throw new Error('Server không trả về job_id');
-      setJob(d.job);
-      setStatus(d.job.status || 'queued');
-      showToast('Đã gửi job — OpenShorts đang cắt video…', 'success');
-      startPolling(d.job.job_id);
+      await submitJob(body);
+    } catch (e2) {
+      setError(e2.message);
+      showToast(e2.message, 'error');
+      setLoading(false);
+    }
+  }
+
+  async function confirmLowQuality() {
+    if (!pendingConfirm) return;
+    setLoading(true); setError('');
+    try {
+      await submitJob({ ...pendingConfirm.body, force_low_quality: 'true' });
     } catch (e2) {
       setError(e2.message);
       showToast(e2.message, 'error');
@@ -195,6 +220,34 @@ export default function OpenShortsTab({ authToken, showToast }) {
           <div className="flex items-start gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Xác nhận video chất lượng thấp */}
+        {pendingConfirm && !loading && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 md:p-4 flex flex-col gap-2">
+            <div className="flex items-start gap-2 text-xs text-amber-400">
+              <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+              <span>
+                Video này chỉ có chất lượng thấp nhất {pendingConfirm.qc.max_height || '?'}p
+                {pendingConfirm.qc.min_height ? ' (yêu cầu tối thiểu ' + pendingConfirm.qc.min_height + 'p)' : ''}.
+                Vẫn cắt thì clip đầu ra sẽ mờ — bạn có muốn tiếp tục không?
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={confirmLowQuality}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-fuchsia-500 to-orange-500 hover:opacity-90 transition-all"
+              >
+                Vẫn cắt (chất lượng thấp)
+              </button>
+              <button
+                onClick={() => setPendingConfirm(null)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+              >
+                Hủy
+              </button>
+            </div>
           </div>
         )}
 
