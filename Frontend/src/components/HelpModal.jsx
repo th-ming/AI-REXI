@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, BookOpen, ChevronDown, Mic, Video, Tv, Monitor, FolderOpen, Zap, MessageSquare, Sparkles, Clapperboard, MonitorPlay } from 'lucide-react';
+import { X, BookOpen, ChevronDown, Mic, Video, Tv, Monitor, FolderOpen, Zap, MessageSquare, Sparkles, Clapperboard, MonitorPlay, Scissors } from 'lucide-react';
 
 const SECTIONS = [
   {
@@ -54,6 +54,18 @@ const SECTIONS = [
       'Bấm nút ✚ (FAB) góc phải → chọn "OpenCut Editor" để mở editor dựng video chuyên sâu.',
       'OpenCut chạy như một app riêng (iframe): mặc định trỏ http://localhost:3000 — cần chạy server OpenCut trước (cd D:/repos/OpenCut/apps/web && bun dev).',
       'Có thể đổi URL server trong thanh nhập trên đầu tab, hoặc bấm ⧉ để mở tab mới của trình duyệt.'
+    ]
+  },
+  {
+    id: 'openshorts',
+    icon: <Scissors size={16} className="text-orange-400" />,
+    title: '✂️ OpenShorts (video dài → Shorts)',
+    steps: [
+      'Vào tab "OpenShorts" trong menu tròn góc phải (nhóm 🎨 Sáng Tạo).',
+      'Dán URL video YouTube (podcast, livestream, phỏng vấn — video ≥ 45 giây) rồi bấm "Tạo Shorts".',
+      'Chờ ~1-2 phút: OpenShorts tải video, chép lời, tìm khoảnh khắc viral rồi cắt clip dọc 9:16 kèm phụ đề và hook.',
+      'Xem preview từng clip ngay trong tab, bấm "Tải MP4" để lưu, hoặc copy caption TikTok bằng icon 📋.',
+      'Quota free 20 phút video/tháng (hiển thị ở thanh trên). Server cắt bằng GPU nên ~50 giây/video.'
     ]
   },
   {

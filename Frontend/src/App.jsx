@@ -50,7 +50,8 @@ import {
   Info,
   User,
   Play,
-  GraduationCap
+  GraduationCap,
+  Scissors
 } from 'lucide-react';
 import { getLang, setLang, t } from './i18n';
 import Hls from 'hls.js';
@@ -67,6 +68,7 @@ import AdminPanel from './AdminPanel';
 import StudioTab from './components/StudioTab';
 import VideoCreatorTab from './components/VideoCreatorTab';
 import OpenCutTab from './components/OpenCutTab';
+import OpenShortsTab from './components/OpenShortsTab';
 import ImageGenTab from './components/ImageGenTab';
 import DocumentsTab from './components/DocumentsTab';
 import YouTubeTab from './components/YouTubeTab';
@@ -1884,6 +1886,14 @@ useEffect(() => {
             />
           )}
 
+          {/* TAB: OPENSHORTS — video dài → shorts 9:16 */}
+          {activeTab === 'openshorts' && (
+            <OpenShortsTab
+              authToken={authToken}
+              showToast={showToast}
+            />
+          )}
+
           {/* TAB 5d: YOUTUBE FREE (không quảng cáo) */}
           {activeTab === 'youtube' && (
             <YouTubeTab
@@ -2272,6 +2282,7 @@ useEffect(() => {
                 { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: t(lang, 'fabDocsDesc') },
                 { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: t(lang, 'fabVideoDesc') },
                 { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: t(lang, 'fabOpenCutDesc') },
+                { tab: 'openshorts', icon: <Scissors size={17} />, label: t(lang, 'fabOpenShorts'), color: 'text-orange-400', desc: t(lang, 'fabOpenShortsDesc') },
                 { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: t(lang, 'fabYoutubeDesc') },
                 { tab: 'games', icon: <Gamepad2 size={17} />, label: t(lang, 'fabGames'), color: 'text-fuchsia-400', desc: t(lang, 'fabGamesDesc') },
                 { tab: 'classroom', icon: <GraduationCap size={17} />, label: t(lang, 'fabClassroom'), color: 'text-teal-400', desc: t(lang, 'fabClassroomDesc') },

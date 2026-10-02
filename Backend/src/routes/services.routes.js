@@ -3135,4 +3135,64 @@ router.get('/admin/logs', [authMiddleware, adminMiddleware], async (req, res) =>
   }
 });
 
+// ========== OPENSHORTS — cắt video dài thành Shorts (hosted api.openshorts.app, quota free 20 phút/tháng) ==========
+const OPENSHORTS_BASE = 'https://api.openshorts.app';
+
+async function openShortsFetch(pathname, init = {}) {
+  const key = process.env.OPENSHORTS_API_KEY;
+  if (!key) { const err = new Error('Server chưa cấu hình OPENSHORTS_API_KEY'); err.status = 503; throw err; }
+  const r = await fetch(OPENSHORTS_BASE + pathname, {
+    ...init,
+    headers: { 'Authorization': 'Bearer ' + key, ...(init.headers || {}) }
+  });
+  const text = await r.text();
+  let data = null;
+  try { data = JSON.parse(text); } catch { data = { raw: text.slice(0, 500) }; }
+  if (!r.ok) {
+    const msg = (data && (typeof data.detail === 'string' ? data.detail : (data.error || data.detail && JSON.stringify(data.detail)))) || ('OpenShorts HTTP ' + r.status);
+    const err = new Error(msg); err.status = r.status; err.data = data; throw err;
+  }
+  return data;
+}
+
+// Gửi job cắt video (chỉ nhận URL YouTube — hosted plan không cho upload qua proxy)
+router.post('/openshorts/process', authMiddleware, rateLimit({ windowMs: 3600000, max: 5, message: 'Bạn đã gửi 5 job OpenShorts trong giờ này. Quota miễn phí có hạn, đợi chút nhé.' }), async (req, res) => {
+  try {
+    const { url, target_clips, captions, auto_hook } = req.body || {};
+    if (!url || !/^https?:\/\//i.test(String(url))) return res.status(400).json({ error: 'Thiếu URL video hợp lệ (https://...)' });
+    const body = { url: String(url), acknowledged: 'true' };
+    if (target_clips) body.target_clips = String(target_clips);
+    if (captions != null) body.captions = String(captions);
+    if (auto_hook != null) body.auto_hook = String(auto_hook);
+    const data = await openShortsFetch('/api/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    res.json({ success: true, job: data });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Trạng thái job + danh sách clip đã cắt
+router.get('/openshorts/status/:jobId', authMiddleware, rateLimit({ windowMs: 60000, max: 60 }), async (req, res) => {
+  try {
+    const data = await openShortsFetch('/api/status/' + encodeURIComponent(req.params.jobId));
+    res.json(data);
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Quota / thông tin gói hiện tại (số phút còn lại...)
+router.get('/openshorts/quota', authMiddleware, async (req, res) => {
+  try {
+    const me = await openShortsFetch('/api/me');
+    res.json({ success: true, me });
+  } catch (e) {
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
