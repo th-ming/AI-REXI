@@ -217,10 +217,48 @@ function potLadder() {
 // vì sẽ mất tiếng khi phát trực tiếp.
 const STREAM_FORMAT = 'best[height<=720][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/bestaudio[ext=m4a]/bestaudio/best';
 
+// ─── Worker yt-dlp IP DÂN DỤNG (máy user) ───────────────────────────────────
+// IP Render bị YouTube bot-check mọi client → không có cách free nào phát video
+// gated từ datacenter. Worker chạy trên máy nhà (residential) resolve được hết,
+// và tự proxy bytes (googlevideo khoá theo IP gọi). Env: YTDLP_WORKER_URL (+ TOKEN).
+const WORKER_URL = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/$/, '');
+const WORKER_TOKEN = (process.env.YTDLP_WORKER_TOKEN || '').trim();
+function workerEnabled() { return !!WORKER_URL; }
+
+async function workerResolve(urlOrId) {
+  if (!WORKER_URL) return null;
+  const id = extractVideoId(urlOrId) || String(urlOrId || '').trim();
+  const q = new URLSearchParams({ id });
+  if (WORKER_TOKEN) q.set('token', WORKER_TOKEN);
+  const res = await fetch(`${WORKER_URL}/info?${q.toString()}`, { signal: AbortSignal.timeout(45000) });
+  if (!res.ok) throw new Error(`worker HTTP ${res.status}`);
+  const j = await res.json().catch(() => null);
+  if (!j || !j.ok || !j.stream_url) throw new Error('worker không trả stream_url');
+  return {
+    id: j.id, title: j.title, author: j.author, duration: j.duration, views: j.views,
+    description: String(j.description || '').slice(0, 2000),
+    stream_url: j.stream_url,
+    format_id: j.format_id ? `worker:${j.format_id}` : 'worker',
+    ext: j.ext, height: j.height,
+    stream_client: 'worker:residential',
+  };
+}
+
+
 async function getVideoStream(urlOrId) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   const cached = streamCacheGet(extractVideoId(urlOrId));
   if (cached) return cached;
+  // Worker residential (nếu cấu hình) — thử TRƯỚC ladder: IP nhà resolve được cả
+  // video gated mà mọi client từ IP Render đều bị bot-check.
+  if (workerEnabled()) {
+    try {
+      const w = await workerResolve(urlOrId);
+      if (w) { streamCacheSet(w.id || extractVideoId(urlOrId), w); return w; }
+    } catch (e) {
+      console.log(`[ytdlpService] workerResolve failed: ${(e && e.message) || e}`);
+    }
+  }
   const url = normalizeUrl(urlOrId);
   const cookies = getCookiesOption();
   let lastErr = null;
@@ -233,6 +271,10 @@ async function getVideoStream(urlOrId) {
   // cookie attempts (cuối). Video gated hỏng toàn bộ ladder thì fallback trả
   // sớm hơn ~100s; cookie chỉ giúp khi user nạp cookies logged-in mới.
   const attempts = potLadder();
+  // IP datacenter bị bot-check: chạy hết 10 client là phí ~150s rồi Render cắt request.
+  // Phát hiện "not a bot" sớm → thử vài client đại diện rồi nhảy thẳng sang fallback.
+  let sawBotCheck = false;
+  let noCookieTried = 0;
   const tryAttempt = async (attempt) => {
     try {
       const opts = {
@@ -267,13 +309,18 @@ async function getVideoStream(urlOrId) {
       return out;
     } catch (e) {
       lastErr = e;
+      const emsg = String((e && (e.stderr || e.message)) || e);
+      if (/not a bot|Sign in to confirm/i.test(emsg)) sawBotCheck = true;
       recordLadderError(attempt.client, attempt.cookies, e);
-      console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${(e && (e.stderr || e.message)) || e}`);
+      console.log(`[ytdlpService] getVideoStream client="${attempt.client || 'default'}" cookies=${attempt.cookies} failed: ${emsg}`);
       return null;
     }
   };
   for (const attempt of attempts.filter(a => !a.cookies)) {
     if (Date.now() - startedAt > LADDER_DEADLINE_MS) break;
+    // Bot-check rõ ràng từ IP này → chỉ thử 4 client đầu rồi né sang fallback cho nhanh.
+    if (sawBotCheck && noCookieTried >= 4) break;
+    noCookieTried++;
     const out = await tryAttempt(attempt);
     if (out) return out;
   }
@@ -430,8 +477,10 @@ async function publicFallback(vid, opts = {}) {
   try { await discoverInstances(); } catch (e) { /* dùng hard-code */ }
   const invHosts = orderHosts([...INVIDIOUS_HOSTS, ..._instCache.invidious], _prefHost.invidious).slice(0, 8);
   const pipedHosts = orderHosts([...PIPED_HOSTS, ..._instCache.piped], _prefHost.piped).slice(0, 6);
+  const fbDeadline = Date.now() + 70000; // instance chết nhiều → cap tổng ~70s, tránh Render cắt request
   // 1) Invidious: GET /api/v1/videos/{id} → formatStreams (progressive) → /latest_version local=true
   for (const host of invHosts) {
+    if (Date.now() > fbDeadline) break;
     try {
       const res = await fetch(`https://${host}/api/v1/videos/${vid}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -469,6 +518,7 @@ async function publicFallback(vid, opts = {}) {
   }
   // 2) Piped: GET /streams/{id} → videoStreams (URL đã proxied qua proxy của Piped)
   for (const host of pipedHosts) {
+    if (Date.now() > fbDeadline) break;
     try {
       const res = await fetch(`https://${host}/streams/${vid}`, {
         headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -648,6 +698,7 @@ async function getStatus() {
     pot_provider: potBaseUrl(),
     pot_plugin: fs.existsSync(PLUGIN_DIR),
     pot_warm: _potKeepAliveStarted,
+    worker: { configured: workerEnabled(), url: WORKER_URL || null },
     ready: !!version,
     ladder_errors: getLadderErrors(),
   };
