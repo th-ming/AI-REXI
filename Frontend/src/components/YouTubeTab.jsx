@@ -318,49 +318,12 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                       <div className="flex-1 space-y-2 pt-0.5">
                         <div className="h-3 rounded bg-white/10 w-11/12" />
                         <div className="h-3 rounded bg-white/10 w-2/3" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-            {/* Cột Up tiếp theo kiểu YouTube */}
-            <aside className="w-full lg:w-[360px] shrink-0">
-              <p className="text-sm font-bold text-white mb-2.5">Up tiếp theo</p>
-              <div className="flex flex-col gap-2.5">
-                {videos.filter((v) => v.id !== selected?.id).map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => {
-                      setLiked(false);
-                      setDescOpen(false);
-                      handlePlay(v);
-                      document.getElementById('yt-scroll')?.scrollTo({ top: 0 });
-                    }}
-                    className="group flex gap-2 text-left"
-                  >
-                    <div className="relative w-40 shrink-0 aspect-video rounded-lg overflow-hidden bg-black">
-                      {v.thumb ? (
-                        <img src={v.thumb} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-red-900/40 to-[#181920]">
-                          <Play size={20} className="text-slate-600" />
-                        </div>
-                      )}
-                      <span className="absolute bottom-1 right-1 px-1 py-px rounded bg-black/80 text-[10px] font-medium text-white">
-                        {fmtDuration(v.duration)}
-                      </span>
-                    </div>
-                    <div className="min-w-0 py-0.5">
-                      <p className="text-xs font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
-                      <p className="text-[11px] text-slate-400 mt-1 truncate">{v.author}</p>
-                      <p className="text-[11px] text-slate-400">{v.views > 0 ? fmtViews(v.views) : ''}</p>
-                    </div>
-                  </button>
                 ))}
               </div>
-            </aside>
-          </div>
-        )}
+            )}
             {videos.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 max-w-[1600px] mx-auto mt-5">
                 {videos.map((v) => (
@@ -559,6 +522,42 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                 </div>
               )}
             </div>
+            {/* Cột Up tiếp theo kiểu YouTube */}
+            <aside className="w-full lg:w-[360px] shrink-0">
+              <p className="text-sm font-bold text-white mb-2.5">Up tiếp theo</p>
+              <div className="flex flex-col gap-2.5">
+                {videos.filter((v) => v.id !== selected?.id).map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setLiked(false);
+                      setDescOpen(false);
+                      handlePlay(v);
+                      document.getElementById('yt-scroll')?.scrollTo({ top: 0 });
+                    }}
+                    className="group flex gap-2 text-left"
+                  >
+                    <div className="relative w-40 shrink-0 aspect-video rounded-lg overflow-hidden bg-black">
+                      {v.thumb ? (
+                        <img src={v.thumb} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-red-900/40 to-[#181920]">
+                          <Play size={20} className="text-slate-600" />
+                        </div>
+                      )}
+                      <span className="absolute bottom-1 right-1 px-1 py-px rounded bg-black/80 text-[10px] font-medium text-white">
+                        {fmtDuration(v.duration)}
+                      </span>
+                    </div>
+                    <div className="min-w-0 py-0.5">
+                      <p className="text-xs font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
+                      <p className="text-[11px] text-slate-400 mt-1 truncate">{v.author}</p>
+                      <p className="text-[11px] text-slate-400">{v.views > 0 ? fmtViews(v.views) : ''}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </aside>
           </div>
         )}
       </div>
