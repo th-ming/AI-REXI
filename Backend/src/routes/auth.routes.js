@@ -205,7 +205,10 @@ router.get('/google/callback', async (req, res) => {
 
     try {
         // Exchange code for tokens
-        const callbackUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+        // FE sends redirect_uri = ${window.location.origin}/api/auth/google/callback
+        // which is FRONTEND_URL (Vercel rewrites /api/* to this BE). Match exactly
+        // or token exchange fails with redirect_uri_mismatch.
+        const callbackUri = `${frontendUrl.replace(/\/+$/, '')}/api/auth/google/callback`;
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
