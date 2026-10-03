@@ -230,7 +230,7 @@ async function workerResolve(urlOrId) {
   const id = extractVideoId(urlOrId) || String(urlOrId || '').trim();
   const q = new URLSearchParams({ id });
   if (WORKER_TOKEN) q.set('token', WORKER_TOKEN);
-  const res = await fetch(`${WORKER_URL}/info?${q.toString()}`, { signal: AbortSignal.timeout(45000) });
+  const res = await fetch(`${WORKER_URL}/info?${q.toString()}`, { signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`worker HTTP ${res.status}`);
   const j = await res.json().catch(() => null);
   if (!j || !j.ok || !j.stream_url) throw new Error('worker không trả stream_url');
@@ -263,10 +263,13 @@ async function getVideoStream(urlOrId) {
   const cookies = getCookiesOption();
   let lastErr = null;
   // R3 29/9: deadline tổng — YouTube cờ IP Render thì mọi attempt fail chậm
-  // (PO token ~20s/lần × 11 client ≈ 300s+). Capped: hết 150s thì bỏ phần còn
+  // (PO token ~20s/lần × 11 client ≈ 300s+). Capped: hết 45s thì bỏ phần còn
   // lại của ladder, chạy fallback rồi báo lỗi rõ ràng (UX, đừng treo 6 phút).
+  // 4/10 FIX 502: Vercel cắt rewrite /api ở 120s (ROUTER_EXTERNAL_TARGET_ERROR,
+  // body text/plain "An error occurred..." → FE crash JSON.parse). Tổng budget
+  // toàn hàm ≤ ~85s: worker 15s + ladder 45s + fallback 25s → luôn trả JSON.
   const startedAt = Date.now();
-  const LADDER_DEADLINE_MS = 150000;
+  const LADDER_DEADLINE_MS = 45000;
   // R2 29/9: chia ladder làm 2 pha — no-cookie (nhanh, PO) → publicFallback →
   // cookie attempts (cuối). Video gated hỏng toàn bộ ladder thì fallback trả
   // sớm hơn ~100s; cookie chỉ giúp khi user nạp cookies logged-in mới.
@@ -335,11 +338,13 @@ async function getVideoStream(urlOrId) {
       console.log(`[ytdlpService] publicFallback(${vid}) failed: ${(e && e.message) || e}`);
     }
   }
-  // Cuối cùng: các attempt có cookies (session login user nếu có)
-  for (const attempt of attempts.filter(a => a.cookies)) {
-    if (Date.now() - startedAt > LADDER_DEADLINE_MS) break;
-    const out = await tryAttempt(attempt);
-    if (out) return out;
+  // Cuối cùng: các attempt có cookies — chỉ khi còn budget (tổng ≤ ~85s).
+  if (Date.now() - startedAt < 60000) {
+    for (const attempt of attempts.filter(a => a.cookies)) {
+      if (Date.now() - startedAt > 70000) break;
+      const out = await tryAttempt(attempt);
+      if (out) return out;
+    }
   }
   // R3: hết ladder + fallback → lỗi rõ ràng cho user (thay vì "Requested format
   // is not available" khó hiểu). Ghi kỹ thuật vào server log thôi.
@@ -375,7 +380,7 @@ const _instCache = { at: 0, invidious: [], piped: [] };
 async function discoverInstances() {
   if (Date.now() - _instCache.at < 30 * 60 * 1000) return _instCache;
   try {
-    const res = await fetch('https://api.invidious.io/instances.json?sort_by=type,users', { signal: AbortSignal.timeout(8000) });
+    const res = await fetch('https://api.invidious.io/instances.json?sort_by=type,users', { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const arr = await res.json();
       _instCache.invidious = (Array.isArray(arr) ? arr : [])
@@ -385,7 +390,7 @@ async function discoverInstances() {
     }
   } catch (e) { /* giữ cache cũ */ }
   try {
-    const res = await fetch('https://piped-instances.kavin.rocks/', { signal: AbortSignal.timeout(8000) });
+    const res = await fetch('https://piped-instances.kavin.rocks/', { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
       const arr = await res.json();
       _instCache.piped = (Array.isArray(arr) ? arr : [])
@@ -477,7 +482,7 @@ async function publicFallback(vid, opts = {}) {
   try { await discoverInstances(); } catch (e) { /* dùng hard-code */ }
   const invHosts = orderHosts([...INVIDIOUS_HOSTS, ..._instCache.invidious], _prefHost.invidious).slice(0, 8);
   const pipedHosts = orderHosts([...PIPED_HOSTS, ..._instCache.piped], _prefHost.piped).slice(0, 6);
-  const fbDeadline = Date.now() + 70000; // instance chết nhiều → cap tổng ~70s, tránh Render cắt request
+  const fbDeadline = Date.now() + 25000; // 4/10: cap tổng ~25s — Vercel cắt /api ở 120s, toàn bộ /stream phải xong ≤ ~85s
   // 1) Invidious: GET /api/v1/videos/{id} → formatStreams (progressive) → /latest_version local=true
   for (const host of invHosts) {
     if (Date.now() > fbDeadline) break;

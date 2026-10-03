@@ -151,7 +151,15 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     setSummary(null);
     try {
       const res = await fetch(`${API_BASE}/services/youtube/stream?url=${encodeURIComponent(video.id)}`, { headers: headers() });
-      const data = await res.json();
+      // 4/10: proxy/Vercel có thể trả non-JSON (vd 502 "An error occurred...") khi
+      // upstream quá lâu — đọc text trước, parse thủ công để báo lỗi thân thiện.
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử bấm phát lại sau ít giây.`);
+      }
       if (!data.success) throw new Error(data.error || 'Không phát được video');
       setSelected((prev) => ({ ...prev, stream_url: data.stream_url, description: data.description }));
       setStreamLoading(false);
