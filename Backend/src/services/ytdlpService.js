@@ -268,8 +268,10 @@ async function getVideoStream(urlOrId) {
   // 4/10 FIX 502: Vercel cắt rewrite /api ở 120s (ROUTER_EXTERNAL_TARGET_ERROR,
   // body text/plain "An error occurred..." → FE crash JSON.parse). Tổng budget
   // toàn hàm ≤ ~85s: worker 15s + ladder 45s + fallback 25s → luôn trả JSON.
+  // 4/10 FIX 502 (đợt 2): mỗi attempt 20s (bot-check thường fail nhanh, PO token
+  // không bao giờ cần tới 30s) + deadline 35s → ladder ≤ ~40s, toàn hàm ≤ ~90s.
   const startedAt = Date.now();
-  const LADDER_DEADLINE_MS = 45000;
+  const LADDER_DEADLINE_MS = 35000;
   // R2 29/9: chia ladder làm 2 pha — no-cookie (nhanh, PO) → publicFallback →
   // cookie attempts (cuối). Video gated hỏng toàn bộ ladder thì fallback trả
   // sớm hơn ~100s; cookie chỉ giúp khi user nạp cookies logged-in mới.
@@ -293,7 +295,7 @@ async function getVideoStream(urlOrId) {
       };
       const xargs = buildExtractorArgs(attempt.client);
       if (xargs) opts.extractorArgs = xargs;
-      const info = await withTimeout(ytdl(url, opts), 30000, 'Lấy stream');
+      const info = await withTimeout(ytdl(url, opts), 20000, 'Lấy stream');
       if (!info || !info.url) throw new Error('yt-dlp không trả được URL stream');
       const out = {
         id: info.id,
