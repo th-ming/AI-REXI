@@ -257,6 +257,15 @@ select {
 [data-theme="light"] .border-gray-700 { border-color: rgba(26,32,51,.15); }
 [data-theme="light"] .bg-\[\#0f1014\] { background-color: #eef0f6; }
 [data-theme="light"] .bg-\[\#12141c\] { background-color: #ffffff; }
+/* 4/10: các surface input/bar còn sót (SettingsModal, chat input, StudioTab) */
+[data-theme="light"] .bg-\[\#0e0f16\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#0e0f15\] { background-color: #eef0f6; }
+[data-theme="light"] .bg-\[\#12131a\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#16171d\] { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#171922\] { background-color: #eef0f6; }
+[data-theme="light"] .bg-\[\#2b1845\] { background-color: #ede9fe; border-color: rgba(124,58,237,.35); }
+[data-theme="light"] .placeholder-slate-400::placeholder { color: #8a91a3; }
+[data-theme="light"] .placeholder\:text-slate-500::placeholder { color: #8a91a3; }
 [data-theme="light"] .bg-gray-500\/20 { background-color: rgba(107,114,128,.12); }
 [data-theme="light"] .text-gray-400 { color: #4b5563; }
 [data-theme="light"] .text-gray-500 { color: #6b7280; }
