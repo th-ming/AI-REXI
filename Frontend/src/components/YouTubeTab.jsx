@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle} from 'lucide-react';
+import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, Share2} from 'lucide-react';
 import { API_BASE } from '../config';
 
 // Danh mục trending (tự động tải khi mở tab — không cần gõ từ khóa)
@@ -80,6 +80,8 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
   const [summaryStep, setSummaryStep] = useState('');
   const [showTranscript, setShowTranscript] = useState(false);
   const [showSrt, setShowSrt] = useState(false);
+  const [liked, setLiked] = useState(false); // nút Thích cục bộ (không cần server)
+  const [descOpen, setDescOpen] = useState(false); // mở rộng mô tả
   const videoRef = useRef(null);
   const [engineReady, setEngineReady] = useState(null);
   const [engineNote, setEngineNote] = useState('');
@@ -217,6 +219,18 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     ? `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(selected.stream_url)}${_ytToken ? `&token=${encodeURIComponent(_ytToken)}` : ''}`
     : '';
 
+  // Chia sẻ: copy link YouTube gốc
+  const shareVideo = async () => {
+    if (!selected) return;
+    const url = `https://www.youtube.com/watch?v=${selected.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast?.('Đã copy link video!');
+    } catch {
+      showToast?.(url);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-[#0d0e11] overflow-hidden">
       {/* Header */}
@@ -244,7 +258,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
       )}
 
       {engineReady !== false && (
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
+      <div id="yt-scroll" className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
         {!selected ? (
           <>
             {/* Search Box */}
@@ -293,41 +307,95 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
               </div>
             )}
 
-            {/* Video Grid */}
+            {/* Video Grid — kiểu YouTube: card không viền, avatar kênh tròn */}
+            {loading && videos.length === 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 max-w-[1600px] mx-auto mt-5">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-video rounded-xl bg-white/10" />
+                    <div className="flex gap-2.5 mt-2.5">
+                      <div className="w-9 h-9 rounded-full bg-white/10 shrink-0" />
+                      <div className="flex-1 space-y-2 pt-0.5">
+                        <div className="h-3 rounded bg-white/10 w-11/12" />
+                        <div className="h-3 rounded bg-white/10 w-2/3" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Cột Up tiếp theo kiểu YouTube */}
+            <aside className="w-full lg:w-[360px] shrink-0">
+              <p className="text-sm font-bold text-white mb-2.5">Up tiếp theo</p>
+              <div className="flex flex-col gap-2.5">
+                {videos.filter((v) => v.id !== selected?.id).map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => {
+                      setLiked(false);
+                      setDescOpen(false);
+                      handlePlay(v);
+                      document.getElementById('yt-scroll')?.scrollTo({ top: 0 });
+                    }}
+                    className="group flex gap-2 text-left"
+                  >
+                    <div className="relative w-40 shrink-0 aspect-video rounded-lg overflow-hidden bg-black">
+                      {v.thumb ? (
+                        <img src={v.thumb} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-red-900/40 to-[#181920]">
+                          <Play size={20} className="text-slate-600" />
+                        </div>
+                      )}
+                      <span className="absolute bottom-1 right-1 px-1 py-px rounded bg-black/80 text-[10px] font-medium text-white">
+                        {fmtDuration(v.duration)}
+                      </span>
+                    </div>
+                    <div className="min-w-0 py-0.5">
+                      <p className="text-xs font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
+                      <p className="text-[11px] text-slate-400 mt-1 truncate">{v.author}</p>
+                      <p className="text-[11px] text-slate-400">{v.views > 0 ? fmtViews(v.views) : ''}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </aside>
+          </div>
+        )}
             {videos.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-w-6xl mx-auto mt-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-3 gap-y-6 max-w-[1600px] mx-auto mt-5">
                 {videos.map((v) => (
                   <button
                     key={v.id}
                     onClick={() => handlePlay(v)}
-                    className="group text-left rounded-xl overflow-hidden bg-[#181920] border border-white/5 hover:border-red-500/30 hover:shadow-lg hover:shadow-red-500/5 transition-all"
+                    className="group text-left"
                   >
-                    <div className="relative aspect-video bg-black overflow-hidden">
+                    <div className="relative aspect-video bg-black rounded-xl overflow-hidden">
                       {v.thumb ? (
-                        <img src={v.thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                        <img src={v.thumb} alt={v.title} className="w-full h-full object-cover group-hover:scale-105 group-hover:rounded-none transition-all duration-300" loading="lazy" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-red-900/40 to-[#181920]">
                           <Play size={28} className="text-slate-600" />
                         </div>
                       )}
-                      <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[10px] font-mono text-white">
+                      <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/80 text-[11px] font-medium text-white">
                         {fmtDuration(v.duration)}
                       </span>
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
-                        <span className="w-11 h-11 rounded-full bg-red-600 flex items-center justify-center shadow-lg">
-                          <Play size={18} className="text-white ml-0.5" />
+                        <span className="w-11 h-11 rounded-full bg-black/70 flex items-center justify-center">
+                          <Play size={18} className="text-white ml-0.5" fill="currentColor" />
                         </span>
                       </div>
                     </div>
-                    <div className="p-2.5">
-                      <p className="text-[11px] font-semibold text-slate-100 line-clamp-2 leading-snug group-hover:text-red-300 transition-colors">{v.title}</p>
-                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
-                        <span className="truncate">{v.author}</span>
-                        {v.views > 0 && (
-                          <span className="flex items-center gap-0.5 shrink-0">
-                            <Eye size={10} /> {fmtViews(v.views)}
-                          </span>
-                        )}
+                    <div className="flex gap-2.5 mt-2.5">
+                      <span className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                        {(v.author || 'Y').trim().charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
+                        <p className="text-xs text-slate-400 mt-1 truncate">{v.author}</p>
+                        <p className="text-xs text-slate-400">
+                          {v.views > 0 ? fmtViews(v.views) : ''}
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -344,8 +412,9 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
             )}
           </>
         ) : (
-          /* Player View */
-          <div className="max-w-4xl mx-auto">
+          /* Player View — kiểu trang xem YouTube: cột chính + Up tiếp theo */
+          <div className="max-w-[1700px] mx-auto flex flex-col lg:flex-row gap-5">
+          <div className="flex-1 min-w-0">
             <button
               onClick={handleBack}
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-3 transition-colors"
@@ -382,33 +451,59 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
               </div>
             )}
 
-            <div className="mt-4">
-              <h2 className="text-sm font-bold text-white">{selected.title}</h2>
-              <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-slate-400">
-                <span className="flex items-center gap-1"><MonitorPlay size={12} className="text-red-400" /> {selected.author}</span>
-                <span className="flex items-center gap-1"><Clock size={11} /> {fmtDuration(selected.duration)}</span>
-                {selected.views > 0 && <span className="flex items-center gap-1"><Eye size={11} /> {fmtViews(selected.views)}</span>}
-                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">Không quảng cáo</span>
+            <h2 className="text-base font-bold text-white mt-3 leading-snug">{selected.title}</h2>
+            {/* Hàng kênh + hành động kiểu YouTube */}
+            <div className="flex flex-wrap items-center gap-3 mt-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-10 h-10 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                  {(selected.author || 'Y').trim().charAt(0).toUpperCase()}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-white truncate">{selected.author}</p>
+                  <p className="text-[11px] text-slate-400">
+                    {selected.views > 0 ? fmtViews(selected.views) : ''}
+                    {selected.duration ? ` · ${fmtDuration(selected.duration)}` : ''}
+                  </p>
+                </div>
               </div>
-              {selected.description && (
-                <p className="mt-3 text-[11px] text-slate-500 leading-relaxed line-clamp-3">{selected.description}</p>
-              )}
-
-              {/* Nút Tóm tắt AI */}
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 ml-auto">
                 <button
                   onClick={handleSummarize}
                   disabled={summarizing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:opacity-60 text-white text-xs font-bold shadow-lg shadow-red-900/30 transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-xs font-bold shadow transition-all"
                 >
-                  {summarizing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  {summarizing ? 'Đang tóm tắt...' : 'Tóm tắt video bằng AI'}
+                  {summarizing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  {summarizing ? 'Đang tóm tắt...' : 'Tóm tắt AI'}
                 </button>
-                {summarizing && summaryStep && (
-                  <span className="text-[11px] text-slate-400 animate-pulse">{summaryStep}</span>
-                )}
-                <span className="text-[10px] text-slate-600">Groq Whisper + LLM · thường mất 20-60 giây</span>
+                <button
+                  onClick={() => setLiked(!liked)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-all ${liked ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`}
+                >
+                  <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} /> Thích
+                </button>
+                <button
+                  onClick={shareVideo}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
+                >
+                  <Share2 size={13} /> Chia sẻ
+                </button>
               </div>
+            </div>
+            {summarizing && summaryStep && (
+              <p className="text-[11px] text-slate-400 animate-pulse mt-2">{summaryStep}</p>
+            )}
+            {/* Hộp mô tả kiểu YouTube — bấm để mở rộng */}
+            {selected.description && (
+              <div
+                className="mt-3 p-3 rounded-xl bg-white/5 hover:bg-white/[0.08] cursor-pointer transition-colors"
+                onClick={() => setDescOpen(!descOpen)}
+              >
+                <p className={`text-xs text-slate-300 leading-relaxed whitespace-pre-wrap ${descOpen ? '' : 'line-clamp-2'}`}>
+                  {selected.description}
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1 font-semibold">{descOpen ? 'Ẩn bớt' : '...xem thêm'}</p>
+              </div>
+            )}
 
               {/* Kết quả tóm tắt */}
               {summary && summary.summary && (
