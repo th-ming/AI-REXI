@@ -128,7 +128,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     let cancelled = false;
     const check = async () => {
       try {
-        const res = await fetch(`${API_BASE}/services/youtube/status`, { headers: headers() });
+        const res = await fetch(`${API_BASE}/services/youtube/status?_=${Date.now()}`, { headers: headers(), cache: 'no-store' });
         const data = await res.json();
         if (cancelled) return;
         setEngineReady(!!(data.success && data.ready));
