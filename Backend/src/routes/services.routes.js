@@ -936,7 +936,11 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
 const cloneUpload = multer({  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype && file.mimetype.startsWith('audio/')) cb(null, true);
+    // 4/10: một số client (curl Windows, vài trình duyệt) gửi audio với
+    // Content-Type application/octet-stream → chấp nhận theo đuôi file nữa.
+    const mimeOk = file.mimetype && file.mimetype.startsWith('audio/');
+    const extOk = /\.(wav|mp3|m4a|ogg|oga|webm|flac|aac)$/i.test(file.originalname || '');
+    if (mimeOk || extOk) cb(null, true);
     else cb(new Error('Chỉ chấp nhận file audio mẫu (wav/mp3/m4a/ogg/webm)'), false);
   }
 });
