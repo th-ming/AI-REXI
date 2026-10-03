@@ -566,8 +566,10 @@ export default function App() {
         setCurrentUser(user);
         localStorage.setItem('rexi_user', JSON.stringify(user));
         window.history.replaceState({}, document.title, window.location.pathname);
-        // Nếu đang ở popup → đóng popup, parent sẽ detect token qua storage event
+        // Nếu đang ở popup → báo cho parent qua postMessage (dự phòng khi
+        // storage event không tới) rồi đóng popup; parent detect qua cả 2 kênh.
         if (window.opener) {
+          try { window.opener.postMessage('rexi_oauth_success', window.location.origin); } catch (_) {}
           window.close();
         } else {
           showToast(`Đăng nhập ${provider} thành công!`);
@@ -656,20 +658,35 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Listen for token changes from Google OAuth popup
+  // Listen for token changes from OAuth popup (storage event + postMessage dự phòng)
   useEffect(() => {
+    const pullFromStorage = () => {
+      const tok = localStorage.getItem('rexi_token');
+      if (!tok) return false;
+      setAuthToken(tok);
+      const savedUser = localStorage.getItem('rexi_user');
+      if (savedUser) {
+        try { setCurrentUser(JSON.parse(savedUser)); } catch (e) { console.warn('[rexi] corrupt rexi_user in storage', e); }
+      }
+      return true;
+    };
     const onStorage = (e) => {
       if (e.key === 'rexi_token' && e.newValue) {
-        setAuthToken(e.newValue);
-        const savedUser = localStorage.getItem('rexi_user');
-        if (savedUser) {
-          try { setCurrentUser(JSON.parse(savedUser)); } catch (e) { console.warn('[rexi] corrupt rexi_user in storage', e); }
-        }
-        showToast('Đăng nhập Google thành công!');
+        pullFromStorage();
+        showToast('Đăng nhập thành công!');
+      }
+    };
+    const onMessage = (e) => {
+      if (e.data === 'rexi_oauth_success') {
+        if (pullFromStorage()) showToast('Đăng nhập thành công!');
       }
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener('message', onMessage);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('message', onMessage);
+    };
   }, []);
 
   useEffect(() => {
@@ -1553,7 +1570,7 @@ useEffect(() => {
     window.open(
       googleAuthUrl,
       'google_oauth',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,noopener,noreferrer`
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
     );
   };
 
@@ -1582,7 +1599,7 @@ useEffect(() => {
     window.open(
       githubAuthUrl,
       'github_oauth',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,noopener,noreferrer`
+      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
     );
   };
 
