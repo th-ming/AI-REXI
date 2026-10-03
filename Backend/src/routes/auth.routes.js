@@ -257,6 +257,80 @@ router.get('/google/callback', async (req, res) => {
     }
 });
 
+// GitHub OAuth Callback (code flow, mirror Google)
+router.get('/github/callback', async (req, res) => {
+    const { code } = req.query;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+    if (!code) {
+        return res.redirect(`${frontendUrl}?error=github_auth_failed`);
+    }
+
+    try {
+        // redirect_uri phải KHỚP với cái FE gửi cho github.com (App.jsx openGitHubOAuth)
+        const callbackUri = `${frontendUrl.replace(/\/+$/, '')}/api/auth/github/callback`;
+        const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+                code,
+                client_id: process.env.GITHUB_CLIENT_ID,
+                client_secret: process.env.GITHUB_CLIENT_SECRET,
+                redirect_uri: callbackUri,
+            })
+        });
+
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenData.access_token) {
+            console.error('[Auth] GitHub token exchange failed:', tokenData);
+            return res.redirect(`${frontendUrl}?error=github_token_failed`);
+        }
+
+        const ghHeaders = {
+            'Authorization': `Bearer ${tokenData.access_token}`,
+            'Accept': 'application/vnd.github+json',
+            'User-Agent': 'AI-REXI',
+        };
+        const meRes = await fetch('https://api.github.com/user', { headers: ghHeaders });
+        const ghUser = await meRes.json();
+
+        let email = ghUser && ghUser.email;
+        if (!email) {
+            // Email private → lấy qua /user/emails (cần scope user:email)
+            try {
+                const emRes = await fetch('https://api.github.com/user/emails', { headers: ghHeaders });
+                const emails = await emRes.json();
+                if (Array.isArray(emails) && emails.length) {
+                    email = (emails.find(e => e.primary && e.verified)
+                        || emails.find(e => e.verified)
+                        || emails[0]).email;
+                }
+            } catch (e) {
+                console.error('[Auth] GitHub emails fetch error:', e.message);
+            }
+        }
+
+        if (!email) {
+            return res.redirect(`${frontendUrl}?error=github_user_failed`);
+        }
+
+        findOrCreateUser(email, (ghUser && (ghUser.name || ghUser.login)) || email.split('@')[0], (ghUser && ghUser.avatar_url) || null, 'github', (err, user) => {
+            if (err) {
+                console.error('[Auth] GitHub callback user error:', err);
+                return res.redirect(`${frontendUrl}?error=server_error`);
+            }
+
+            const token = generateToken(user);
+            res.redirect(`${frontendUrl}#github_token=${token}&user=${encodeURIComponent(JSON.stringify(sanitizeUser(user)))}`);
+        });
+
+    } catch (e) {
+        console.error('[Auth] GitHub callback error:', e);
+        return res.redirect(`${frontendUrl}?error=github_callback_failed`);
+    }
+});
+
 // FORGOT / RESET PASSWORD
 async function sendOTPMail(to, otpCode) {
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
