@@ -52,6 +52,13 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
   const [cloneRefText, setCloneRefText] = useState('');
   const [cloneLoading, setCloneLoading] = useState(false);
   const [cloneAudioUrl, setCloneAudioUrl] = useState(null);
+  // Giọng tùy chỉnh của tôi (lưu mẫu clone để tái dùng + gọi như API)
+  const [myVoices, setMyVoices] = useState([]);
+  const [voiceName, setVoiceName] = useState('');
+  const [savingVoice, setSavingVoice] = useState(false);
+  const [speakingId, setSpeakingId] = useState(null);
+  const [showMine, setShowMine] = useState(false);
+  const [apiVoiceId, setApiVoiceId] = useState(null);
   const audioRef = useRef(null);
   const previewAudioRef = useRef(null);
   const textareaRef = useRef(null);
@@ -99,7 +106,12 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
 
   useEffect(() => {
     loadVoices();
+    loadMyVoices();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadMyVoices();
+  }, [authToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Đổi engine: nạp lại danh sách giọng tương ứng, đóng panel clone khi rời VieNeu
   const changeEngine = (eng) => {
@@ -239,6 +251,95 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
   const handlePlayPause = () => {
     if (!audioRef.current) return;
     if (playing) { audioRef.current.pause(); } else { audioRef.current.play(); }
+  };
+
+  // ─── Giọng của tôi: lưu mẫu / danh sách / đọc lại / tải mẫu / xóa ───
+  const authHeaders = () => {
+    const h = {};
+    if (authToken) h['Authorization'] = `Bearer ${authToken}`;
+    return h;
+  };
+  const loadMyVoices = async () => {
+    if (!authToken) { setMyVoices([]); return; }
+    try {
+      const res = await fetch(`${API_BASE}/services/tts/custom-voices`, { headers: authHeaders(), credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (data.success && Array.isArray(data.voices)) setMyVoices(data.voices);
+    } catch {}
+  };
+  const saveMyVoice = async () => {
+    if (!cloneFile || !voiceName.trim()) { showToast?.('Nhập tên giọng + chọn file mẫu trước', 'error'); return; }
+    setSavingVoice(true);
+    try {
+      const form = new FormData();
+      form.append('audio', cloneFile);
+      form.append('ten', voiceName.trim());
+      const res = await fetch(`${API_BASE}/services/tts/custom-voices`, {
+        method: 'POST', headers: authHeaders(), credentials: 'include', body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success) {
+        showToast?.(`Đã lưu giọng "${voiceName.trim()}"!`, 'success');
+        setVoiceName('');
+        loadMyVoices();
+      } else {
+        showToast?.(data.error || 'Lưu giọng thất bại', 'error');
+      }
+    } catch (e) {
+      showToast?.('Lỗi lưu: ' + e.message, 'error');
+    } finally {
+      setSavingVoice(false);
+    }
+  };
+  const speakMyVoice = async (id) => {
+    if (!cloneText.trim()) { showToast?.('Nhập câu cần đọc ở ô "Câu cần đọc" trước', 'error'); return; }
+    setSpeakingId(id);
+    try {
+      const res = await fetch(`${API_BASE}/services/tts/custom-voices/${id}/speak`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        credentials: 'include', body: JSON.stringify({ text: cloneText.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.success && data.audio) {
+        setCloneAudioUrl('data:audio/wav;base64,' + data.audio);
+        showToast?.(`Đã đọc bằng giọng "${data.voice_label || ''}"!`, 'success');
+      } else {
+        showToast?.(data.error || 'Đọc thất bại', 'error');
+      }
+    } catch (e) {
+      showToast?.('Lỗi đọc: ' + e.message, 'error');
+    } finally {
+      setSpeakingId(null);
+    }
+  };
+  const downloadSample = async (v) => {
+    try {
+      const res = await fetch(`${API_BASE}/services/tts/custom-voices/${v.id}/sample`, { headers: authHeaders(), credentials: 'include' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `giong-${(v.ten || v.id).replace(/[^\w\-àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]+/gi, '_')}.wav`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    } catch (e) {
+      showToast?.('Tải mẫu thất bại: ' + e.message, 'error');
+    }
+  };
+  const deleteMyVoice = async (id) => {
+    try {
+      await fetch(`${API_BASE}/services/tts/custom-voices/${id}`, { method: 'DELETE', headers: authHeaders(), credentials: 'include' });
+      loadMyVoices();
+    } catch {}
+  };
+  const apiSnippet = (id) =>
+`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://airexi.dpdns.org'}/api/services/tts/custom-voices/${id}/speak \\
+  -H "Authorization: Bearer <APP_TOKEN>" \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"text\\":\\"Xin chào\\"}"`;
+  const copyApiSnippet = async (id) => {
+    try { await navigator.clipboard.writeText(apiSnippet(id)); showToast?.('Đã copy lệnh API!', 'success'); }
+    catch { showToast?.('Copy thất bại', 'error'); }
   };
 
   const handleDownload = () => {
@@ -576,6 +677,88 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
               )}
             </div>
           )}
+          {/* Giọng của tôi — lưu mẫu clone để tái dùng + gọi như API */}
+          <div className="border border-white/10 rounded-2xl overflow-hidden bg-[var(--bg-card)]">
+            <button
+              onClick={() => setShowMine(!showMine)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/5 transition-all"
+            >
+              <span className="flex items-center gap-2 text-xs font-bold text-[var(--text-main)]">
+                <User size={14} className="text-cyan-400" /> Giọng của tôi
+                {myVoices.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/15 text-cyan-300 text-[10px]">{myVoices.length}</span>
+                )}
+              </span>
+              <span className="text-[10px] text-slate-500">{showMine ? 'Thu gọn' : 'Mở'}</span>
+            </button>
+            {showMine && (
+              <div className="px-4 pb-4 pt-3 space-y-3 border-t border-white/10">
+                {!authToken ? (
+                  <p className="text-[11px] text-slate-500">Đăng nhập để lưu giọng riêng và tái dùng qua API.</p>
+                ) : (
+                  <>
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Lưu file mẫu đã clone thành giọng riêng có tên — đọc văn bản mới bất cứ lúc nào
+                      mà không cần tải mẫu lại. Mỗi giọng còn có <b>API riêng</b> để gọi từ app khác.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        value={voiceName}
+                        onChange={e => setVoiceName(e.target.value)}
+                        placeholder="Tên giọng (VD: Giọng anh Tuấn)..."
+                        maxLength={60}
+                        className="flex-1 px-3 py-2 bg-[#12131a] border border-white/10 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/50 transition-all"
+                      />
+                      <button
+                        onClick={saveMyVoice}
+                        disabled={savingVoice || !cloneFile || !voiceName.trim()}
+                        className="px-3 py-2 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold disabled:opacity-40 hover:bg-cyan-500/30 transition-all whitespace-nowrap"
+                      >
+                        {savingVoice ? 'Đang lưu...' : 'Lưu giọng này'}
+                      </button>
+                    </div>
+                    {!cloneFile && (
+                      <p className="text-[10px] text-slate-600">Chọn file mẫu ở mục Clone giọng phía trên rồi đặt tên để lưu.</p>
+                    )}
+                    {myVoices.length === 0 ? (
+                      <p className="text-[10px] text-slate-600">Chưa lưu giọng nào.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {myVoices.map(v => (
+                          <div key={v.id} className="p-2.5 rounded-xl bg-[var(--bg-main)] border border-white/10">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[11px] font-bold text-slate-200 truncate">{v.ten}</p>
+                                <p className="text-[9px] text-slate-500">{v.ngay_tao || ''}{v.dung_luong ? ` · ${Math.round(v.dung_luong / 1024)} KB` : ''}</p>
+                              </div>
+                              <button
+                                onClick={() => speakMyVoice(v.id)}
+                                disabled={speakingId === v.id}
+                                className="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-[10px] font-bold disabled:opacity-50 hover:bg-cyan-500/30 transition-all whitespace-nowrap"
+                              >
+                                {speakingId === v.id ? 'Đang đọc...' : 'Đọc câu trên'}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1.5">
+                              <button onClick={() => downloadSample(v)} className="text-[10px] text-slate-400 hover:text-cyan-300 transition-colors">Tải mẫu</button>
+                              <button onClick={() => setApiVoiceId(apiVoiceId === v.id ? null : v.id)} className="text-[10px] text-slate-400 hover:text-cyan-300 transition-colors">API</button>
+                              <button onClick={() => deleteMyVoice(v.id)} className="text-[10px] text-slate-500 hover:text-rose-300 transition-colors">Xóa</button>
+                            </div>
+                            {apiVoiceId === v.id && (
+                              <div className="mt-2">
+                                <pre className="p-2 rounded-lg bg-black/40 border border-white/10 text-[9px] text-slate-400 font-mono whitespace-pre-wrap break-all">{apiSnippet(v.id)}</pre>
+                                <button onClick={() => copyApiSnippet(v.id)} className="mt-1 text-[10px] text-cyan-300 hover:text-cyan-200 transition-colors">Copy lệnh</button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

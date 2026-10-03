@@ -998,6 +998,136 @@ router.post('/tts/clone', rateLimit({ windowMs: 60000, max: 10 }), cloneUpload.s
   }
 });
 
+// ─── Giọng tùy chỉnh của user ("Giọng của tôi", 4/10) ─────────────────────
+// VieNeu /v1/clone là stateless (trả WAV xong xóa mẫu) → muốn TÁI DÙNG giọng
+// phải lưu file mẫu. Lưu mẫu vào DB theo user (Render disk ephemeral nên
+// không để file local). Có API /:id/speak để đọc văn bản mới bằng giọng đã
+// lưu — dùng trong app lẫn gọi từ bên ngoài như API TTS giọng riêng.
+db.run(`CREATE TABLE IF NOT EXISTS giong_tuy_chinh (
+  giong_id TEXT PRIMARY KEY,
+  ma_nguoi_dung TEXT NOT NULL,
+  ten_giong TEXT NOT NULL,
+  audio_mime TEXT,
+  audio_b64 TEXT,
+  dung_luong INTEGER DEFAULT 0,
+  ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP
+)`, () => {});
+const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
+  db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
+});
+const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
+  db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows || []));
+});
+const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
+  db.run(sql, params, function (err) { err ? reject(err) : resolve(this); });
+});
+const MAX_SAMPLE_BYTES = 2 * 1024 * 1024; // mẫu 3-8s wav ~ vài trăm KB
+
+// Lưu mẫu giọng (đặt tên) — cần đăng nhập
+router.post('/tts/custom-voices', authMiddleware, rateLimit({ windowMs: 60000, max: 10 }), cloneUpload.single('audio'), async (req, res) => {
+  try {
+    const name = String(req.body?.ten || req.body?.name || '').trim().substring(0, 60);
+    if (!name) return res.status(400).json({ success: false, error: 'Thiếu tên giọng (ten).' });
+    if (!req.file || !req.file.buffer || !req.file.buffer.length) {
+      return res.status(400).json({ success: false, error: 'Thiếu file audio mẫu.' });
+    }
+    if (req.file.buffer.length > MAX_SAMPLE_BYTES) {
+      return res.status(400).json({ success: false, error: 'File mẫu quá lớn (tối đa 2MB, khoảng 3-8 giây).' });
+    }
+    const id = require('crypto').randomUUID();
+    await dbRun(
+      'INSERT INTO giong_tuy_chinh (giong_id, ma_nguoi_dung, ten_giong, audio_mime, audio_b64, dung_luong) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, req.user.id, name, req.file.mimetype || 'audio/wav', req.file.buffer.toString('base64'), req.file.buffer.length]
+    );
+    return res.json({ success: true, id, ten: name, dung_luong: req.file.buffer.length });
+  } catch (err) {
+    console.error('[TTS custom-voices] Save error:', err.message);
+    return res.status(500).json({ success: false, error: 'Lỗi lưu giọng: ' + err.message });
+  }
+});
+
+// Danh sách giọng của tôi (không kèm audio)
+router.get('/tts/custom-voices', authMiddleware, async (req, res) => {
+  try {
+    const rows = await dbAll(
+      'SELECT giong_id AS id, ten_giong AS ten, audio_mime, dung_luong, ngay_tao FROM giong_tuy_chinh WHERE ma_nguoi_dung = ? ORDER BY ngay_tao DESC',
+      [req.user.id]
+    );
+    return res.json({ success: true, voices: rows });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Lỗi tải danh sách: ' + err.message });
+  }
+});
+
+// Tải file mẫu về (để chèn/chế biến chỗ khác)
+router.get('/tts/custom-voices/:id/sample', authMiddleware, async (req, res) => {
+  try {
+    const row = await dbGet(
+      'SELECT ten_giong, audio_mime, audio_b64 FROM giong_tuy_chinh WHERE giong_id = ? AND ma_nguoi_dung = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!row || !row.audio_b64) return res.status(404).json({ success: false, error: 'Không tìm thấy mẫu giọng.' });
+    const buf = Buffer.from(row.audio_b64, 'base64');
+    const ext = String(row.audio_mime || '').includes('mp3') || String(row.audio_mime || '').includes('mpeg') ? 'mp3' : 'wav';
+    res.setHeader('Content-Type', row.audio_mime || 'audio/wav');
+    res.setHeader('Content-Disposition', `attachment; filename="giong-${req.params.id}.${ext}"`);
+    return res.send(buf);
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Lỗi tải mẫu: ' + err.message });
+  }
+});
+
+// Xóa giọng
+router.delete('/tts/custom-voices/:id', authMiddleware, async (req, res) => {
+  try {
+    await dbRun('DELETE FROM giong_tuy_chinh WHERE giong_id = ? AND ma_nguoi_dung = ?', [req.params.id, req.user.id]);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Lỗi xóa: ' + err.message });
+  }
+});
+
+// Đọc văn bản mới bằng giọng đã lưu — API tái dùng (trong app + gọi ngoài)
+router.post('/tts/custom-voices/:id/speak', authMiddleware, rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+  try {
+    if (!VIENEU_BASE_URL) {
+      return res.status(503).json({ success: false, error: 'Cần engine VieNeu (VIENEU_BASE_URL chưa cấu hình).' });
+    }
+    const text = String(req.body?.text || '').trim().substring(0, 1000);
+    if (!text) return res.status(400).json({ success: false, error: 'Thiếu text.' });
+    const row = await dbGet(
+      'SELECT ten_giong, audio_mime, audio_b64 FROM giong_tuy_chinh WHERE giong_id = ? AND ma_nguoi_dung = ?',
+      [req.params.id, req.user.id]
+    );
+    if (!row || !row.audio_b64) return res.status(404).json({ success: false, error: 'Không tìm thấy mẫu giọng.' });
+    const form = new FormData();
+    form.append('file', new Blob([Buffer.from(row.audio_b64, 'base64')], { type: row.audio_mime || 'audio/wav' }), 'ref.wav');
+    form.append('text', text);
+    const upstream = await fetch(`${VIENEU_BASE_URL}/v1/clone`, {
+      method: 'POST',
+      body: form,
+      signal: AbortSignal.timeout(VIENEU_TIMEOUT_MS),
+    });
+    if (!upstream.ok) {
+      const detail = await upstream.text().catch(() => '');
+      return res.status(502).json({ success: false, engine: 'vieneu', error: `VieNeu clone HTTP ${upstream.status}`, detail: detail.substring(0, 200) });
+    }
+    const wavBuffer = Buffer.from(await upstream.arrayBuffer());
+    if (!wavBuffer.length) return res.status(502).json({ success: false, engine: 'vieneu', error: 'VieNeu clone trả audio rỗng' });
+    return res.json({
+      success: true,
+      audio: wavBuffer.toString('base64'),
+      format: 'wav',
+      engine: 'vieneu',
+      voice_id: req.params.id,
+      voice_label: row.ten_giong,
+    });
+  } catch (err) {
+    console.error('[TTS custom-voices] Speak error:', err.message);
+    return res.status(500).json({ success: false, error: 'Lỗi đọc: ' + err.message });
+  }
+});
+
 const getCountryFlag = (code) => {
   if (!code || code.length !== 2) return '🌐';
   const codePoints = code.toUpperCase().split('').map(c => 127397 + c.charCodeAt(0));
