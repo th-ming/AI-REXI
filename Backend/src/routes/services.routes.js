@@ -1013,11 +1013,18 @@ const getCountryFlag = (code) => {
 // header → cho phép token qua ?token= (bridge sang header cho authMiddleware).
 // FE đã gửi token vào URL proxy (App.jsx playHlsStream, YouTubeTab proxyUrl);
 // playlist m3u8 rewrite giữ lại token cho các segment con (qsToken).
+// 4/10 FREE-ALL YouTube: khách vãng lai (không token) vẫn xem được qua
+// /youtube/proxy nhưng CHỈ với host media đã biết (chống open-proxy).
+// /iptv/proxy giữ nguyên: bắt buộc login.
 function proxyAuth(req, res, next) {
   if (!req.headers.authorization && req.query.token) {
     req.headers.authorization = 'Bearer ' + req.query.token;
   }
   return authMiddleware(req, res, next);
+}
+function youtubeProxyAuth(req, res, next) {
+  if (req.headers.authorization || req.query.token) return proxyAuth(req, res, next);
+  return next(); // khách: handler /youtube/proxy kiểm tra host allowlist
 }
 
 router.get('/iptv/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth, async (req, res) => {
@@ -1416,7 +1423,7 @@ router.get('/youtube/stream', async (req, res) => {
 });
 
 // Proxy stream video (chống CORS + SSRF) — copy pattern từ iptv/proxy
-router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth, async (req, res) => {
+router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), youtubeProxyAuth, async (req, res) => {
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'Missing url param' });
 
@@ -1428,6 +1435,14 @@ router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), proxyAuth
     if (!check.ok) {
       const code = (check.reason === 'URL không hợp lệ' || check.reason === 'Chỉ cho phép http/https') ? 400 : 403;
       return res.status(code).json({ error: check.reason });
+    }
+    // 4/10 FREE-ALL: khách (không qua authMiddleware) chỉ được proxy host media đã biết
+    if (!req.user) {
+      let host = '';
+      try { host = new URL(targetUrl).hostname; } catch (e) { /* fallthrough 400 dưới */ }
+      if (!ytdlp.isYouTubeProxyHost(host)) {
+        return res.status(403).json({ error: 'Khách vãng lai chỉ phát được luồng YouTube (đăng nhập để mở rộng).' });
+      }
     }
   } catch {
     return res.status(400).json({ error: 'Invalid url' });

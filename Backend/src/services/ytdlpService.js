@@ -712,4 +712,20 @@ async function getStatus() {
 // Bật keepalive POT ngay khi module được nạp (server require service này lúc boot).
 startPotKeepAlive();
 
-module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, getLadderErrors, warmPotProvider };
+// Host cho phép khi gọi /youtube/proxy dưới dạng KHÁCH (không token):
+// googlevideo (stream trực tiếp) + worker tunnel đang cấu hình + các
+// instance Invidious/Piped đã biết — chặn biến proxy thành fetch-proxy mở.
+function isYouTubeProxyHost(host) {
+  const h = String(host || '').toLowerCase();
+  if (/(^|\.)googlevideo\.com$/.test(h)) return true;
+  try {
+    const w = WORKER_URL ? new URL(WORKER_URL).hostname.toLowerCase() : '';
+    if (w && h === w) return true;
+  } catch (e) { /* bỏ qua */ }
+  const known = [...INVIDIOUS_HOSTS, ...PIPED_HOSTS,
+    ...(_instCache.invidious || []), ...(_instCache.piped || [])]
+    .map(x => String(x || '').toLowerCase());
+  return known.includes(h);
+}
+
+module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, getLadderErrors, warmPotProvider, isYouTubeProxyHost };
