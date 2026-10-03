@@ -933,16 +933,25 @@ router.post('/tts', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) =>
 
 // Clone giọng (VieNeu): nhận file mẫu 3-8s + văn bản → forward multipart tới
 // {VIENEU_BASE_URL}/v1/clone → trả WAV base64 (cùng định dạng với /services/tts).
-const cloneUpload = multer({
-  storage: multer.memoryStorage(),
+const cloneUpload = multer({  storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype && file.mimetype.startsWith('audio/')) cb(null, true);
     else cb(new Error('Chỉ chấp nhận file audio mẫu (wav/mp3/m4a/ogg/webm)'), false);
   }
 });
+// Bọc single('audio') để lỗi multer/busboy trả JSON 400 rõ ràng thay vì rơi
+// vào global error handler (500 mù). 4/10: debug upload flaky.
+const uploadAudioSample = (req, res, next) => {
+  cloneUpload.single('audio')(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ success: false, error: 'Upload lỗi: ' + (err.message || err.code || 'unknown') });
+    }
+    next();
+  });
+};
 
-router.post('/tts/clone', rateLimit({ windowMs: 60000, max: 10 }), cloneUpload.single('audio'), async (req, res) => {
+router.post('/tts/clone', rateLimit({ windowMs: 60000, max: 10 }), uploadAudioSample, async (req, res) => {
   try {
     if (!VIENEU_BASE_URL) {
       return res.status(503).json({
@@ -1024,7 +1033,7 @@ const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
 const MAX_SAMPLE_BYTES = 2 * 1024 * 1024; // mẫu 3-8s wav ~ vài trăm KB
 
 // Lưu mẫu giọng (đặt tên) — cần đăng nhập
-router.post('/tts/custom-voices', authMiddleware, rateLimit({ windowMs: 60000, max: 10 }), cloneUpload.single('audio'), async (req, res) => {
+router.post('/tts/custom-voices', authMiddleware, rateLimit({ windowMs: 60000, max: 10 }), uploadAudioSample, async (req, res) => {
   try {
     const name = String(req.body?.ten || req.body?.name || '').trim().substring(0, 60);
     if (!name) return res.status(400).json({ success: false, error: 'Thiếu tên giọng (ten).' });
