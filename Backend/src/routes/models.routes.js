@@ -313,6 +313,37 @@ router.post('/admin/models/sync', [authMiddleware, adminMiddleware], async (req,
   }
 });
 
+// ─── Public: quét model từ Base URL + API Key người dùng dán vào Settings ───
+// POST /api/models/scan — KHÔNG ghi CSDL, chỉ trả danh sách model cho FE chọn
+router.post('/scan', async (req, res) => {
+  const { provider, api_key, base_url } = req.body;
+  const prov = (provider || 'custom').trim();
+  const baseUrl = (base_url || '').trim();
+
+  // Chặn SSRF: không cho quét host nội bộ
+  if (baseUrl) {
+    try {
+      const host = new URL(baseUrl).hostname.toLowerCase();
+      const blocked = host === 'localhost' || host === '::1' || host.endsWith('.internal')
+        || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/.test(host);
+      if (blocked) return res.status(400).json({ success: false, error: 'Không được quét địa chỉ nội bộ.' });
+    } catch {
+      return res.status(400).json({ success: false, error: 'Base URL không hợp lệ.' });
+    }
+  }
+
+  try {
+    const result = await fetchModelsFromProvider(prov, (api_key || '').trim(), baseUrl);
+    if (!result.success) return res.json({ success: false, error: result.error });
+    if (!result.models || result.models.length === 0) {
+      return res.json({ success: false, error: 'Không tìm thấy model nào từ link API này.' });
+    }
+    res.json({ success: true, provider: prov, count: result.models.length, models: result.models });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Lỗi quét model: ' + err.message });
+  }
+});
+
 // ─── Utility: quét model từ provider ─────────────────────────
 async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
   let modelsList = [];
@@ -390,15 +421,25 @@ async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
     if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
     else if (data.error) return { success: false, error: provider + ': ' + (data.error.message || JSON.stringify(data.error)) };
   } else {
-    // custom
+    // custom — thử {base}/models rồi {base}/v1/models (phòng URL thiếu /v1)
     const cleanedBase = (baseUrl || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
-    const endpoint = cleanedBase.endsWith('/models') ? cleanedBase : cleanedBase + '/models';
     const headers = apiKey ? { 'Authorization': 'Bearer ' + apiKey } : {};
-    const resp = await fetch(endpoint, { headers });
-    const data = await resp.json();
-    if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
-    else if (Array.isArray(data)) modelsList = data.map(m => m.id || m.name || m);
-    else if (data.error) return { success: false, error: (provider === 'custom' ? 'Custom' : provider) + ': ' + (data.error.message || JSON.stringify(data.error)) };
+    const candidates = cleanedBase.endsWith('/models')
+      ? [cleanedBase]
+      : [cleanedBase + '/models', cleanedBase + '/v1/models'];
+    for (let i = 0; i < candidates.length; i++) {
+      const endpoint = candidates[i];
+      const isLast = i === candidates.length - 1;
+      try {
+        const resp = await fetch(endpoint, { headers });
+        const data = await resp.json();
+        if (data.data && Array.isArray(data.data)) { modelsList = data.data.map(m => m.id); break; }
+        if (Array.isArray(data)) { modelsList = data.map(m => m.id || m.name || m); break; }
+        if (data.error && isLast) return { success: false, error: (provider === 'custom' ? 'Custom' : provider) + ': ' + (data.error.message || JSON.stringify(data.error)) };
+      } catch (e) {
+        if (isLast) return { success: false, error: (provider === 'custom' ? 'Custom' : provider) + ': ' + (e.message || 'Kết nối thất bại') };
+      }
+    }
   }
 
   return { success: true, models: modelsList };

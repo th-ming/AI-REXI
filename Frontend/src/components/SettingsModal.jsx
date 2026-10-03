@@ -1,5 +1,5 @@
 import { API_BASE } from '../config';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Eye, EyeOff, RefreshCw, Zap } from 'lucide-react';
 
 const FALLBACK_PROVIDERS = {
@@ -13,6 +13,9 @@ const FALLBACK_PROVIDERS = {
   custom: { name: 'Custom Endpoint / OpenRouter', placeholder: 'sk-or-v1-...', defaultBaseUrl: 'https://openrouter.ai/api/v1' }
 };
 
+// Provider KHÔNG cần Base URL — chỉ cần API key là quét được model
+const KEY_ONLY_PROVIDERS = ['gemini', 'claude', 'openai', 'deepseek', 'groq', 'github', 'xkiro', 'agentrouter', 'opencode'];
+
 export default function SettingsModal({
   settingsOpen, setSettingsOpen,
   provider, setProvider, modelName, setModelName,
@@ -21,12 +24,19 @@ export default function SettingsModal({
   const [showApiKey, setShowApiKey] = useState(false);
   const [dynamicProviders, setDynamicProviders] = useState([]);
   const [loadingProviders, setLoadingProviders] = useState(false);
+  const [scanModels, setScanModels] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const scanAbortRef = useRef(null);
 
   // Fetch danh sách Nhà Cung Cấp động từ API khi mở Modal
   useEffect(() => {
     if (settingsOpen) {
       fetchProviders();
     }
+    return () => {
+      if (scanAbortRef.current) { try { scanAbortRef.current.abort(); } catch (e) {} }
+    };
   }, [settingsOpen]);
 
   const fetchProviders = async () => {
@@ -57,7 +67,7 @@ export default function SettingsModal({
     // P2-23: khi đổi provider, key cũ (session) thuộc provider khác → xóa để tránh gửi nhầm key sang provider mới
     try { sessionStorage.removeItem('rexi_api_key'); } catch (e) { console.warn('[rexi] storage clear failed', e); }
 
-    // KHÔNG gợi ý model mẫu — để hệ thống tự chọn model working đầu tiên của provider
+    // KHÔNG gợi ý model mẫu — để hệ thống tự quét model từ API
   };
 
   const handleClearKey = () => {
@@ -65,6 +75,50 @@ export default function SettingsModal({
     try { localStorage.removeItem('rexi_api_key'); } catch (e) { console.warn('[rexi] storage clear failed', e); }
     try { sessionStorage.removeItem('rexi_api_key'); } catch (e) { console.warn('[rexi] storage clear failed', e); }
   };
+
+  // TỰ QUÉT MODEL: dán Base URL + API Key là tự lấy danh sách model — không cần gõ tay
+  const runScan = async () => {
+    if (scanAbortRef.current) { try { scanAbortRef.current.abort(); } catch (e) {} }
+    const ac = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    scanAbortRef.current = ac;
+    setScanning(true);
+    setScanError('');
+    try {
+      const res = await fetch(`${API_BASE}/models/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, api_key: apiKey, base_url: baseUrl }),
+        signal: ac ? ac.signal : undefined
+      });
+      const data = await res.json();
+      if (ac && ac.signal.aborted) return;
+      if (data.success && Array.isArray(data.models) && data.models.length > 0) {
+        setScanModels(data.models);
+        const next = data.models.includes(modelName) ? modelName : data.models[0];
+        setModelName(next);
+        localStorage.setItem('rexi_model', next);
+      } else {
+        setScanModels([]);
+        setScanError(data.error || 'Không tìm thấy model nào.');
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      setScanError('Lỗi quét: ' + e.message);
+    } finally {
+      if (!ac || !ac.signal.aborted) setScanning(false);
+    }
+  };
+
+  // Debounce 700ms sau khi dán/gõ URL hoặc key → tự quét
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const hasBase = (baseUrl || '').trim().length > 0;
+    const hasKey = (apiKey || '').trim().length > 0;
+    if (!hasBase && !hasKey && provider !== 'opencode') { setScanModels([]); setScanError(''); return; }
+    if (!hasBase && !KEY_ONLY_PROVIDERS.includes(provider)) { setScanModels([]); setScanError(''); return; }
+    const t = setTimeout(() => { runScan(); }, 700);
+    return () => clearTimeout(t);
+  }, [settingsOpen, provider, baseUrl, apiKey]);
 
   if (!settingsOpen) return null;
 
@@ -113,14 +167,41 @@ export default function SettingsModal({
           </div>
 
           <div>
-              <label className="text-xs font-medium text-slate-400 mb-1 block">Model AI (Mô hình)</label>
-            <input
-              type="text"
-              value={modelName}
-              onChange={e => { setModelName(e.target.value); localStorage.setItem('rexi_model', e.target.value); }}
-              placeholder="vd: tên model có trong danh sách..."
-              className="w-full px-3 py-2.5 bg-[#0e0f16] border border-white/10 rounded-xl text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-cyan-400 font-mono"
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-slate-400">Model AI (Tự quét từ API)</label>
+              <div className="flex items-center gap-2">
+                {scanning && <span className="text-[10px] text-cyan-400 animate-pulse">Đang quét...</span>}
+                <button type="button" onClick={runScan} title="Quét lại danh sách model từ API"
+                  className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
+                  <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Quét lại
+                </button>
+              </div>
+            </div>
+            {scanModels.length > 0 ? (
+              <select
+                value={scanModels.includes(modelName) ? modelName : scanModels[0]}
+                onChange={e => { setModelName(e.target.value); localStorage.setItem('rexi_model', e.target.value); }}
+                className="w-full px-3 py-2.5 bg-[#0e0f16] border border-white/10 rounded-xl text-sm text-slate-100 outline-none focus:border-cyan-400 cursor-pointer font-mono"
+              >
+                {scanModels.map(m => (
+                  <option key={m} value={m} className="bg-[#1e1f20] text-slate-200">{m}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={modelName}
+                onChange={e => { setModelName(e.target.value); localStorage.setItem('rexi_model', e.target.value); }}
+                placeholder={scanError ? 'Quét lỗi — nhập model tay hoặc sửa URL/key...' : 'Dán Base URL + API Key để tự quét model...'}
+                className="w-full px-3 py-2.5 bg-[#0e0f16] border border-white/10 rounded-xl text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-cyan-400 font-mono"
+              />
+            )}
+            {scanModels.length > 0 && (
+              <p className="text-[10px] text-emerald-400 mt-1">Đã quét được {scanModels.length} model từ API — chọn trong danh sách</p>
+            )}
+            {scanModels.length === 0 && scanError && (
+              <p className="text-[10px] text-amber-400 mt-1">{scanError}</p>
+            )}
           </div>
 
           {provider !== 'opencode' && (
@@ -178,4 +259,3 @@ export default function SettingsModal({
     </div>
   );
 }
-
