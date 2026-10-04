@@ -446,7 +446,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                   autoPlay
                   playsInline
                   className="w-full h-full bg-black"
-                  onError={() => setError('Không phát được video qua proxy. Thử video khác.')}
+                  onError={() => { if (!isHlsStream) setError('Không phát được video qua proxy. Thử video khác.'); }}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
