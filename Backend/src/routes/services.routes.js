@@ -1679,7 +1679,10 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
       let fixed = String(sc).replace(/;\s*domain=[^;]*/i, '').replace(/;\s*[Pp]ath=\/(?=;|$)/, '; Path=/api/services/classroom');
       try { res.append('set-cookie', fixed); } catch (e) { /* bỏ qua */ }
     }
-    // Nếu upstream vẫn chặn frame bằng CSP khác (report-only đã strip) — ép thêm header mở
+    // Nếu upstream vẫn chặn frame bằng CSP khác (report-only đã strip) — ép thêm header mở.
+    // QUAN TRỌNG: helmet của chính backend mình gắn X-Frame-Options: SAMEORIGIN lên
+    // MỌI response → phải gỡ ở đây, nếu không iframe vẫn bị chặn.
+    res.removeHeader('x-frame-options');
     res.setHeader('content-security-policy', "frame-ancestors 'self' https://airexi.dpdns.org https://*.vercel.app http://localhost:*");
 
     const rct = (upstream.headers.get('content-type') || '').toLowerCase();
