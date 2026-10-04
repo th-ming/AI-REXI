@@ -2373,6 +2373,16 @@ router.get('/browser/status', authMiddleware, (req, res) => {
   res.json(browserStream.getStatus());
 });
 
+// GET: 1 frame debug — test screenshot hoạt động trên server (browser phải đang chạy)
+router.get('/browser/frame', authMiddleware, async (req, res) => {
+  try {
+    const shot = await browserStream.debugFrame();
+    res.json(shot);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST: AI Action (Stagehand) — điều khiển browser bằng ngôn ngữ tự nhiên
 router.post('/browser/act', authMiddleware, async (req, res) => {
   try {

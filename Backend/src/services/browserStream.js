@@ -484,6 +484,27 @@ class BrowserStreamService {
       stagehand: !!this.stagehand,
     };
   }
+
+  // Debug: chụp 1 frame trả JSON — test screenshot server hoạt động không
+  async debugFrame() {
+    if (!this.page) return { success: false, error: 'Browser chưa chạy (gõ URL + Enter trong tab để launch).' };
+    try {
+      let shotBuf = null;
+      if (this.cdpSession) {
+        try {
+          const result = await this.cdpSession.send('Page.captureScreenshot', { format: 'jpeg', quality: 50 });
+          shotBuf = Buffer.from(result.data, 'base64');
+        } catch (cdpErr) {
+          shotBuf = await this.page.screenshot({ type: 'jpeg', quality: 50 });
+        }
+      } else {
+        shotBuf = await this.page.screenshot({ type: 'jpeg', quality: 50 });
+      }
+      return { success: true, len: shotBuf.length, b64: shotBuf.toString('base64'), url: this.page.url() };
+    } catch (e) {
+      return { success: false, error: e.message };
+    }
+  }
 }
 
 module.exports = new BrowserStreamService();
