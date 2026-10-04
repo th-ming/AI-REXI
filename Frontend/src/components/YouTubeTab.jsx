@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, Share2} from 'lucide-react';
+import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2} from 'lucide-react';
 import Hls from 'hls.js';
 import { API_BASE } from '../config';
 
@@ -462,6 +462,11 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
             )}
 
             <h2 className="text-base font-bold text-white mt-3 leading-snug">{selected.title}</h2>
+            {/* Info line kiểu YouTube: views • thời lượng ngay dưới title */}
+            <p className="text-xs text-slate-400 mt-1">
+              {selected.views > 0 ? `${fmtViews(selected.views)} lượt xem` : ''}
+              {selected.duration ? `${selected.views > 0 ? ' • ' : ''}${fmtDuration(selected.duration)}` : ''}
+            </p>
             {/* Hàng kênh + hành động kiểu YouTube */}
             <div className="flex flex-wrap items-center gap-3 mt-2.5">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -470,10 +475,6 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white truncate">{selected.author}</p>
-                  <p className="text-[11px] text-slate-400">
-                    {selected.views > 0 ? fmtViews(selected.views) : ''}
-                    {selected.duration ? ` · ${fmtDuration(selected.duration)}` : ''}
-                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2 ml-auto">
@@ -485,12 +486,18 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                   {summarizing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
                   {summarizing ? 'Đang tóm tắt...' : 'Tóm tắt AI'}
                 </button>
-                <button
-                  onClick={() => setLiked(!liked)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition-all ${liked ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`}
-                >
-                  <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} /> Thích
-                </button>
+                {/* Like/dislike ghép 1 pill kiểu YouTube */}
+                <div className="flex items-center rounded-full bg-white/10 overflow-hidden">
+                  <button
+                    onClick={() => setLiked(!liked)}
+                    className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-all border-r border-white/10 ${liked ? 'text-black bg-white' : 'text-white hover:bg-white/10'}`}
+                  >
+                    <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} /> Thích
+                  </button>
+                  <button className="px-3.5 py-2 text-white hover:bg-white/10 transition-all" title="Không thích">
+                    <ThumbsDown size={13} />
+                  </button>
+                </div>
                 <button
                   onClick={shareVideo}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
