@@ -175,7 +175,7 @@ export default function ChatTab({
             messages.map((msg, idx) => (
               <div
                 key={msg.ma_tin_nhan || idx}
-                className={`flex gap-3 text-sm ${msg.vai_tro === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-3 text-sm group ${msg.vai_tro === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.vai_tro !== 'user' && (
                   <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-logo-no-glow w-7 h-7 shrink-0 mt-0.5 object-contain" />
@@ -247,7 +247,7 @@ export default function ChatTab({
                     </div>
                   )}
                   {msg.vai_tro === 'user' && (
-                    <div className="flex items-center justify-end gap-3 mt-2 text-[11px] text-white/70">
+                    <div className="flex items-center justify-end gap-3 mt-2 text-[11px] text-white/70 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                       <button onClick={() => copyToClipboard(msg.noi_dung, msg.ma_tin_nhan)} className="flex items-center gap-1 hover:text-white transition-colors" title="Sao chép">
                         {copiedId === msg.ma_tin_nhan ? <Check size={12} /> : <Copy size={12} />}
                         <span>{copiedId === msg.ma_tin_nhan ? 'Đã chép' : 'Chép'}</span>
