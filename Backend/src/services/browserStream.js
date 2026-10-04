@@ -31,6 +31,8 @@ class BrowserStreamService {
     this.wss = wss;
     console.log('[BrowserStream] setWSS called, path:', wss.options?.path || 'default');
     this.wss.on('connection', (ws, req) => {
+      // DEBUG 4/10: ping ngay khi connection — nếu client nhận được thì handler chạy
+      try { ws.send(JSON.stringify({ type: 'hello', msg: 'connection handler running' })); } catch (e) {}
       // P0-03: WS đã qua verifyClient ở server.js — decode lại token để gắn user,
       // phòng trường hợp WSS được dựng ở nơi khác mà quên verifyClient.
       let user = null;
