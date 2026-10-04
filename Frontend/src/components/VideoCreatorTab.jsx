@@ -13,87 +13,154 @@ const FORMATS = [
 
 const GSAP_CDN = '<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>';
 
+// Pseudo-random deterministic (sin-hash) — seek-safe, KHÔNG Math.random
+const prand = (i, salt = 0) => {
+  const x = Math.sin((i + 1) * 127.1 + salt * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
+// Vòng lặp hữu hạn lấp đầy thời lượng: tween kéo dur/K rồi repeat (K-1) lần → tổng đúng dur.
+// repeat:-1 làm tl.duration() = 1 vòng → renderer clamp → video đứng hình sau 1 giây (bug cũ).
+const fullDur = (dur, cycle) => {
+  const K = Math.max(2, Math.ceil(dur / Math.max(cycle, 0.5)));
+  return { seg: dur / K, rep: K - 1 };
+};
+
+// Film grain + scanlines dùng chung (CSS keyframes — renderer đóng băng theo frame)
+const FX_CSS = `
+  .fx-grain{position:absolute;inset:-60%;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");animation:fxgrain .8s steps(4) infinite}
+  @keyframes fxgrain{0%{transform:translate(0,0)}25%{transform:translate(-2%,3%)}50%{transform:translate(3%,-2%)}75%{transform:translate(-3%,-3%)}100%{transform:translate(0,0)}}
+  .fx-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 2px,transparent 2px 4px)}
+  .fx-vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 42%,rgba(0,0,0,.72) 100%)}
+`;
+
 const EASY_TEMPLATES = [
   {
-    id: 'title-slide',
-    name: 'Tiêu Đề & Phụ Đề',
-    desc: 'Fade-in title + subtitle trên nền tối',
+    id: 'title-cinema',
+    name: 'Tiêu Đề Điện Ảnh',
+    desc: 'Aurora trôi suốt video + gradient quét qua chữ + film grain + vignette',
     category: 'intro',
     fields: [
-      { key: 'title', label: 'Tiêu đề chính', placeholder: 'VD: Chào mừng đến với AI Rexi', default: 'Chào mừng đến với AI Rexi' },
-      { key: 'subtitle', label: 'Phụ đề', placeholder: 'VD: Video được tạo hoàn toàn miễn phí', default: 'Video được tạo hoàn toàn miễn phí' },
+      { key: 'title', label: 'Tiêu đề chính', placeholder: 'VD: CHÀO MỪNG ĐẾN VỚI AI REXI', default: 'CHÀO MỪNG ĐẾN VỚI AI REXI' },
+      { key: 'subtitle', label: 'Phụ đề', placeholder: 'VD: Trợ lý đa mô hình — miễn phí', default: 'Trợ lý đa mô hình — miễn phí' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div style="width:100%;height:100%;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;text-align:center;padding:60px;">
-  <h1 id="ts-title" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-    style="font-size:72px;font-weight:800;background:linear-gradient(90deg,#00d2ff,#3a7bd5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0 0 24px;">
-    ${escapeHtml(f.title)}</h1>
-  <p id="ts-sub" class="clip" data-start="0.4" data-duration="${dur - 0.4}" data-track-index="1"
-    style="font-size:28px;color:#94a3b8;letter-spacing:2px;margin:0;">
-    ${escapeHtml(f.subtitle)}</p>
+    build: (f, dur) => { const A = fullDur(dur, 3); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:#05060f;font-family:'Segoe UI',sans-serif;">
+  <div id="au1" style="position:absolute;width:60vw;height:60vw;left:-12%;top:-18%;border-radius:50%;filter:blur(50px);background:radial-gradient(circle,#4f46e5 0%,transparent 65%);opacity:.55;will-change:transform"></div>
+  <div id="au2" style="position:absolute;width:55vw;height:55vw;right:-14%;top:22%;border-radius:50%;filter:blur(55px);background:radial-gradient(circle,#0891b2 0%,transparent 65%);opacity:.45;will-change:transform"></div>
+  <div id="au3" style="position:absolute;width:50vw;height:50vw;left:24%;bottom:-22%;border-radius:50%;filter:blur(60px);background:radial-gradient(circle,#a21caf 0%,transparent 65%);opacity:.4;will-change:transform"></div>
+  <div class="fx-vignette"></div>
+  <div class="fx-grain" style="opacity:.07"></div>
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:60px;">
+    <h1 id="tc-title" class="clip" data-start="0.2" data-duration="${dur - 0.2}" data-track-index="0"
+      style="font-size:78px;font-weight:900;letter-spacing:-2px;background:linear-gradient(90deg,#22d3ee,#818cf8,#e879f9,#22d3ee);background-size:300% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0 0 22px;will-change:transform">${escapeHtml(f.title)}</h1>
+    <p id="tc-sub" class="clip" data-start="1.2" data-duration="${Math.max(0.8, dur - 1.2)}" data-track-index="1"
+      style="font-size:25px;color:#94a3b8;letter-spacing:6px;margin:0;will-change:transform">${escapeHtml(f.subtitle)}</p>
+  </div>
 </div>
 <script>
   const tl = gsap.timeline({ paused: true });
-  tl.from('#ts-title', { opacity: 0, y: 50, duration: 0.8, ease: 'power3.out' }, 0);
-  tl.from('#ts-sub', { opacity: 0, y: 30, duration: 0.6, ease: 'power3.out' }, 0.4);
+  tl.fromTo('#au1', { x: 0, y: 0 }, { x: 130, y: 90, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0);
+  tl.fromTo('#au2', { x: 0, y: 0 }, { x: -150, y: -70, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0);
+  tl.fromTo('#au3', { x: 0, y: 0 }, { x: 70, y: 110, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0);
+  tl.fromTo('#tc-title', { backgroundPosition: '0% 50%' }, { backgroundPosition: '200% 50%', duration: ${dur}, ease: 'none' }, 0);
+  tl.set('#tc-title', { opacity: 0 }, 0);
+  tl.set('#tc-title', { opacity: 1 }, 0.2);
+  tl.fromTo('#tc-title', { y: -80 }, { y: 0, duration: 0.9, ease: 'power4.out' }, 0.2);
+  tl.set('#tc-sub', { opacity: 0 }, 0);
+  tl.set('#tc-sub', { opacity: 1 }, 1.2);
+  tl.fromTo('#tc-sub', { letterSpacing: '20px', y: 26 }, { letterSpacing: '6px', y: 0, duration: 0.8, ease: 'power3.out' }, 1.2);
   window.__timelines = window.__timelines || {};
-  window.__timelines['title-slide'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['title-cinema'] = tl; tl.play();
+</script>`; }
   },
   {
-    id: 'gradient-bg',
-    name: 'Nền Gradient',
-    desc: 'Gradient chạy + title nổi bật',
+    id: 'gradient-drift',
+    name: 'Nền Gradient Chạy',
+    desc: 'Gradient trôi suốt video + particles bay + glow + title gradient',
     category: 'promo',
     fields: [
       { key: 'title', label: 'Nội dung chính', placeholder: 'VD: SALE 50% HÔM NAY', default: 'SALE 50% HÔM NAY' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div id="gb-bg" style="width:100%;height:100%;background:linear-gradient(45deg,#ee7752,#e73c7e,#23a6d5,#23d5ab);background-size:400% 400%;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;">
-  <h1 id="gb-title" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-    style="font-size:64px;font-weight:900;color:white;text-shadow:0 4px 20px rgba(0,0,0,0.3);text-align:center;padding:40px;margin:0;">
-    ${escapeHtml(f.title)}</h1>
+    build: (f, dur) => { const A = fullDur(dur, 4); const P = Array.from({ length: 14 }, (_, i) => ({
+      left: Math.round(prand(i, 1) * 96), size: Math.round(4 + prand(i, 2) * 8), delay: +(prand(i, 3) * dur * 0.45).toFixed(2), drift: Math.round((prand(i, 4) - 0.5) * 80),
+    })); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:#0a0a0f;font-family:'Segoe UI',sans-serif;">
+  <div id="gd-bg" style="position:absolute;inset:-30%;background:linear-gradient(45deg,#ee7752,#e73c7e,#23a6d5,#23d5ab);background-size:400% 400%;will-change:transform"></div>
+  ${P.map((p, i) => `<div id="gd-p${i}" style="position:absolute;left:${p.left}%;top:104%;width:${p.size}px;height:${p.size}px;border-radius:50%;background:rgba(255,255,255,.75);box-shadow:0 0 12px rgba(255,255,255,.5);will-change:transform"></div>`).join('\n  ')}
+  <div class="fx-vignette"></div>
+  <div class="fx-grain" style="opacity:.06"></div>
+  <div style="position:relative;display:flex;align-items:center;justify-content:center;height:100%;">
+    <h1 id="gd-title" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="0"
+      style="font-size:68px;font-weight:900;color:white;text-shadow:0 6px 28px rgba(0,0,0,0.35);text-align:center;padding:40px;margin:0;will-change:transform">${escapeHtml(f.title)}</h1>
+  </div>
 </div>
 <script>
   const tl = gsap.timeline({ paused: true });
-  tl.fromTo('#gb-bg', { backgroundPosition: '0% 50%' }, { backgroundPosition: '100% 50%', duration: ${dur}, ease: 'none', repeat: -1 }, 0);
-  tl.from('#gb-title', { opacity: 0, scale: 0.8, duration: 0.8, ease: 'back.out(1.7)' }, 0.3);
+  tl.fromTo('#gd-bg', { backgroundPosition: '0% 50%' }, { backgroundPosition: '200% 50%', duration: ${A.seg}, ease: 'none', repeat: ${A.rep} }, 0);
+  ${P.map((p, i) => `tl.set('#gd-p${i}', { opacity: 0 }, 0);
+  tl.set('#gd-p${i}', { opacity: 1 }, ${p.delay});
+  tl.fromTo('#gd-p${i}', { y: 0 }, { y: '-115vh', x: ${p.drift}, duration: ${(dur * 0.62).toFixed(2)}, ease: 'none' }, ${p.delay});`).join('\n  ')}
+  tl.set('#gd-title', { opacity: 0 }, 0);
+  tl.set('#gd-title', { opacity: 1 }, 0.3);
+  tl.fromTo('#gd-title', { scale: 0.72 }, { scale: 1, duration: 0.8, ease: 'back.out(1.7)' }, 0.3);
   window.__timelines = window.__timelines || {};
-  window.__timelines['gradient-bg'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['gradient-drift'] = tl; tl.play();
+</script>`; }
   },
   {
     id: 'text-reveal',
     name: 'Hiện Chữ Dần',
-    desc: '3 dòng chữ stagger fade-in từ dưới lên',
+    desc: '3 dòngcascade từ dưới lên + shimmer quét suốt + camera lùi nhẹ',
     category: 'promo',
     fields: [
       { key: 'line1', label: 'Dòng 1', placeholder: 'VD: Sản phẩm mới ra mắt', default: 'Sản phẩm mới ra mắt' },
       { key: 'line2', label: 'Dòng 2', placeholder: 'VD: Giảm giá 30%', default: 'Giảm giá 30%' },
       { key: 'line3', label: 'Dòng 3', placeholder: 'VD: Chỉ trong tuần này!', default: 'Chỉ trong tuần này!' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div style="width:100%;height:100%;background:radial-gradient(circle at 50% 30%,#1e1b4b,#0a0a0a);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;text-align:center;padding:60px;">
-  <h1 id="tr-l1" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-    style="font-size:56px;font-weight:800;color:#fff;margin:0 0 16px;">${escapeHtml(f.line1)}</h1>
-  <h2 id="tr-l2" class="clip" data-start="0.5" data-duration="${dur - 0.5}" data-track-index="1"
-    style="font-size:40px;font-weight:600;color:#60a5fa;margin:0 0 16px;">${escapeHtml(f.line2)}</h2>
-  <p id="tr-l3" class="clip" data-start="1" data-duration="${dur - 1}" data-track-index="2"
-    style="font-size:24px;color:#94a3b8;margin:0;">${escapeHtml(f.line3)}</p>
+    build: (f, dur) => { const A = fullDur(dur, 3.5); const S = fullDur(dur, 2.5); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 30%,#1e1b4b,#0a0a0a);font-family:'Segoe UI',sans-serif;">
+  <div id="tr-shimmer" style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.09) 50%,transparent 60%);background-size:250% 100%;will-change:transform"></div>
+  <div class="fx-grain" style="opacity:.05"></div>
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center;padding:60px;perspective:1200px;">
+    <h1 id="tr-l1" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
+      style="font-size:58px;font-weight:800;color:#fff;margin:0 0 18px;will-change:transform">${escapeHtml(f.line1)}</h1>
+    <h2 id="tr-l2" class="clip" data-start="0.35" data-duration="${dur - 0.35}" data-track-index="1"
+      style="font-size:42px;font-weight:600;color:#60a5fa;margin:0 0 18px;will-change:transform">${escapeHtml(f.line2)}</h2>
+    <p id="tr-l3" class="clip" data-start="0.7" data-duration="${dur - 0.7}" data-track-index="2"
+      style="font-size:25px;color:#94a3b8;margin:0 0 26px;will-change:transform">${escapeHtml(f.line3)}</p>
+    <svg id="tr-line" width="220" height="6" viewBox="0 0 220 6" style="overflow:visible">
+      <line x1="0" y1="3" x2="220" y2="3" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" id="tr-draw"/>
+    </svg>
+  </div>
 </div>
 <script>
+  const line = document.getElementById('tr-draw');
+  const L = 220; line.setAttribute('stroke-dasharray', L); line.setAttribute('stroke-dashoffset', L);
   const tl = gsap.timeline({ paused: true });
-  tl.from('#tr-l1', { opacity: 0, y: 40, duration: 0.7, ease: 'power3.out' }, 0);
-  tl.from('#tr-l2', { opacity: 0, y: 40, duration: 0.7, ease: 'power3.out' }, 0.5);
-  tl.from('#tr-l3', { opacity: 0, y: 40, duration: 0.7, ease: 'power3.out' }, 1);
+  tl.fromTo('#tr-shimmer', { backgroundPosition: '120% 50%' }, { backgroundPosition: '-120% 50%', duration: ${S.seg}, ease: 'none', repeat: ${S.rep} }, 0);
+  ['#tr-l1', '#tr-l2', '#tr-l3'].forEach((sel, i) => {
+    tl.set(sel, { opacity: 0 }, 0);
+  });
+  tl.set('#tr-l1', { opacity: 1 }, 0);
+  tl.fromTo('#tr-l1', { y: 90, rotationX: 28 }, { y: 0, rotationX: 0, duration: 0.75, ease: 'power4.out' }, 0);
+  tl.set('#tr-l2', { opacity: 1 }, 0.35);
+  tl.fromTo('#tr-l2', { y: 90, rotationX: 28 }, { y: 0, rotationX: 0, duration: 0.75, ease: 'power4.out' }, 0.35);
+  tl.set('#tr-l3', { opacity: 1 }, 0.7);
+  tl.fromTo('#tr-l3', { y: 70, rotationX: 24 }, { y: 0, rotationX: 0, duration: 0.7, ease: 'power4.out' }, 0.7);
+  tl.fromTo(line, { strokeDashoffset: L }, { strokeDashoffset: 0, duration: 0.9, ease: 'power2.inOut' }, 0.8);
+  tl.set('#tr-line', { opacity: 1 }, 0.8);
   window.__timelines = window.__timelines || {};
-  window.__timelines['text-reveal'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['text-reveal'] = tl; tl.play();
+</script>`; }
   },
   {
     id: 'card-grid',
     name: '3 Thẻ Tính Năng',
-    desc: '3 thẻ pop-in stagger',
+    desc: 'Thẻ pop-in + trôi nổi suốt video (lệch pha) + aurora + camera lùi nhẹ',
     category: 'intro',
     fields: [
       { key: 'card1', label: 'Thẻ 1 — tiêu đề', placeholder: 'VD: 🚀 Nhanh', default: '🚀 Nhanh' },
@@ -103,124 +170,191 @@ const EASY_TEMPLATES = [
       { key: 'card3', label: 'Thẻ 3 — tiêu đề', placeholder: 'VD: ✨ Hiện đại', default: '✨ Hiện đại' },
       { key: 'card3d', label: 'Thẻ 3 — mô tả', placeholder: 'VD: Công nghệ mới nhất', default: 'Công nghệ mới nhất' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div style="width:100%;height:100%;background:#111827;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;padding:60px;">
-  <div style="display:flex;gap:40px;">
+    build: (f, dur) => { const A = fullDur(dur, 3); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:#0b1120;font-family:'Segoe UI',sans-serif;padding:60px;display:flex;align-items:center;justify-content:center;">
+  <div id="cg-au1" style="position:absolute;width:55vw;height:55vw;left:-14%;top:-20%;border-radius:50%;filter:blur(55px);background:radial-gradient(circle,#1d4ed8 0%,transparent 65%);opacity:.5;will-change:transform"></div>
+  <div id="cg-au2" style="position:absolute;width:50vw;height:50vw;right:-16%;bottom:-24%;border-radius:50%;filter:blur(60px);background:radial-gradient(circle,#0891b2 0%,transparent 65%);opacity:.4;will-change:transform"></div>
+  <div class="fx-grain" style="opacity:.06"></div>
+  <div id="cg-world" style="position:relative;display:flex;gap:44px;perspective:1400px;will-change:transform">
     <div id="cg-c1" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-      style="background:linear-gradient(135deg,#1e3a5f,#0f172a);border-radius:20px;padding:40px;width:280px;text-align:center;border:1px solid #334155;">
-      <h3 style="color:#fff;font-size:24px;margin:0 0 8px;">${escapeHtml(f.card1)}</h3>
-      <p style="color:#94a3b8;font-size:14px;margin:0;">${escapeHtml(f.card1d)}</p>
+      style="background:linear-gradient(150deg,#16324f,#0d1526);border-radius:22px;padding:42px 36px;width:290px;text-align:center;border:1px solid #2b3f5c;box-shadow:0 24px 60px rgba(0,0,0,.45);will-change:transform">
+      <h3 style="color:#fff;font-size:25px;margin:0 0 10px;">${escapeHtml(f.card1)}</h3>
+      <p style="color:#94a3b8;font-size:14px;margin:0;line-height:1.6;">${escapeHtml(f.card1d)}</p>
     </div>
-    <div id="cg-c2" class="clip" data-start="0.2" data-duration="${dur - 0.2}" data-track-index="1"
-      style="background:linear-gradient(135deg,#1e3a5f,#0f172a);border-radius:20px;padding:40px;width:280px;text-align:center;border:1px solid #334155;">
-      <h3 style="color:#fff;font-size:24px;margin:0 0 8px;">${escapeHtml(f.card2)}</h3>
-      <p style="color:#94a3b8;font-size:14px;margin:0;">${escapeHtml(f.card2d)}</p>
+    <div id="cg-c2" class="clip" data-start="0.15" data-duration="${dur - 0.15}" data-track-index="1"
+      style="background:linear-gradient(150deg,#16324f,#0d1526);border-radius:22px;padding:42px 36px;width:290px;text-align:center;border:1px solid #2b3f5c;box-shadow:0 24px 60px rgba(0,0,0,.45);will-change:transform">
+      <h3 style="color:#fff;font-size:25px;margin:0 0 10px;">${escapeHtml(f.card2)}</h3>
+      <p style="color:#94a3b8;font-size:14px;margin:0;line-height:1.6;">${escapeHtml(f.card2d)}</p>
     </div>
-    <div id="cg-c3" class="clip" data-start="0.4" data-duration="${dur - 0.4}" data-track-index="2"
-      style="background:linear-gradient(135deg,#1e3a5f,#0f172a);border-radius:20px;padding:40px;width:280px;text-align:center;border:1px solid #334155;">
-      <h3 style="color:#fff;font-size:24px;margin:0 0 8px;">${escapeHtml(f.card3)}</h3>
-      <p style="color:#94a3b8;font-size:14px;margin:0;">${escapeHtml(f.card3d)}</p>
+    <div id="cg-c3" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="2"
+      style="background:linear-gradient(150deg,#16324f,#0d1526);border-radius:22px;padding:42px 36px;width:290px;text-align:center;border:1px solid #2b3f5c;box-shadow:0 24px 60px rgba(0,0,0,.45);will-change:transform">
+      <h3 style="color:#fff;font-size:25px;margin:0 0 10px;">${escapeHtml(f.card3)}</h3>
+      <p style="color:#94a3b8;font-size:14px;margin:0;line-height:1.6;">${escapeHtml(f.card3d)}</p>
     </div>
   </div>
 </div>
 <script>
   const tl = gsap.timeline({ paused: true });
-  tl.from('#cg-c1', { opacity: 0, scale: 0.7, y: 30, duration: 0.5, ease: 'back.out(1.7)' }, 0);
-  tl.from('#cg-c2', { opacity: 0, scale: 0.7, y: 30, duration: 0.5, ease: 'back.out(1.7)' }, 0.2);
-  tl.from('#cg-c3', { opacity: 0, scale: 0.7, y: 30, duration: 0.5, ease: 'back.out(1.7)' }, 0.4);
+  tl.fromTo('#cg-au1', { x: 0, y: 0 }, { x: 110, y: 70, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0);
+  tl.fromTo('#cg-au2', { x: 0, y: 0 }, { x: -90, y: -60, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0);
+  tl.fromTo('#cg-world', { scale: 1.08 }, { scale: 1, duration: ${dur}, ease: 'power2.out' }, 0);
+  ['#cg-c1', '#cg-c2', '#cg-c3'].forEach((sel, i) => {
+    tl.set(sel, { opacity: 0 }, 0);
+    tl.set(sel, { opacity: 1 }, 0.15 * i);
+    tl.fromTo(sel, { scale: 0.6, y: 46, rotationY: i === 1 ? 0 : (i === 0 ? -14 : 14) }, { scale: 1, y: 0, rotationY: 0, duration: 0.65, ease: 'back.out(1.6)' }, 0.15 * i);
+    tl.fromTo(sel, { y: 0 }, { y: -16, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0.7 + 0.35 * i);
+  });
   window.__timelines = window.__timelines || {};
-  window.__timelines['card-grid'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['card-grid'] = tl; tl.play();
+</script>`; }
   },
   {
     id: 'countdown',
     name: 'Đếm Ngược',
-    desc: 'Số lớn pop-in + message fade',
+    desc: 'Đếm từng số có pulse + ring vẽ theo + particles bung lúc "BẮT ĐẦU"',
     category: 'promo',
     fields: [
-      { key: 'number', label: 'Số đếm', placeholder: 'VD: 3', default: '3' },
+      { key: 'number', label: 'Số bắt đầu (đếm về 1)', placeholder: 'VD: 3', default: '3' },
       { key: 'message', label: 'Thông báo', placeholder: 'VD: BẮT ĐẦU!', default: 'BẮT ĐẦU!' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div style="width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;">
-  <div style="text-align:center;">
-    <div id="cd-num" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-      style="font-size:200px;font-weight:900;background:linear-gradient(135deg,#00d2ff,#3a7bd5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">
-      ${escapeHtml(f.number)}</div>
-    <div id="cd-msg" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="1"
-      style="font-size:36px;color:#fff;font-weight:700;letter-spacing:4px;margin-top:20px;">
-      ${escapeHtml(f.message)}</div>
+    build: (f, dur) => { const N = Math.max(2, Math.min(10, parseInt(f.number, 10) || 3)); const msgT = Math.max(1.2, dur - 1.2); const step = msgT / N; const B = fullDur(dur, 4); const dots = Array.from({ length: 18 }, (_, i) => {
+      const ang = prand(i, 5) * Math.PI * 2; const dist = 140 + prand(i, 6) * 260;
+      return { dx: Math.round(Math.cos(ang) * dist), dy: Math.round(Math.sin(ang) * dist), size: Math.round(5 + prand(i, 7) * 9), d: +(prand(i, 8) * 0.25).toFixed(2) };
+    }); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:linear-gradient(135deg,#141b33,#0f2744,#0a1a2e);background-size:300% 300%;font-family:'Segoe UI',sans-serif;">
+  <div id="cd-bg" style="position:absolute;inset:0;will-change:transform"></div>
+  <div class="fx-vignette"></div>
+  <div class="fx-grain" style="opacity:.06"></div>
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;">
+    <svg width="230" height="230" viewBox="0 0 230 230" style="position:absolute;">
+      <circle cx="115" cy="115" r="100" fill="none" stroke="rgba(148,163,184,.15)" stroke-width="6"/>
+      <circle id="cd-ring" cx="115" cy="115" r="100" fill="none" stroke="#22d3ee" stroke-width="6" stroke-linecap="round" transform="rotate(-90 115 115)"/>
+    </svg>
+    <div style="position:relative;width:230px;height:230px;display:flex;align-items:center;justify-content:center;">
+      ${Array.from({ length: N }, (_, i) => `<div id="cd-n${i}" class="clip" data-start="${(i * step).toFixed(2)}" data-duration="${step.toFixed(2)}" data-track-index="${i}"
+        style="position:absolute;font-size:150px;font-weight:900;background:linear-gradient(135deg,#22d3ee,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;opacity:0;will-change:transform">${N - i}</div>`).join('\n      ')}
+    </div>
+    <div id="cd-msg" class="clip" data-start="${msgT.toFixed(2)}" data-duration="${Math.max(0.6, dur - msgT).toFixed(2)}" data-track-index="${N}"
+      style="position:relative;font-size:40px;color:#fff;font-weight:800;letter-spacing:8px;margin-top:18px;opacity:0;will-change:transform">${escapeHtml(f.message)}</div>
+    ${dots.map((d, i) => `<div id="cd-d${i}" style="position:absolute;left:50%;top:38%;width:${d.size}px;height:${d.size}px;border-radius:50%;background:#22d3ee;box-shadow:0 0 14px rgba(34,211,238,.8);opacity:0;will-change:transform"></div>`).join('\n    ')}
   </div>
 </div>
 <script>
+  const ring = document.getElementById('cd-ring');
+  const RL = 2 * Math.PI * 100; ring.setAttribute('stroke-dasharray', RL); ring.setAttribute('stroke-dashoffset', RL);
   const tl = gsap.timeline({ paused: true });
-  tl.from('#cd-num', { opacity: 0, scale: 0.3, duration: 0.6, ease: 'back.out(2)' }, 0);
-  tl.to('#cd-num', { scale: 1.15, duration: 0.15, ease: 'power2.in', yoyo: true, repeat: 1 }, 0.6);
-  tl.from('#cd-msg', { opacity: 0, y: 20, duration: 0.5, ease: 'power3.out' }, 0.8);
+  tl.fromTo('#cd-bg', { backgroundPosition: '0% 0%' }, { backgroundPosition: '100% 100%', duration: ${B.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${B.rep} }, 0);
+  ${Array.from({ length: N }, (_, i) => {
+    const t0 = (i * step).toFixed(2); const t1 = ((i + 1) * step).toFixed(2);
+    return `tl.set('#cd-n${i}', { opacity: 1 }, ${t0});
+  tl.set('#cd-n${i}', { opacity: 0 }, ${t1});
+  tl.fromTo('#cd-n${i}', { scale: 1.35 }, { scale: 1, duration: ${Math.min(0.5, step).toFixed(2)}, ease: 'power2.out' }, ${t0});
+  tl.fromTo(ring, { strokeDashoffset: RL }, { strokeDashoffset: ${Math.round(RL * (1 - (i + 1) / N))}, duration: ${step.toFixed(2)}, ease: 'none' }, ${t0});`;
+  }).join('\n  ')}
+  tl.set('#cd-msg', { opacity: 1 }, ${msgT.toFixed(2)});
+  tl.fromTo('#cd-msg', { scale: 0.7, letterSpacing: '20px' }, { scale: 1, letterSpacing: '8px', duration: 0.6, ease: 'back.out(1.8)' }, ${msgT.toFixed(2)});
+  ${dots.map((d, i) => `tl.set('#cd-d${i}', { opacity: 0 }, 0);
+  tl.set('#cd-d${i}', { opacity: 1 }, ${msgT.toFixed(2)});
+  tl.fromTo('#cd-d${i}', { x: 0, y: 0, scale: 1, opacity: 1 }, { x: ${d.dx}, y: ${d.dy}, scale: 0.2, opacity: 0, duration: ${(dur - msgT + 0.4).toFixed(2)}, ease: 'power2.out', delay: ${d.d} }, ${msgT.toFixed(2)});`).join('\n  ')}
   window.__timelines = window.__timelines || {};
-  window.__timelines['countdown'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['countdown'] = tl; tl.play();
+</script>`; }
   },
   {
     id: 'news-ticker',
     name: 'Bản Tin Chạy',
-    desc: 'Breaking news style — headline + scrolling ticker',
+    desc: 'Breaking news — ticker chạy liên tục suốt video + badge LIVE pulse',
     category: 'intro',
     fields: [
       { key: 'headline', label: 'Tiêu đề chính', placeholder: 'VD: TIN NÓNG HÔM NAY', default: 'TIN NÓNG HÔM NAY' },
       { key: 'ticker', label: 'Dòng tin chạy', placeholder: 'VD: Thị trường tăng trưởng 5% trong quý này', default: 'Thị trường tăng trưởng 5% trong quý này' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div style="width:100%;height:100%;background:linear-gradient(135deg,#0f0f23,#1a1a3e);display:flex;flex-direction:column;justify-content:center;font-family:'Segoe UI',sans-serif;overflow:hidden;">
-  <div id="nt-head" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-    style="padding:40px 60px 20px;">
-    <h1 style="font-size:48px;font-weight:900;color:#fff;margin:0;">${escapeHtml(f.headline)}</h1>
-  </div>
-  <div id="nt-bar" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="1"
-    style="background:#dc2626;padding:16px 0;overflow:hidden;margin:0 60px;border-radius:8px;">
-    <div id="nt-ticker" style="font-size:24px;color:#fff;font-weight:600;letter-spacing:1px;white-space:nowrap;display:inline-block;">
-      ${escapeHtml(f.ticker)}&nbsp;&nbsp;&nbsp;&nbsp;${escapeHtml(f.ticker)}&nbsp;&nbsp;&nbsp;&nbsp;${escapeHtml(f.ticker)}</div>
+    build: (f, dur) => { const tickDur = Math.max(1.2, dur - 0.7); const K = Math.max(2, Math.ceil(tickDur / 4)); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:linear-gradient(135deg,#0f0f23,#1a1a3e);font-family:'Segoe UI',sans-serif;">
+  <div class="fx-grain" style="opacity:.05"></div>
+  <div style="position:relative;display:flex;flex-direction:column;justify-content:center;font-family:'Segoe UI',sans-serif;height:100%;">
+    <div id="nt-head" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
+      style="padding:40px 60px 24px;will-change:transform">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+        <span id="nt-live" style="display:flex;align-items:center;gap:8px;background:#dc2626;color:#fff;font-size:15px;font-weight:800;letter-spacing:2px;padding:6px 14px;border-radius:6px;">
+          <span id="nt-dot" style="width:10px;height:10px;border-radius:50%;background:#fff;display:inline-block;will-change:transform"></span>LIVE</span>
+      </div>
+      <h1 style="font-size:50px;font-weight:900;color:#fff;margin:0;line-height:1.2;">${escapeHtml(f.headline)}</h1>
+    </div>
+    <div id="nt-bar" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="1"
+      style="background:#dc2626;padding:18px 0;overflow:hidden;margin:0 60px;border-radius:10px;box-shadow:0 10px 30px rgba(220,38,38,.25);will-change:transform">
+      <div id="nt-ticker" style="font-size:25px;color:#fff;font-weight:600;letter-spacing:1px;white-space:nowrap;display:inline-block;will-change:transform">
+        ${escapeHtml(f.ticker)}&nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp;${escapeHtml(f.ticker)}&nbsp;&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;&nbsp;${escapeHtml(f.ticker)}</div>
+    </div>
   </div>
 </div>
 <script>
   const tl = gsap.timeline({ paused: true });
-  tl.from('#nt-head', { opacity: 0, x: -50, duration: 0.5, ease: 'power3.out' }, 0);
-  tl.from('#nt-bar', { scaleX: 0, transformOrigin: 'left', duration: 0.4, ease: 'power3.out' }, 0.3);
-  tl.to('#nt-ticker', { x: '-33.33%', duration: ${dur - 1}, ease: 'none', repeat: -1 }, 0.7);
+  tl.set('#nt-head', { opacity: 0 }, 0);
+  tl.set('#nt-head', { opacity: 1 }, 0);
+  tl.fromTo('#nt-head', { x: -60 }, { x: 0, duration: 0.55, ease: 'power4.out' }, 0);
+  tl.set('#nt-live', { opacity: 0 }, 0);
+  tl.set('#nt-live', { opacity: 1 }, 0.35);
+  tl.fromTo('#nt-live', { scale: 0.5 }, { scale: 1, duration: 0.45, ease: 'back.out(2)' }, 0.35);
+  tl.fromTo('#nt-dot', { scale: 1 }, { scale: 0.55, duration: 0.6, ease: 'sine.inOut', yoyo: true, repeat: ${Math.max(2, Math.ceil(dur / 1.2)) - 1} }, 0.8);
+  tl.set('#nt-bar', { opacity: 1 }, 0.3);
+  tl.fromTo('#nt-bar', { scaleX: 0, transformOrigin: 'left' }, { scaleX: 1, duration: 0.5, ease: 'power3.out' }, 0.3);
+  tl.fromTo('#nt-ticker', { x: '0%' }, { x: '-33.333%', duration: ${(tickDur / K).toFixed(2)}, ease: 'none', repeat: ${K - 1} }, 0.7);
   window.__timelines = window.__timelines || {};
-  window.__timelines['news-ticker'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['news-ticker'] = tl; tl.play();
+</script>`; }
   },
   {
     id: 'quote-card',
     name: 'Thẻ Trích Dẫn',
-    desc: 'Quote nổi bật + author fade-in',
+    desc: 'Quote nổi + nền gradient trôi suốt + glow + thẻ trôi nhẹ',
     category: 'intro',
     fields: [
       { key: 'quote', label: 'Câu nói', placeholder: 'VD: Thành công là tổng của nỗ lực hàng ngày', default: 'Thành công là tổng của nỗ lực hàng ngày' },
       { key: 'author', label: 'Tác giả', placeholder: 'VD: Aristotle', default: 'Aristotle' },
     ],
-    build: (f, dur) => `<meta charset="UTF-8">${GSAP_CDN}
-<div style="width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#e94560);display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;padding:60px;">
-  <div style="max-width:800px;text-align:center;">
-    <div id="qc-mark" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
-      style="font-size:120px;color:rgba(255,255,255,0.15);line-height:1;margin-bottom:-30px;">\u201C</div>
-    <p id="qc-text" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="1"
-      style="font-size:32px;color:#fff;font-style:italic;line-height:1.5;margin:0 0 24px;">
-      ${escapeHtml(f.quote)}</p>
-    <p id="qc-author" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="2"
-      style="font-size:20px;color:rgba(255,255,255,0.7);font-weight:600;margin:0;">
-      — ${escapeHtml(f.author)}</p>
+    build: (f, dur) => { const A = fullDur(dur, 4); return `<meta charset="UTF-8">${GSAP_CDN}
+<style>${FX_CSS}</style>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:#141021;font-family:'Segoe UI',sans-serif;">
+  <div id="qc-bg" style="position:absolute;inset:-35%;background:linear-gradient(135deg,#1a1a2e,#7c2d5e,#e94560,#1a1a2e);background-size:400% 400%;will-change:transform"></div>
+  <div id="qc-glow" style="position:absolute;width:46vw;height:46vw;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;filter:blur(60px);background:radial-gradient(circle,rgba(233,69,96,.5) 0%,transparent 65%);opacity:0;will-change:transform,opacity"></div>
+  <div class="fx-vignette"></div>
+  <div class="fx-grain" style="opacity:.06"></div>
+  <div style="position:relative;display:flex;align-items:center;justify-content:center;height:100%;padding:60px;">
+    <div id="qc-card" style="max-width:820px;text-align:center;will-change:transform">
+      <div id="qc-mark" class="clip" data-start="0" data-duration="${dur}" data-track-index="0"
+        style="font-size:130px;color:rgba(255,255,255,0.18);line-height:1;margin-bottom:-34px;will-change:transform">\u201C</div>
+      <p id="qc-text" class="clip" data-start="0.3" data-duration="${dur - 0.3}" data-track-index="1"
+        style="font-size:34px;color:#fff;font-style:italic;line-height:1.55;margin:0 0 26px;text-shadow:0 4px 24px rgba(0,0,0,.3);will-change:transform">
+        ${escapeHtml(f.quote)}</p>
+      <p id="qc-author" class="clip" data-start="0.8" data-duration="${dur - 0.8}" data-track-index="2"
+        style="font-size:21px;color:rgba(255,255,255,0.75);font-weight:600;letter-spacing:3px;margin:0;will-change:transform">
+        — ${escapeHtml(f.author)}</p>
+    </div>
   </div>
 </div>
 <script>
   const tl = gsap.timeline({ paused: true });
-  tl.from('#qc-mark', { opacity: 0, scale: 0.5, duration: 0.5, ease: 'back.out(1.7)' }, 0);
-  tl.from('#qc-text', { opacity: 0, y: 30, duration: 0.7, ease: 'power3.out' }, 0.3);
-  tl.from('#qc-author', { opacity: 0, y: 20, duration: 0.5, ease: 'power3.out' }, 0.8);
+  tl.fromTo('#qc-bg', { backgroundPosition: '0% 50%' }, { backgroundPosition: '200% 50%', duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0);
+  tl.set('#qc-glow', { opacity: 0 }, 0);
+  tl.set('#qc-glow', { opacity: 0.5 }, 0.5);
+  tl.fromTo('#qc-glow', { scale: 0.85 }, { scale: 1.1, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 0.5);
+  tl.set('#qc-mark', { opacity: 0 }, 0);
+  tl.set('#qc-mark', { opacity: 1 }, 0);
+  tl.fromTo('#qc-mark', { scale: 0.5 }, { scale: 1, duration: 0.55, ease: 'back.out(1.7)' }, 0);
+  tl.set('#qc-text', { opacity: 0 }, 0);
+  tl.set('#qc-text', { opacity: 1 }, 0.3);
+  tl.fromTo('#qc-text', { y: 40 }, { y: 0, duration: 0.7, ease: 'power4.out' }, 0.3);
+  tl.set('#qc-author', { opacity: 0 }, 0);
+  tl.set('#qc-author', { opacity: 1 }, 0.8);
+  tl.fromTo('#qc-author', { y: 24, letterSpacing: '10px' }, { y: 0, letterSpacing: '3px', duration: 0.6, ease: 'power3.out' }, 0.8);
+  tl.fromTo('#qc-card', { y: 0 }, { y: -12, duration: ${A.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${A.rep} }, 1.4);
   window.__timelines = window.__timelines || {};
-  window.__timelines['quote-card'] = tl; tl.repeat(-1).play();
-</script>`
+  window.__timelines['quote-card'] = tl; tl.play();
+</script>`; }
   },
 ];
 
