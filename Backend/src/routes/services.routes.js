@@ -1623,7 +1623,7 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
   if (!sub.startsWith('/')) sub = '/' + sub;
   const targetUrl = MAIC_UPSTREAM + sub;
 
-  const base = `${req.protocol}://${req.get('host')}/api/classroom`;
+  const base = `${req.protocol}://${req.get('host')}/api/services/classroom`;
 
   try {
     // Forward headers (bỏ host/connection/content-length — fetch tự tính)
@@ -1673,10 +1673,10 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
       if (dropHeaders.has(lk) || lk === 'set-cookie') return;
       try { res.setHeader(k, v); } catch (e) { /* header không hợp lệ — bỏ qua */ }
     });
-    // Cookies: forward, strip Domain (thành host-only = domain mình) + scope Path về /api/classroom
+    // Cookies: forward, strip Domain (thành host-only = domain mình) + scope Path về /api/services/classroom
     const getSetCookie = typeof upstream.headers.getSetCookie === 'function' ? upstream.headers.getSetCookie() : [];
     for (const sc of getSetCookie) {
-      let fixed = String(sc).replace(/;\s*domain=[^;]*/i, '').replace(/;\s*[Pp]ath=\/(?=;|$)/, '; Path=/api/classroom');
+      let fixed = String(sc).replace(/;\s*domain=[^;]*/i, '').replace(/;\s*[Pp]ath=\/(?=;|$)/, '; Path=/api/services/classroom');
       try { res.append('set-cookie', fixed); } catch (e) { /* bỏ qua */ }
     }
     // Nếu upstream vẫn chặn frame bằng CSP khác (report-only đã strip) — ép thêm header mở

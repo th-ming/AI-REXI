@@ -16,9 +16,9 @@ export default function ClassroomTab() {
   useEffect(() => {
     try {
       const token = localStorage.getItem('rexi_token') || '';
-      setProxySrc(`/api/classroom/?token=${encodeURIComponent(token)}`);
+      setProxySrc(`/api/services/classroom/?token=${encodeURIComponent(token)}`);
     } catch (e) {
-      setProxySrc('/api/classroom/');
+      setProxySrc('/api/services/classroom/');
     }
     setLoading(true);
     const t = setTimeout(() => setLoading(false), 25000);
