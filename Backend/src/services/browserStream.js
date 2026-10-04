@@ -51,9 +51,12 @@ class BrowserStreamService {
           if (parts.length) token = parts[parts.length - 1];
         }
         if (token) user = jwt.verify(token, getJWTSecret());
-      } catch (e) { user = null; }
+      } catch (e) { user = null; this._authError = e ? e.message : 'unknown'; }
       if (!user) {
         console.log('[WS] Rejected unauthenticated client');
+        // DEBUG 4/10: gửi lỗi thật về client trước khi close (handshake chưa hoàn tất
+        // server-side thì close(4401) ngầm → client chỉ thấy 1006 không biết vì sao)
+        try { ws.send(JSON.stringify({ type: 'auth_failed', msg: this._authError || 'invalid token' })); } catch (e2) {}
         try { ws.close(4401, 'Unauthorized'); } catch (e) {}
         return;
       }
