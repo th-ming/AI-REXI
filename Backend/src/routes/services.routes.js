@@ -1565,6 +1565,34 @@ router.get('/youtube/stream', async (req, res) => {
   }
 });
 
+// Bình luận video — lấy qua worker (yt-dlp --write-comments, chậm 10-30s), cache 24h in-memory.
+// YouTube có thể chặn IP Render nên chạy qua worker (IP nhà) như /stream.
+router.get('/youtube/comments', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+  const { url } = req.query;
+  if (!url || !isValidYouTubeUrl(url)) return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ (chỉ hỗ trợ YouTube).' });
+
+  if (!globalThis.__ytCommentsCache) globalThis.__ytCommentsCache = new Map();
+  const cacheKey = url.replace(/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/, '').replace(/&.*$/, '').replace(/^https?:\/\/youtu\.be\//, '');
+  const hit = globalThis.__ytCommentsCache.get(cacheKey);
+  if (hit && Date.now() - hit.t < 24 * 3600 * 1000) {
+    return res.json({ success: true, ...hit.data, cached: true });
+  }
+
+  try {
+    const workerUrl = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/+$/, '');
+    const workerTok = (process.env.YTDLP_WORKER_TOKEN || '').trim();
+    if (!workerUrl) return res.status(503).json({ success: false, error: 'Thiếu worker để lấy bình luận (YTDLP_WORKER_URL).' });
+    const resp = await fetch(`${workerUrl}/comments?${workerTok ? `token=${encodeURIComponent(workerTok)}&` : ''}id=${encodeURIComponent(cacheKey)}`, { signal: AbortSignal.timeout(100000) });
+    const data = await resp.json();
+    if (!data.ok) return res.status(500).json({ success: false, error: data.error || 'Lấy bình luận thất bại.' });
+    globalThis.__ytCommentsCache.set(cacheKey, { t: Date.now(), data: { comments: data.comments, count: data.count } });
+    res.json({ success: true, comments: data.comments, count: data.count });
+  } catch (e) {
+    console.error('[YouTube] Comments error:', e.message);
+    res.status(500).json({ success: false, error: 'Lỗi lấy bình luận: ' + e.message });
+  }
+});
+
 // Proxy stream video (chống CORS + SSRF) — copy pattern từ iptv/proxy
 router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), youtubeProxyAuth, async (req, res) => {
   const { url } = req.query;
