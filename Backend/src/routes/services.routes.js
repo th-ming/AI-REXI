@@ -1700,6 +1700,13 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
       html = html.replace(/`\/api\//g, `\`${base}/api/`);
       html = html.replace(/"\/_next\//g, `"${base}/_next/`);
       html = html.replace(/'\/_next\//g, `'${base}/_next/`);
+      // Boot-script (inject CUỐI để regex rewrite ở trên không chạm vào nó):
+      // Next.js render link/fetch lúc runtime bằng path root-absolute ("/home", fetch("/api/..."))
+      // → trình duyệt resolve về domain mình, THOÁT proxy. Patch fetch/XHR/click/history/EventSource
+      // để mọi request cùng-origin đi qua /api/services/classroom.
+      const BOOT = `<script>(function(){var P='/api/services/classroom';function fix(u){if(typeof u!=='string')return u;if(u.charAt(0)==='/'&&u.charAt(1)!=='/'){if(u.indexOf('/api/')===0||u.indexOf('/_next/')===0||u.indexOf('/favicon')===0||u.indexOf('/manifest')===0||u.indexOf('/robots')===0)return P+u;}return u;}try{var _f=window.fetch;window.fetch=function(i,n){if(typeof i==='string')i=fix(i);else if(i&&i.url){try{i=new Request(fix(i.url),i);}catch(e){}}return _f.call(this,i,n);};var _o=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){if(typeof u==='string')u=fix(u);return _o.call(this,m,u);};document.addEventListener('click',function(e){if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;var h=a.getAttribute('href');if(h&&h.charAt(0)==='/'&&h.charAt(1)!=='/'&&h.indexOf('/api/services/classroom')!==0){e.preventDefault();e.stopPropagation();window.location.assign(P+h);}},true);['pushState','replaceState'].forEach(function(k){var _h=history[k];history[k]=function(s,t,u){if(typeof u==='string'&&u.charAt(0)==='/'&&u.charAt(1)!=='/'&&u.indexOf('/api/services/classroom')!==0)u=P+u;return _h.call(this,s,t,u);};});if(window.EventSource){var _E=window.EventSource;window.EventSource=function(u,c){if(typeof u==='string')u=fix(u);return new _E(u,c);};window.EventSource.prototype=_E.prototype;}}catch(e){}})();<\/script>`;
+      if (/<head[^>]*>/i.test(html)) html = html.replace(/<head[^>]*>/i, (m) => m + BOOT);
+      else html = BOOT + html;
       res.setHeader('content-type', 'text/html; charset=utf-8');
       return res.send(html);
     }
