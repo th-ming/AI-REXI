@@ -1634,6 +1634,39 @@ router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), youtubePr
     if (!res.getHeader('accept-ranges')) res.setHeader('Accept-Ranges', 'bytes');
     res.status(upstream.status);
 
+    // 4/10: playlist m3u (YouTube LIVE chỉ có HLS, không có mp4 progressive) →
+    // rewrite URL segment → tuyệt đối qua proxy này. googlevideo không có CORS,
+    // trình duyệt fetch segment trực tiếp bị chặn — copy pattern iptv/proxy.
+    const _ctYt = (upstream.headers.get('content-type') || '').toLowerCase();
+    if (_ctYt.includes('mpegurl') || effectiveUrl.toLowerCase().includes('/hls_playlist/') || effectiveUrl.toLowerCase().endsWith('.m3u8')) {
+      let body = await upstream.text();
+      if (body.includes('\r\n')) body = body.replace(/\r\n/g, '\n');
+
+      const baseYt = effectiveUrl.substring(0, effectiveUrl.lastIndexOf('/') + 1);
+      let originYt = '';
+      try { originYt = new URL(effectiveUrl).origin; } catch (e) { /* segment relative giữ nguyên base */ }
+      const toAbsoluteYt = (u) => {
+        if (/^https?:\/\//i.test(u)) return u;
+        if (u.startsWith('/') && originYt) return originYt + u;
+        return baseYt + u;
+      };
+      // Giữ ?token= cho segment con (guest auth qua allowlist host googlevideo/worker)
+      const qsTokenYt = req.query.token ? `&token=${encodeURIComponent(req.query.token)}` : '';
+      const toProxyYt = (u) => `${req.protocol}://${req.get('host')}/api/services/youtube/proxy?url=${encodeURIComponent(toAbsoluteYt(u))}${qsTokenYt}`;
+      // 1) Rewrite dòng URI thường (segment, variant playlist)
+      body = body.replace(/^(?!#)([^\r\n]+)$/gm, (line) => {
+        line = line.trim();
+        if (!line) return line;
+        return toProxyYt(line);
+      });
+      // 2) Rewrite URI TRONG #EXT-X-MAP / #EXT-X-KEY / #EXT-X-MEDIA (init segment, key, rendition)
+      body = body.replace(/^(#EXT-X-(?:MAP|KEY|MEDIA)):([^\r\n]*)$/gim, (whole, tag, attrs) => {
+        return tag + ':' + attrs.replace(/URI="([^"]*)"/gi, (m, u) => `URI="${toProxyYt(u)}"`);
+      });
+      res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
+      return res.send(body);
+    }
+
     if (!upstream.body) return res.end();
     const { Readable } = require('stream');
     const nodeStream = Readable.fromWeb(upstream.body);

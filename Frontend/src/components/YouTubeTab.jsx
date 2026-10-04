@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, Share2} from 'lucide-react';
+import Hls from 'hls.js';
 import { API_BASE } from '../config';
 
 // Danh mục trending (tự động tải khi mở tab — không cần gõ từ khóa)
@@ -73,6 +74,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null); // video đang xem
   const [streamLoading, setStreamLoading] = useState(false);
+  const [isHlsStream, setIsHlsStream] = useState(false); // stream_url là m3u (Chromium cần hls.js)
   const [activeCat, setActiveCat] = useState(null);
   // Tóm tắt AI
   const [summarizing, setSummarizing] = useState(false);
@@ -146,11 +148,24 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Dò stream có phải HLS m3u không — worker có thể trả manifest khi video không có mp4 progressive.
+  // Range 0-63: worker proxy forward Range nên chỉ tải 64 bytes, không kéo nguyên video.
+  const probeHls = async (url) => {
+    try {
+      const res = await fetch(url, { headers: { Range: 'bytes=0-63' } });
+      const txt = await res.text();
+      return txt.trimStart().startsWith('#EXTM3U');
+    } catch {
+      return false;
+    }
+  };
+
   const handlePlay = async (video) => {
     setSelected(video);
     setStreamLoading(true);
     setError(null);
     setSummary(null);
+    setIsHlsStream(false);
     try {
       const res = await fetch(`${API_BASE}/services/youtube/stream?url=${encodeURIComponent(video.id)}`, { headers: headers() });
       // 4/10: proxy/Vercel có thể trả non-JSON (vd 502 "An error occurred...") khi
@@ -165,6 +180,9 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
       if (!data.success) throw new Error(data.error || 'Không phát được video');
       setSelected((prev) => ({ ...prev, stream_url: data.stream_url, description: data.description }));
       setStreamLoading(false);
+      const _tok = (() => { try { return localStorage.getItem('rexi_token') || ''; } catch { return ''; } })();
+      const pUrl = `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(data.stream_url)}${_tok ? `&token=${encodeURIComponent(_tok)}` : ''}`;
+      setIsHlsStream(await probeHls(pUrl));
     } catch (err) {
       setError('Lỗi phát video: ' + err.message);
       setStreamLoading(false);
@@ -198,6 +216,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
 
   const handleBack = () => {
     if (videoRef.current) { try { videoRef.current.pause(); videoRef.current.removeAttribute('src'); videoRef.current.load(); } catch (e) { console.warn('[rexi] video cleanup failed', e); } }
+    setIsHlsStream(false);
     setSelected(null);
     setSummary(null);
     setShowTranscript(false);
@@ -230,6 +249,26 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
       showToast?.(url);
     }
   };
+
+  // HLS m3u: Chromium không chơi trực tiếp — gắn hls.js (như IPTV)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !isHlsStream || !proxyUrl) return undefined;
+    let hls = null;
+    if (Hls.isSupported()) {
+      hls = new Hls({ enableWorker: false });
+      hls.loadSource(proxyUrl);
+      hls.attachMedia(v);
+      hls.on(Hls.Events.ERROR, (evt, data) => {
+        if (data.fatal) setError('Luồng HLS lỗi. Thử video khác.');
+      });
+    } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+      v.src = proxyUrl; // Safari native HLS
+    } else {
+      setError('Trình duyệt không hỗ trợ luồng HLS.');
+    }
+    return () => { if (hls) { try { hls.destroy(); } catch (e) { console.warn('[rexi] hls cleanup failed', e); } } };
+  }, [isHlsStream, proxyUrl]);
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0d0e11] overflow-hidden">
@@ -394,7 +433,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
               ) : proxyUrl ? (
                 <video
                   ref={videoRef}
-                  src={proxyUrl}
+                  src={isHlsStream ? undefined : proxyUrl}
                   controls
                   autoPlay
                   playsInline
