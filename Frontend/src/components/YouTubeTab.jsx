@@ -130,6 +130,7 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
 
   useEffect(() => {
     let cancelled = false;
+    let retries = 0;
     const check = async () => {
       try {
         const res = await fetch(`${API_BASE}/services/youtube/status?_=${Date.now()}`, { headers: headers(), cache: 'no-store' });
@@ -139,6 +140,13 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
         setEngineNote(data.note || (data.success && !data.ready ? 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.' : ''));
       } catch {
         if (!cancelled) {
+          // Lỗi thoáng chốc (Render restart / mạng) — tự thử lại thay vì khóa banner vĩnh viễn
+          if (retries < 3) {
+            retries += 1;
+            setEngineNote(`Không kiểm tra được engine YouTube — tự thử lại (${retries}/3)...`);
+            setTimeout(() => { if (!cancelled) check(); }, 4000);
+            return;
+          }
           setEngineReady(false);
           setEngineNote('Không kiểm tra được engine YouTube. Có thể cần đăng nhập.');
         }
