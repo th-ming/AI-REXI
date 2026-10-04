@@ -280,19 +280,21 @@ export default function ChatTab({
             </div>
           )}
 
-          {/* Scroll buttons */}
-          <div className="absolute right-1 bottom-2 flex flex-col gap-2 z-30">
-            {showScrollTop && (
-              <button onClick={scrollToTopSmooth} className="w-9 h-9 rounded-full bg-[#1e1f20]/90 backdrop-blur border border-white/10 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 flex items-center justify-center shadow-lg transition-all">
-                <ArrowUp size={16} />
-              </button>
-            )}
-            {showScrollBottom && (
-              <button onClick={scrollToBottomSmooth} className="w-9 h-9 rounded-full bg-[#1e1f20]/90 backdrop-blur border border-white/10 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 flex items-center justify-center shadow-lg transition-all">
-                <ArrowDown size={16} />
-              </button>
-            )}
-          </div>
+          {/* Scroll buttons — 1 pill nổi giữa, theo theme (không còn 2 cục tròn lạc lõng) */}
+          {(showScrollTop || showScrollBottom) && (
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-30 flex items-center gap-1 p-1 rounded-full bg-[var(--bg-card)]/95 backdrop-blur border border-[var(--border-color)] shadow-lg">
+              {showScrollTop && (
+                <button onClick={scrollToTopSmooth} title="Về đầu đoạn chat" className="w-8 h-8 rounded-full text-[var(--text-sub)] hover:text-cyan-500 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-all">
+                  <ArrowUp size={15} />
+                </button>
+              )}
+              {showScrollBottom && (
+                <button onClick={scrollToBottomSmooth} title="Xuống tin mới nhất" className="w-8 h-8 rounded-full text-[var(--text-sub)] hover:text-cyan-500 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-all">
+                  <ArrowDown size={15} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
