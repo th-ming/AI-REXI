@@ -589,14 +589,19 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
-  // Hiện/ẩn 2 nút cuộn lên-xuống theo vị trí cuộn
-  const handleChatScroll = (e) => {
-    const el = e.currentTarget;
+  // Tính hiện/ẩn nút cuộn từ vị trí thực tế — gọi sau mọi thay đổi nội dung/
+  // chuyển đoạn chat (fix bug cờ kẹt true khi chat mới ngắn không cuộn được)
+  const updateScrollFlags = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
     const distFromTop = el.scrollTop;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowScrollTop(distFromTop > 220);
     setShowScrollBottom(distFromBottom > 220);
   };
+
+  // Hiện/ẩn 2 nút cuộn lên-xuống theo vị trí cuộn
+  const handleChatScroll = () => { updateScrollFlags(); };
 
   const scrollToTopSmooth = () => {
     chatScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -766,6 +771,9 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Đổi đoạn chat → reset cờ cuộn ngay (chat mới chưa có sự kiện cuộn để tự cập nhật)
+    setShowScrollTop(false);
+    setShowScrollBottom(false);
     if (activeConvId) {
       // Conv do handleSendMessage vừa tạo → state đã có tin optimistic, không refetch (chống dup)
       if (skipConvFetchRef.current) { skipConvFetchRef.current = false; return; }
@@ -783,6 +791,9 @@ useEffect(() => {
          el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
        }
      }
+     // Đo lại sau khi layout xong (tin nhắn mới có thể làm cờ cũ sai)
+     const t = setTimeout(updateScrollFlags, 120);
+     return () => clearTimeout(t);
    }, [messages, loading]);
 
   const fetchConversations = async () => {
