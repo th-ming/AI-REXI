@@ -1652,7 +1652,16 @@ router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), youtubePr
       };
       // Giữ ?token= cho segment con (guest auth qua allowlist host googlevideo/worker)
       const qsTokenYt = req.query.token ? `&token=${encodeURIComponent(req.query.token)}` : '';
-      const toProxyYt = (u) => `${req.protocol}://${req.get('host')}/api/services/youtube/proxy?url=${encodeURIComponent(toAbsoluteYt(u))}${qsTokenYt}`;
+      // Segment googlevideo bị IP-lock theo IP yêu cầu — PHẢI fetch qua worker (IP nhà);
+      // BE proxy (IP Render) fetch trực tiếp sẽ 403. Fallback BE proxy nếu thiếu worker env.
+      const workerUrlYt = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/+$/, '');
+      const workerTokYt = (process.env.YTDLP_WORKER_TOKEN || '').trim();
+      const toProxyYt = (u) => {
+        if (workerUrlYt) {
+          return `${workerUrlYt}/stream?${workerTokYt ? `token=${encodeURIComponent(workerTokYt)}&` : ''}url=${encodeURIComponent(toAbsoluteYt(u))}`;
+        }
+        return `${req.protocol}://${req.get('host')}/api/services/youtube/proxy?url=${encodeURIComponent(toAbsoluteYt(u))}${qsTokenYt}`;
+      };
       // 1) Rewrite dòng URI thường (segment, variant playlist)
       body = body.replace(/^(?!#)([^\r\n]+)$/gm, (line) => {
         line = line.trim();
