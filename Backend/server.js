@@ -280,11 +280,10 @@ const sessionSecret = resolveSessionSecret();
   const wss = new WebSocketServer({
     server,
     path: '/api/services/browser/stream',
-    verifyClient: verifyBrowserWS,
-    handleProtocols: (protocols) => {
-      const arr = [...(protocols || [])];
-      return arr.length ? arr[arr.length - 1] : false;
-    },
+    // 4/10: BỎ verifyClient + handleProtocols — handleProtocols trả false khi không có
+    // subprotocol làm handshake treo ngầm (client vẫn thấy open nhưng connection handler
+    // không chạy → clients 0 → không frame). Auth nằm trong setWSS connection handler:
+    // decode ?token= → sai thì ws.close(4401) ngay.
   });
   browserStream.setWSS(wss);
 
