@@ -218,7 +218,7 @@ const EASY_TEMPLATES = [
       { key: 'number', label: 'Số bắt đầu (đếm về 1)', placeholder: 'VD: 3', default: '3' },
       { key: 'message', label: 'Thông báo', placeholder: 'VD: BẮT ĐẦU!', default: 'BẮT ĐẦU!' },
     ],
-    build: (f, dur) => { const N = Math.max(2, Math.min(10, parseInt(f.number, 10) || 3)); const msgT = Math.max(1.2, dur - 1.2); const step = msgT / N; const B = fullDur(dur, 4); const dots = Array.from({ length: 18 }, (_, i) => {
+    build: (f, dur) => { const N = Math.max(2, Math.min(10, parseInt(f.number, 10) || 3)); const msgT = Math.max(1.2, dur - 1.2); const step = msgT / N; const B = fullDur(dur, 4); const RL = Math.round(2 * Math.PI * 100); const dots = Array.from({ length: 18 }, (_, i) => {
       const ang = prand(i, 5) * Math.PI * 2; const dist = 140 + prand(i, 6) * 260;
       return { dx: Math.round(Math.cos(ang) * dist), dy: Math.round(Math.sin(ang) * dist), size: Math.round(5 + prand(i, 7) * 9), d: +(prand(i, 8) * 0.25).toFixed(2) };
     }); return `<meta charset="UTF-8">${GSAP_CDN}
@@ -243,7 +243,7 @@ const EASY_TEMPLATES = [
 </div>
 <script>
   const ring = document.getElementById('cd-ring');
-  const RL = 2 * Math.PI * 100; ring.setAttribute('stroke-dasharray', RL); ring.setAttribute('stroke-dashoffset', RL);
+  ring.setAttribute('stroke-dasharray', ${RL}); ring.setAttribute('stroke-dashoffset', ${RL});
   const tl = gsap.timeline({ paused: true });
   tl.fromTo('#cd-bg', { backgroundPosition: '0% 0%' }, { backgroundPosition: '100% 100%', duration: ${B.seg}, ease: 'sine.inOut', yoyo: true, repeat: ${B.rep} }, 0);
   ${Array.from({ length: N }, (_, i) => {
