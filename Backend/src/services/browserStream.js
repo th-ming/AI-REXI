@@ -63,6 +63,7 @@ class BrowserStreamService {
       ws.user = user;
       console.log('[WS] Client connected! User:', user.id || user.email || '?', 'URL:', req?.url?.split('?')[0], 'Total:', this.clients.size + 1);
       this.clients.add(ws);
+      this._totalConnections = (this._totalConnections || 0) + 1;
       this._resetAutoClose();
 
       ws.on('close', () => {
@@ -486,6 +487,7 @@ class BrowserStreamService {
       running: !!this.browser,
       url: this.page?.url() || null,
       clients: this.clients.size,
+      totalConnections: this._totalConnections || 0,
       stagehand: !!this.stagehand,
     };
   }
