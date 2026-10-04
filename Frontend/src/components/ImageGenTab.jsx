@@ -1,46 +1,70 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Download, Copy, Check, Trash2 } from 'lucide-react';
+import { Sparkles, Loader2, Download, Copy, Check, Trash2, Shuffle, History, X } from 'lucide-react';
+
+// Gợi ý prompt mẫu — bấm 1 phát điền
+const PROMPT_IDEAS = [
+  'Phong cảnh núi rừng lúc hoàng hôn, màu cam tím, digital art',
+  'Mèo dễ thương đội mũ chef đang nấu ăn trong bếp, anime',
+  'Thành phố tương lai về đêm, ánh neon, phong cách cyberpunk',
+  'Chú corgi mặc vest CEO ngồi bàn làm việc, pixel art',
+  'Bát phở bò bốc khói, ảnh ấm thực chuyên nghiệp',
+  'Phi hành gia ngắm bầu trời sao ngoài tàu vũ trụ, concept art',
+];
+
+const SIZES = [
+  { v: '1024x1024', label: '1:1 Vuông' },
+  { v: '512x512', label: '1:1 Nhỏ' },
+  { v: '1024x768', label: '4:3 Ngang' },
+  { v: '768x1024', label: '3:4 Dọc' },
+  { v: '1280x720', label: '16:9 Rộng' },
+  { v: '720x1280', label: '9:16 Reels' },
+];
 
 export default function ImageGenTab({ API_BASE, authToken, showToast, imageModels = [] }) {
   const [prompt, setPrompt] = useState('');
   const [image, setImage] = useState('');
+  const [imageMeta, setImageMeta] = useState(null); // {prompt, modelLabel}
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [picked, setPicked] = useState(''); // ''=Gemini builtin, else 'provider||model'
   const [size, setSize] = useState('1024x1024');
+  const [history, setHistory] = useState([]); // [{image, prompt, modelLabel}] — phiên này
+
+  const genFetch = async (p) => {
+    if (p) {
+      const [provider, model] = p.split('||');
+      const res = await fetch(`${API_BASE}/media/image`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+        body: JSON.stringify({ prompt: prompt.trim(), provider, model, size })
+      });
+      const data = await res.json();
+      const first = data.images && data.images[0];
+      if (data.success && first) return { image: first.url || first.b64, modelLabel: `${provider.toUpperCase()} · ${model}` };
+      throw new Error(data.error || 'Tạo ảnh thất bại — provider này có thể không nhận model đã chọn.');
+    }
+    const res = await fetch(`${API_BASE}/services/generate-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+      body: JSON.stringify({ prompt: prompt.trim(), size })
+    });
+    const data = await res.json();
+    if (data.success && data.image) return { image: data.image, modelLabel: 'Gemini (builtin)' };
+    throw new Error(data.error || 'Tạo ảnh thất bại.');
+  };
 
   const generate = async () => {
     if (!prompt.trim()) { setError('Vui lòng nhập mô tả ảnh cần tạo.'); return; }
     setLoading(true); setError(''); setImage('');
     try {
-      if (picked) {
-        const [provider, model] = picked.split('||');
-        const res = await fetch(`${API_BASE}/media/image`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
-          body: JSON.stringify({ prompt: prompt.trim(), provider, model, size })
-        });
-        const data = await res.json();
-        const first = data.images && data.images[0];
-        if (data.success && first) { setImage(first.url || first.b64); showToast?.('✅ Tạo ảnh thành công!', 'success'); }
-        else setError(data.error || 'Tạo ảnh thất bại — provider này có thể không nhận model đã chọn.');
-        return;
-      }
-      const res = await fetch(`${API_BASE}/services/generate-image`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
-        body: JSON.stringify({ prompt: prompt.trim() })
-      });
-      const data = await res.json();
-      if (data.success && data.image) {
-        setImage(data.image);
-        showToast?.('✅ Tạo ảnh thành công!', 'success');
-      } else {
-        setError(data.error || 'Tạo ảnh thất bại.');
-      }
+      const r = await genFetch(picked);
+      setImage(r.image);
+      setImageMeta({ prompt: prompt.trim(), modelLabel: r.modelLabel });
+      setHistory((h) => [{ image: r.image, prompt: prompt.trim(), modelLabel: r.modelLabel }, ...h].slice(0, 12));
+      showToast?.('✅ Tạo ảnh thành công!', 'success');
     } catch (e) {
-      setError('Lỗi kết nối: ' + e.message);
+      setError('Lỗi tạo ảnh: ' + (e.message || 'kết nối thất bại'));
     } finally {
       setLoading(false);
     }
@@ -67,7 +91,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
     }
   };
 
-  const clear = () => { setImage(''); setError(''); setPrompt(''); };
+  const clear = () => { setImage(''); setImageMeta(null); setError(''); setPrompt(''); };
 
   return (
     <div className="h-full flex flex-col p-4 space-y-4 overflow-y-auto">
@@ -85,6 +109,15 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
           placeholder="Mô tả ảnh bạn muốn tạo... Ví dụ: một chú mèo dễ thương đội mũ chef đang nấu ăn trong bếp hiện đại, phong cách anime"
           className="w-full min-h-[90px] bg-[#131416] border border-white/10 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 resize-none"
         />
+        {/* Chips gợi ý — bấm điền nhanh */}
+        <div className="flex flex-wrap gap-1.5">
+          {PROMPT_IDEAS.map((idea, i) => (
+            <button key={i} type="button" onClick={() => setPrompt(idea)}
+              className="px-2.5 py-1 rounded-full bg-[#26282b] hover:bg-[#31343a] border border-white/10 text-[10px] text-slate-300 hover:text-white transition-all text-left max-w-full truncate">
+              💡 {idea.length > 42 ? idea.slice(0, 42) + '…' : idea}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={picked}
@@ -104,8 +137,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             onChange={(e) => setSize(e.target.value)}
             className="bg-[#131416] border border-white/10 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500/50"
           >
-            <option value="1024x1024">1024×1024</option>
-            <option value="512x512">512×512</option>
+            {SIZES.map(s => <option key={s.v} value={s.v}>{s.label} · {s.v}</option>)}
           </select>
           {imageModels.length === 0 && <span className="text-[10px] text-slate-500">Chưa quét được model ảnh nào — chọn thêm sau lượt quét</span>}
         </div>
@@ -118,6 +150,12 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
             {loading ? 'Đang tạo ảnh...' : 'Tạo ảnh'}
           </button>
+          {prompt.trim() && !loading && (
+            <button onClick={generate} title="Tạo lại với cùng mô tả — được ảnh khác"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-200 text-xs border border-white/10 transition-all">
+              <Shuffle size={14} /> Biến thể
+            </button>
+          )}
           {image && (
             <>
               <button onClick={download} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-200 text-xs border border-white/10 transition-all">
@@ -132,7 +170,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             </>
           )}
         </div>
-        <p className="text-[10px] text-slate-500">💡 Lưu ý: ảnh tạo từ Gemini free tier, nếu gặp lỗi "hết quota" thì đợi vài phút thử lại.</p>
+        <p className="text-[10px] text-slate-500">💡 Lưu ý: ảnh tạo từ Gemini free tier, nếu gặp lỗi "hết quota" thì đợi vài phút thử lại. Nút "Biến thể" tạo lại ảnh khác từ cùng mô tả.</p>
       </div>
 
       {error && (
@@ -142,15 +180,52 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
       )}
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-10 text-slate-400 space-y-2">
-          <Loader2 size={32} className="animate-spin text-indigo-400" />
-          <p className="text-xs">Gemini đang vẽ... thường mất 10-20 giây</p>
+        <div className="flex flex-col items-center justify-center py-10 text-slate-400 space-y-3">
+          <div className="relative w-40 h-40 rounded-2xl bg-[#131416] border border-white/10 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent animate-pulse" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Loader2 size={28} className="animate-spin text-indigo-400" />
+            </div>
+          </div>
+          <p className="text-xs">Đang vẽ... thường mất 10-20 giây</p>
         </div>
       )}
 
       {image && !loading && (
-        <div className="flex justify-center">
-          <img src={image} alt="Kết quả tạo ảnh" className="max-w-full max-h-[55vh] rounded-2xl border border-white/10 shadow-2xl" />
+        <div className="flex flex-col items-center space-y-3">
+          <div className="relative flex justify-center">
+            <img src={image} alt="Kết quả tạo ảnh" className="max-w-full max-h-[55vh] rounded-2xl border border-white/10 shadow-2xl" />
+          </div>
+          {imageMeta?.modelLabel && (
+            <div className="flex items-center gap-2 text-[10px] text-slate-500">
+              <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/25 text-indigo-300">{imageMeta.modelLabel}</span>
+              {imageMeta.prompt && <span className="max-w-md truncate">{imageMeta.prompt}</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lịch sử ảnh phiên này — bấm xem lại, nút xóa khỏi lịch sử */}
+      {history.length > 1 && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <History size={13} /> Ảnh đã tạo trong phiên ({history.length})
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {history.map((h, i) => (
+              <div key={i} className="relative group">
+                <button onClick={() => { setImage(h.image); setImageMeta({ prompt: h.prompt, modelLabel: h.modelLabel }); setError(''); }}
+                  className={`block w-20 h-20 rounded-xl overflow-hidden border transition-all ${image === h.image ? 'border-indigo-400 ring-2 ring-indigo-500/30' : 'border-white/10 hover:border-white/30'}`}>
+                  <img src={h.image} alt={h.prompt} className="w-full h-full object-cover" />
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); setHistory((arr) => arr.filter((_, j) => j !== i)); }}
+                  title="Xóa khỏi lịch sử"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#26282b] border border-white/10 text-slate-400 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                  <X size={11} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -158,7 +233,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
         <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 space-y-2 py-10">
           <div className="text-5xl mb-2">🖼️</div>
           <p className="text-sm">Mô tả bằng chữ ở trên, bấm <b>Tạo ảnh</b> là có ảnh AI ngay.</p>
-          <p className="text-[10px] max-w-md">Ví dụ gợi ý: "phong cảnh núi rừng lúc hoàng hôn, màu cam tím", "robot làm bánh trong tiệm bánh, pixel art"...</p>
+          <p className="text-[10px] max-w-md">Bấm chip gợi ý 💡 để điền nhanh, chọn tỉ lệ ảnh ở dropdown, dùng "Biến thể" để tạo thêm ảnh khác từ cùng mô tả.</p>
         </div>
       )}
     </div>
