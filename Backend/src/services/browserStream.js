@@ -79,7 +79,22 @@ class BrowserStreamService {
       });
 
       // Send initial frame immediately when client connects
-      if (this.page) {
+      if (!this.page && !this.browser) {
+        // FIX 4/10: connect mà chưa có browser → tự launch + gửi frame đầu
+        // (trước đây chỉ navigate/click mới launch → client connect thấy màn hình đen vĩnh viễn)
+        this.launch().then(() => {
+          if (!this.page) return null;
+          return this.page.screenshot({ type: 'jpeg', quality: 40 });
+        }).then((screenshot) => {
+          if (!screenshot) return;
+          const frameData = `data:image/jpeg;base64,${screenshot.toString('base64')}`;
+          const message = JSON.stringify({ type: 'frame', data: frameData });
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(message);
+            console.log('[WS] Sent initial frame to new client (auto-launched)');
+          }
+        }).catch(e => console.error('[WS] Auto-launch/frame error:', e.message));
+      } else if (this.page) {
         this.page.screenshot({ type: 'jpeg', quality: 40 }).then(screenshot => {
           const frameData = `data:image/jpeg;base64,${screenshot.toString('base64')}`;
           const message = JSON.stringify({ type: 'frame', data: frameData });
