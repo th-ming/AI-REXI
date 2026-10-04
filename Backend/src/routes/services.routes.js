@@ -1593,6 +1593,127 @@ router.get('/youtube/comments', rateLimit({ windowMs: 60000, max: 30 }), async (
   }
 });
 
+// ─── CLASSROOM PROXY (OpenMAIC) ────────────────────────────────────────────
+// open.maic.chat CẤM iframe (X-Frame-Options: SAMEORIGIN + CSP frame-ancestors
+// 'self' — đã verify bằng curl) → iframe trực tiếp KHÔNG BAO GIỜ load được.
+// Proxy qua backend: strip frame headers + rewrite URL về /api/classroom/*.
+// Yêu cầu đăng nhập (token qua Authorization header hoặc ?token= — iframe không
+// gửi được header). RateLimit cao vì app Next.js tải nhiều chunk/API.
+const MAIC_UPSTREAM = 'https://open.maic.chat';
+
+async function classroomAuth(req) {
+  try {
+    const jwt = require('jsonwebtoken');
+    const { getJWTSecret } = require('../middleware/auth.middleware');
+    let token = '';
+    const h = req.headers.authorization || '';
+    if (h.startsWith('Bearer ')) token = h.slice(7);
+    if (!token && req.query.token) token = String(req.query.token);
+    if (!token) return null;
+    return jwt.verify(token, getJWTSecret());
+  } catch { return null; }
+}
+
+router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, res) => {
+  const user = await classroomAuth(req);
+  if (!user) return res.status(401).send('Unauthorized — vui lòng đăng nhập AI Rexi để dùng Lớp Học AI.');
+
+  // subpath sau /api/classroom (Express 5 đã strip mount point khỏi req.url)
+  let sub = req.url || '/';
+  if (!sub.startsWith('/')) sub = '/' + sub;
+  const targetUrl = MAIC_UPSTREAM + sub;
+
+  const base = `${req.protocol}://${req.get('host')}/api/classroom`;
+
+  try {
+    // Forward headers (bỏ host/connection/content-length — fetch tự tính)
+    const fwdHeaders = {};
+    for (const [k, v] of Object.entries(req.headers || {})) {
+      const lk = k.toLowerCase();
+      if (['host', 'connection', 'content-length'].includes(lk)) continue;
+      fwdHeaders[k] = v;
+    }
+    fwdHeaders['host'] = 'open.maic.chat';
+    fwdHeaders['origin'] = MAIC_UPSTREAM;
+    fwdHeaders['referer'] = MAIC_UPSTREAM + '/';
+
+    // Body: JSON/urlencoded đã parse sẵn → serialize lại; còn lại (multipart/binary) stream raw
+    let body;
+    const ct = String(req.headers['content-type'] || '').toLowerCase();
+    const method = (req.method || 'GET').toUpperCase();
+    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) && Object.keys(req.body).length) {
+      if (ct.includes('json')) body = JSON.stringify(req.body);
+      else if (ct.includes('urlencoded')) body = new URLSearchParams(req.body).toString();
+    }
+    if (body === undefined && !['GET', 'HEAD'].includes(method)) body = req;
+
+    const upstream = await fetch(targetUrl, {
+      method,
+      headers: fwdHeaders,
+      body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(120000),
+    });
+
+    // Redirect: rewrite Location về proxy (không auto-follow để browser đi đúng đường proxy)
+    if (upstream.status >= 300 && upstream.status < 400) {
+      const loc = upstream.headers.get('location');
+      if (loc) {
+        const abs = new URL(loc, MAIC_UPSTREAM).toString();
+        const proxied = abs.startsWith(MAIC_UPSTREAM) ? base + abs.slice(MAIC_UPSTREAM.length) : abs;
+        res.status(upstream.status).set('location', proxied).end();
+        return;
+      }
+    }
+
+    // Copy headers — TRỪ frame-blocking (cho phép iframe) + hop-by-hop
+    const dropHeaders = new Set(['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'content-length', 'transfer-encoding', 'connection', 'content-encoding']);
+    upstream.headers.forEach((v, k) => {
+      const lk = k.toLowerCase();
+      if (dropHeaders.has(lk) || lk === 'set-cookie') return;
+      try { res.setHeader(k, v); } catch (e) { /* header không hợp lệ — bỏ qua */ }
+    });
+    // Cookies: forward, strip Domain (thành host-only = domain mình) + scope Path về /api/classroom
+    const getSetCookie = typeof upstream.headers.getSetCookie === 'function' ? upstream.headers.getSetCookie() : [];
+    for (const sc of getSetCookie) {
+      let fixed = String(sc).replace(/;\s*domain=[^;]*/i, '').replace(/;\s*[Pp]ath=\/(?=;|$)/, '; Path=/api/classroom');
+      try { res.append('set-cookie', fixed); } catch (e) { /* bỏ qua */ }
+    }
+    // Nếu upstream vẫn chặn frame bằng CSP khác (report-only đã strip) — ép thêm header mở
+    res.setHeader('content-security-policy', "frame-ancestors 'self' https://airexi.dpdns.org https://*.vercel.app http://localhost:*");
+
+    const rct = (upstream.headers.get('content-type') || '').toLowerCase();
+    if (rct.includes('text/html')) {
+      let html = await upstream.text();
+      // Tuyệt đối về upstream → về proxy
+      html = html.split(MAIC_UPSTREAM).join(base);
+      // Root-absolute trong attributes (Next.js dùng /_next/, /api/, /favicon...)
+      html = html.replace(/(src|href|action|srcset|content|data-src)="\/([^\/"])/g, `$1="${base}/$2`);
+      html = html.replace(/(src|href|action|srcset|content|data-src)='\/([^\/'])/g, `$1='${base}/$2`);
+      html = html.replace(/url\(\s*\/(?!\/)/g, `url(${base}/`);
+      // JS string literals gọi API cùng origin: fetch("/api/..."), "/_next/..." → về proxy
+      html = html.replace(/"\/api\//g, `"${base}/api/`);
+      html = html.replace(/'\/api\//g, `'${base}/api/`);
+      html = html.replace(/`\/api\//g, `\`${base}/api/`);
+      html = html.replace(/"\/_next\//g, `"${base}/_next/`);
+      html = html.replace(/'\/_next\//g, `'${base}/_next/`);
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      return res.send(html);
+    }
+    // Còn lại (JS/CSS/API JSON/streaming/SSE/ảnh...) pipe trực tiếp
+    res.status(upstream.status);
+    if (upstream.body) {
+      const { Readable } = require('stream');
+      Readable.fromWeb(upstream.body).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (e) {
+    console.error('[Classroom] Proxy error:', targetUrl, e.message);
+    res.status(502).json({ success: false, error: 'Lỗi proxy Lớp Học AI: ' + e.message });
+  }
+});
+
 // Proxy stream video (chống CORS + SSRF) — copy pattern từ iptv/proxy
 router.get('/youtube/proxy', rateLimit({ windowMs: 60000, max: 120 }), youtubeProxyAuth, async (req, res) => {
   const { url } = req.query;

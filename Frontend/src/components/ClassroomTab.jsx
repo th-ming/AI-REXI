@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Loader2, ExternalLink, GraduationCap, RefreshCw } from 'lucide-react';
 
-// OpenMAIC (THU-MAIC, MIT, 39.7k stars) — "Open Multi-Agent Interactive Classroom":
+// OpenMAIC (THU-MAIC, MIT) — "Open Multi-Agent Interactive Classroom":
 // lớp học ảo immersive với nhiều AI agent đóng vai trò giáo viên/học sinh.
-// Live demo chính thức https://open.maic.chat/ (X-Frame-Options trống → embed được).
+// open.maic.chat CẤM iframe (X-Frame-Options: SAMEORIGIN + CSP frame-ancestors
+// 'self' — đã verify) → đi qua backend proxy /api/classroom (strip frame headers
+// + rewrite URL). Token qua ?token= vì iframe không gửi được Authorization header.
 const OPENMAIC_URL = 'https://open.maic.chat/';
 
 export default function ClassroomTab() {
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
+  const [proxySrc, setProxySrc] = useState('');
 
   useEffect(() => {
-    if (!OPENMAIC_URL) return;
+    try {
+      const token = localStorage.getItem('rexi_token') || '';
+      setProxySrc(`/api/classroom/?token=${encodeURIComponent(token)}`);
+    } catch (e) {
+      setProxySrc('/api/classroom/');
+    }
     setLoading(true);
-    const t = setTimeout(() => setLoading(false), 20000);
+    const t = setTimeout(() => setLoading(false), 25000);
     return () => clearTimeout(t);
   }, [reloadKey]);
 
@@ -55,14 +63,16 @@ export default function ClassroomTab() {
             </div>
           </div>
         )}
-        <iframe
-          key={reloadKey}
-          src={OPENMAIC_URL}
-          title="Lớp Học AI — OpenMAIC"
-          className="w-full h-full border-0"
-          allow="autoplay; fullscreen; clipboard-write"
-          onLoad={() => setLoading(false)}
-        />
+        {proxySrc ? (
+          <iframe
+            key={reloadKey}
+            src={proxySrc}
+            title="Lớp Học AI — OpenMAIC"
+            className="w-full h-full border-0"
+            allow="autoplay; fullscreen; clipboard-write; microphone; camera"
+            onLoad={() => setLoading(false)}
+          />
+        ) : null}
       </div>
     </div>
   );
