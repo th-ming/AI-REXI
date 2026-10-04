@@ -1,4 +1,4 @@
-import { apiFetch } from '../config';
+import { apiFetch, API_BASE } from '../config';
 import React, { useEffect, useRef, useState } from 'react';
 import { Maximize2, X, RefreshCw, Search, Loader2, Zap, Bot } from 'lucide-react';
 
@@ -30,24 +30,23 @@ export default function BrowserView({ onClose }) {
   }, []);
 
   const connectWS = () => {
-    const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    // P0-03+ (4/10): Vercel KHÔNG proxy WS qua rewrite (1006) — WS phải tới domain API trực tiếp.
-    // Dev 5173 → localhost:5000; production airexi.dpdns.org → api.airexi.dpdns.org; còn lại giữ host.
-    const host = window.location.port === '5173' ? 'localhost:5000'
-      : (window.location.hostname === 'airexi.dpdns.org' ? 'api.airexi.dpdns.org' : window.location.host);
-    // P0-03: WS browser yêu cầu JWT — gửi kèm token đăng nhập qua query (server verifyClient)
+    // 4/10: ĐỔI WS → SSE — Render proxy chèn WS compression (RSV1/fragmentation) làm
+    // connection chết 1006 ngầm (server clients 0, không frame). SSE là HTTP thường,
+    // qua Render + Cloudflare OK; EventSource tự reconnect.
+    // P0-03: yêu cầu JWT — EventSource không gửi được header → token qua query.
     const token = localStorage.getItem('rexi_token') || '';
-    const wsUrl = `${wsProto}://${host}/api/services/browser/stream?token=${encodeURIComponent(token)}`;
     intentionalCloseRef.current = false;
-    wsRef.current = new WebSocket(wsUrl);
+    if (wsRef.current) { try { wsRef.current.close(); } catch (e) { console.warn('[rexi] sse close failed', e); } }
+    const es = new EventSource(`${API_BASE}/services/browser/stream-sse?token=${encodeURIComponent(token)}`);
+    wsRef.current = es;
 
-    wsRef.current.onopen = () => {
+    es.onopen = () => {
       reconnectAttemptsRef.current = 0;
       setConnected(true);
       setStatus('connected');
     };
 
-    wsRef.current.onmessage = (event) => {
+    es.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'frame' && msg.data && canvasRef.current) {
@@ -59,26 +58,24 @@ export default function BrowserView({ onClose }) {
           };
           img.src = msg.data;
         }
+        if (msg.type === 'auth_failed') {
+          setStatus('error');
+          console.error('[SSE] auth_failed:', msg.msg);
+        }
       } catch {
       }
     };
 
-    wsRef.current.onclose = () => {
+    es.onerror = () => {
       setConnected(false);
-      // Auto-reconnect nếu không phải đóng có chủ đích (tránh "không bấm được/frozen" khi stream đứt)
+      // EventSource tự reconnect; hiển thị trạng thái cho người dùng
       if (!intentionalCloseRef.current && reconnectAttemptsRef.current < 5) {
         reconnectAttemptsRef.current += 1;
         setStatus('connecting');
-        setTimeout(() => {
-          if (!intentionalCloseRef.current) connectWS();
-        }, 1500);
       } else {
         setStatus('disconnected');
+        try { es.close(); } catch (e) { console.warn('[rexi] sse close failed', e); }
       }
-    };
-
-    wsRef.current.onerror = (err) => {
-      console.error('[WS Error]', err);
     };
   };
 

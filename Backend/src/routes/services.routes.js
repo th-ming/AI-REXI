@@ -2373,14 +2373,50 @@ router.get('/browser/status', authMiddleware, (req, res) => {
   res.json(browserStream.getStatus());
 });
 
-// GET: 1 frame debug — test screenshot hoạt động trên server (browser phải đang chạy)
-router.get('/browser/frame', authMiddleware, async (req, res) => {
+// GET: SSE stream frames — thay WebSocket (Render proxy chèn WS compression RSV1/
+// fragmentation → connection chết 1006 ngầm, self-test xác nhận). HTTP thường qua
+// Render + Cloudflare OK. Auth ?token= (EventSource không gửi được header).
+router.get('/browser/stream-sse', async (req, res) => {
+  const token = req.query.token || '';
+  let user = null;
   try {
-    const shot = await browserStream.debugFrame();
-    res.json(shot);
+    const jwt = require('jsonwebtoken');
+    const { getJWTSecret } = require('../middleware/auth.middleware');
+    user = jwt.verify(token, getJWTSecret());
   } catch (e) {
-    res.status(500).json({ success: false, error: e.message });
+    return res.status(401).json({ success: false, error: 'Unauthorized: invalid token' });
   }
+  if (!user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write(`data: ${JSON.stringify({ type: 'hello' })}\n\n`);
+  console.log('[SSE] Browser stream client connected, user:', user.id || user.email);
+
+  let closed = false;
+  req.on('close', () => { closed = true; });
+
+  // Tự launch browser khi client kết nối (nếu chưa có)
+  if (!browserStream.page && !browserStream.browser) {
+    browserStream.launch().catch(e => console.error('[SSE] Auto-launch error:', e.message));
+  }
+
+  const interval = setInterval(async () => {
+    if (closed || res.writableEnded) { clearInterval(interval); return; }
+    try {
+      const shot = await browserStream.debugFrame();
+      if (closed) return;
+      if (shot.success) {
+        res.write(`data: ${JSON.stringify({ type: 'frame', data: `data:image/jpeg;base64,${shot.b64}` })}\n\n`);
+      }
+    } catch (e) {
+      // bỏ frame lỗi, không chết stream
+    }
+  }, 600);
 });
 
 // GET: self-test WS từ TRONG instance qua localhost — tách thủ phạm (server vs proxy ngoài)
