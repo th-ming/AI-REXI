@@ -280,15 +280,16 @@ const sessionSecret = resolveSessionSecret();
   const wss = new WebSocketServer({
     server,
     path: '/api/services/browser/stream',
-    // 4/10: BỎ verifyClient + handleProtocols — handleProtocols trả false khi không có
-    // subprotocol làm handshake treo ngầm (client vẫn thấy open nhưng connection handler
-    // không chạy → clients 0 → không frame). Auth nằm trong setWSS connection handler:
-    // decode ?token= → sai thì ws.close(4401) ngay.
+    // 4/10: BỎ verifyClient + handleProtocols — auth nằm trong setWSS connection handler.
+    // 4/10: BẬT perMessageDeflate — Render proxy chèn WebSocket compression (RSV1 set)
+    // mà Node không negotiate → "RSV1 must be clear" → connection chết 1006 ngầm
+    // (self-test /browser/ws-selftest xác nhận). Node negotiate → proxy relay frames OK.
+    perMessageDeflate: { zlibDeflateOptions: { chunkSize: 1024 } },
   });
   browserStream.setWSS(wss);
 
   // WebSocket server cho Real-time Transcription
-  const transcriptionWSS = new WebSocketServer({ server, path: '/api/services/transcribe-live' });
+  const transcriptionWSS = new WebSocketServer({ server, path: '/api/services/transcribe-live', perMessageDeflate: { zlibDeflateOptions: { chunkSize: 1024 } } });
   transcriptionWSS.on('connection', async (ws, req) => {
     // Run auth middleware
     const authMiddleware = require('./src/middleware/auth.middleware').authMiddleware;
