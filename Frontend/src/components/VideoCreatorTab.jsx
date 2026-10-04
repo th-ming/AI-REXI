@@ -37,7 +37,7 @@ const EASY_TEMPLATES = [
   tl.from('#ts-title', { opacity: 0, y: 50, duration: 0.8, ease: 'power3.out' }, 0);
   tl.from('#ts-sub', { opacity: 0, y: 30, duration: 0.6, ease: 'power3.out' }, 0.4);
   window.__timelines = window.__timelines || {};
-  window.__timelines['title-slide'] = tl;
+  window.__timelines['title-slide'] = tl; tl.repeat(-1).play();
 </script>`
   },
   {
@@ -59,7 +59,7 @@ const EASY_TEMPLATES = [
   tl.fromTo('#gb-bg', { backgroundPosition: '0% 50%' }, { backgroundPosition: '100% 50%', duration: ${dur}, ease: 'none', repeat: -1 }, 0);
   tl.from('#gb-title', { opacity: 0, scale: 0.8, duration: 0.8, ease: 'back.out(1.7)' }, 0.3);
   window.__timelines = window.__timelines || {};
-  window.__timelines['gradient-bg'] = tl;
+  window.__timelines['gradient-bg'] = tl; tl.repeat(-1).play();
 </script>`
   },
   {
@@ -87,7 +87,7 @@ const EASY_TEMPLATES = [
   tl.from('#tr-l2', { opacity: 0, y: 40, duration: 0.7, ease: 'power3.out' }, 0.5);
   tl.from('#tr-l3', { opacity: 0, y: 40, duration: 0.7, ease: 'power3.out' }, 1);
   window.__timelines = window.__timelines || {};
-  window.__timelines['text-reveal'] = tl;
+  window.__timelines['text-reveal'] = tl; tl.repeat(-1).play();
 </script>`
   },
   {
@@ -129,7 +129,7 @@ const EASY_TEMPLATES = [
   tl.from('#cg-c2', { opacity: 0, scale: 0.7, y: 30, duration: 0.5, ease: 'back.out(1.7)' }, 0.2);
   tl.from('#cg-c3', { opacity: 0, scale: 0.7, y: 30, duration: 0.5, ease: 'back.out(1.7)' }, 0.4);
   window.__timelines = window.__timelines || {};
-  window.__timelines['card-grid'] = tl;
+  window.__timelines['card-grid'] = tl; tl.repeat(-1).play();
 </script>`
   },
   {
@@ -158,7 +158,7 @@ const EASY_TEMPLATES = [
   tl.to('#cd-num', { scale: 1.15, duration: 0.15, ease: 'power2.in', yoyo: true, repeat: 1 }, 0.6);
   tl.from('#cd-msg', { opacity: 0, y: 20, duration: 0.5, ease: 'power3.out' }, 0.8);
   window.__timelines = window.__timelines || {};
-  window.__timelines['countdown'] = tl;
+  window.__timelines['countdown'] = tl; tl.repeat(-1).play();
 </script>`
   },
   {
@@ -188,7 +188,7 @@ const EASY_TEMPLATES = [
   tl.from('#nt-bar', { scaleX: 0, transformOrigin: 'left', duration: 0.4, ease: 'power3.out' }, 0.3);
   tl.to('#nt-ticker', { x: '-33.33%', duration: ${dur - 1}, ease: 'none', repeat: -1 }, 0.7);
   window.__timelines = window.__timelines || {};
-  window.__timelines['news-ticker'] = tl;
+  window.__timelines['news-ticker'] = tl; tl.repeat(-1).play();
 </script>`
   },
   {
@@ -219,7 +219,7 @@ const EASY_TEMPLATES = [
   tl.from('#qc-text', { opacity: 0, y: 30, duration: 0.7, ease: 'power3.out' }, 0.3);
   tl.from('#qc-author', { opacity: 0, y: 20, duration: 0.5, ease: 'power3.out' }, 0.8);
   window.__timelines = window.__timelines || {};
-  window.__timelines['quote-card'] = tl;
+  window.__timelines['quote-card'] = tl; tl.repeat(-1).play();
 </script>`
   },
 ];
