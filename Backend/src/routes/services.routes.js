@@ -2383,6 +2383,27 @@ router.get('/browser/frame', authMiddleware, async (req, res) => {
   }
 });
 
+// GET: self-test WS từ TRONG instance qua localhost — tách thủ phạm (server vs proxy ngoài)
+router.get('/browser/ws-selftest', authMiddleware, async (req, res) => {
+  try {
+    const WebSocket = require('ws');
+    const token = (req.headers.authorization || '').replace('Bearer ', '');
+    const port = process.env.PORT || 5000;
+    const result = await new Promise((resolve) => {
+      const ws = new WebSocket(`ws://localhost:${port}/api/services/browser/stream?token=${encodeURIComponent(token)}`);
+      const events = [];
+      const to = setTimeout(() => { try { ws.close(); } catch (e) {} resolve({ events, note: 'timeout 15s' }); }, 15000);
+      ws.on('open', () => events.push('open'));
+      ws.on('message', (d) => { const t = JSON.parse(d).type; events.push(`msg:${t}`); });
+      ws.on('close', (c) => { events.push(`close:${c}`); clearTimeout(to); resolve({ events }); });
+      ws.on('error', (e) => { events.push(`error:${e.message.substring(0, 50)}`); });
+    });
+    res.json({ success: true, ...result, status: browserStream.getStatus() });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // POST: AI Action (Stagehand) — điều khiển browser bằng ngôn ngữ tự nhiên
 router.post('/browser/act', authMiddleware, async (req, res) => {
   try {
