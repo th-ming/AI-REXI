@@ -462,9 +462,9 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
             )}
 
             <h2 className="text-base font-bold text-white mt-3 leading-snug">{selected.title}</h2>
-            {/* Info line kiểu YouTube: views • thời lượng ngay dưới title */}
+            {/* Info line kiểu YouTube: views • thời lượng ngay dưới title (fmtViews đã kèm "lượt xem") */}
             <p className="text-xs text-slate-400 mt-1">
-              {selected.views > 0 ? `${fmtViews(selected.views)} lượt xem` : ''}
+              {selected.views > 0 ? fmtViews(selected.views) : ''}
               {selected.duration ? `${selected.views > 0 ? ' • ' : ''}${fmtDuration(selected.duration)}` : ''}
             </p>
             {/* Hàng kênh + hành động kiểu YouTube */}
