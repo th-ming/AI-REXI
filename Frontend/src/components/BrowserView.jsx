@@ -31,8 +31,10 @@ export default function BrowserView({ onClose }) {
 
   const connectWS = () => {
     const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    // Đảm bảo kết nối trực tiếp đến backend WebSocket port 5000 nếu dev mode hoặc giữ nguyên host khi proxy
-    const host = window.location.port === '5173' ? 'localhost:5000' : window.location.host;
+    // P0-03+ (4/10): Vercel KHÔNG proxy WS qua rewrite (1006) — WS phải tới domain API trực tiếp.
+    // Dev 5173 → localhost:5000; production airexi.dpdns.org → api.airexi.dpdns.org; còn lại giữ host.
+    const host = window.location.port === '5173' ? 'localhost:5000'
+      : (window.location.hostname === 'airexi.dpdns.org' ? 'api.airexi.dpdns.org' : window.location.host);
     // P0-03: WS browser yêu cầu JWT — gửi kèm token đăng nhập qua query (server verifyClient)
     const token = localStorage.getItem('rexi_token') || '';
     const wsUrl = `${wsProto}://${host}/api/services/browser/stream?token=${encodeURIComponent(token)}`;
