@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2, MessageSquare, History } from 'lucide-react';
+import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2, MessageSquare, History, PictureInPicture2 } from 'lucide-react';
 import Hls from 'hls.js';
 import { API_BASE } from '../config';
 
@@ -82,6 +82,8 @@ showToast, active }) {
   // vẫn tăng currentTime; khi muted vẫn kẹt thì mới hiện overlay). Khi user bấm
   // thủ công (gesture thật) thì unmute để có tiếng.
   const [playBlocked, setPlayBlocked] = useState(false);
+  const [pipActive, setPipActive] = useState(false); // PiP: phát nền kiểu YouTube
+  const pipCleanupRef = useRef(null);
   const tryPlay = (fromUser) => {
     const v = videoRef.current;
     if (!v) return;
@@ -92,6 +94,38 @@ showToast, active }) {
       p.then(() => setPlayBlocked(false)).catch(() => setPlayBlocked(true));
     }
   };
+
+  // Phát nền kiểu YouTube: mở Picture-in-Picture → video chạy nổi khi chuyển tab
+  // (trình duyệt suspend decode video ở tab background dù đã giữ mount — keep-mount
+  // một mình KHÔNG đủ). PiP có gesture thật từ click nên có tiếng.
+  // Thêm: khi vào/tắt PiP, dọn listener đúng cách; khi PiP tắt thì đồng bộ state.
+  const enterPip = async () => {
+    const v = videoRef.current;
+    if (!v || !document.pictureInPictureEnabled) {
+      showToast?.('Trình duyệt không hỗ trợ Picture-in-Picture.', 'error');
+      return;
+    }
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+        return;
+      }
+      try { v.muted = false; } catch (e) { /* ignore */ }
+      await v.play().catch(() => {});
+      await v.requestPictureInPicture();
+    } catch (e) {
+      showToast?.('Không mở được PiP: ' + e.message, 'error');
+    }
+  };
+  useEffect(() => {
+    const onChange = () => setPipActive(!!document.pictureInPictureElement);
+    document.addEventListener('enterpictureinpicture', onChange);
+    document.addEventListener('leavepictureinpicture', onChange);
+    return () => {
+      document.removeEventListener('enterpictureinpicture', onChange);
+      document.removeEventListener('leavepictureinpicture', onChange);
+    };
+  }, []);
   const [isHlsStream, setIsHlsStream] = useState(false); // stream_url là m3u (Chromium cần hls.js)
   const [comments, setComments] = useState(null); // {comments, count} — bấm mới load (chậm 10-30s)
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -704,6 +738,15 @@ showToast, active }) {
                 >
                   <Share2 size={13} /> Chia sẻ
                 </button>
+                {proxyUrl && (
+                  <button
+                    onClick={enterPip}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
+                    title="Mở cửa sổ nổi để vừa xem vừa làm việc khác"
+                  >
+                    <PictureInPicture2 size={13} /> {pipActive ? 'Đang phát nền' : 'Phát nền'}
+                  </button>
+                )}
               </div>
             </div>
             {summarizing && summaryStep && (
