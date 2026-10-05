@@ -75,6 +75,17 @@ showToast, active }) {
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null); // video đang xem
   const [streamLoading, setStreamLoading] = useState(false);
+  // Autoplay bị chặn khi src về sau fetch async (gesture click hết hạn) → video
+  // đứng im ở t=0 dù đã có buffer. Hiện overlay "Bấm để phát" thay vì để kẹt.
+  const [playBlocked, setPlayBlocked] = useState(false);
+  const tryPlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    const p = v.play();
+    if (p && typeof p.catch === 'function') {
+      p.then(() => setPlayBlocked(false)).catch(() => setPlayBlocked(true));
+    }
+  };
   const [isHlsStream, setIsHlsStream] = useState(false); // stream_url là m3u (Chromium cần hls.js)
   const [comments, setComments] = useState(null); // {comments, count} — bấm mới load (chậm 10-30s)
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -220,6 +231,7 @@ showToast, active }) {
     setSummary(null);
     setIsHlsStream(false);
     setComments(null);
+    setPlayBlocked(false);
     // Lưu vào lịch sử xem (localStorage) — đầu danh sách, tối đa 24
     try {
       const raw = localStorage.getItem('rexi_watch_history');
@@ -279,10 +291,12 @@ showToast, active }) {
   const handleBack = () => {
     if (videoRef.current) { try { videoRef.current.pause(); videoRef.current.removeAttribute('src'); videoRef.current.load(); } catch (e) { console.warn('[rexi] video cleanup failed', e); } }
     setIsHlsStream(false);
+    setPlayBlocked(false);
     setSelected(null);
     setSummary(null);
     setShowTranscript(false);
     setShowSrt(false);
+    setComments(null);
   };
 
   const downloadSrt = () => {
@@ -533,22 +547,38 @@ showToast, active }) {
               <ArrowLeft size={14} /> Quay lại kết quả
             </button>
 
-            <div className="aspect-video bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl">
+            <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl">
               {streamLoading ? (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                   <Loader2 size={28} className="text-red-400 animate-spin" />
                   <p className="text-xs text-slate-400">Đang lấy luồng video...</p>
                 </div>
               ) : proxyUrl ? (
-                <video
-                  ref={videoRef}
-                  src={isHlsStream ? undefined : proxyUrl}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="w-full h-full bg-black"
-                  onError={() => { if (!isHlsStream) setError('Không phát được video qua proxy. Thử video khác.'); }}
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    src={isHlsStream ? undefined : proxyUrl}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="w-full h-full bg-black"
+                    onCanPlay={() => { tryPlay(); }}
+                    onPlay={() => setPlayBlocked(false)}
+                    onError={() => { if (!isHlsStream) setError('Không phát được video qua proxy. Thử video khác.'); }}
+                  />
+                  {playBlocked && (
+                    <button
+                      onClick={tryPlay}
+                      className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 hover:bg-black/50 transition-colors"
+                      title="Bấm để phát"
+                    >
+                      <span className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-2xl transition-all">
+                        <Play size={26} className="text-white ml-1" fill="currentColor" />
+                      </span>
+                      <span className="text-xs text-slate-200 font-semibold">Bấm để phát video</span>
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <p className="text-xs text-slate-500">Đang chuẩn bị phát...</p>
