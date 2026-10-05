@@ -100,6 +100,9 @@ showToast, active }) {
   const [liked, setLiked] = useState(false); // nút Thích cục bộ (không cần server)
   const [descOpen, setDescOpen] = useState(false); // mở rộng mô tả
   const videoRef = useRef(null);
+  // Số thứ tự lần bấm play: probe/stream nào về chậm hơn lần bấm mới nhất thì
+  // bị bỏ qua (tránh race: probe cũ về sau ghi đè isHlsStream của video mới).
+  const playSeqRef = useRef(0);
   const [engineReady, setEngineReady] = useState(null);
   const [engineNote, setEngineNote] = useState('');
 
@@ -239,6 +242,9 @@ showToast, active }) {
   };
 
   const handlePlay = async (video) => {
+    // Bỏ qua kết quả của lần bấm cũ nếu user bấm video khác khi đang tải
+    const seq = playSeqRef.current + 1;
+    playSeqRef.current = seq;
     setSelected(video);
     setStreamLoading(true);
     setError(null);
@@ -266,12 +272,17 @@ showToast, active }) {
         throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử bấm phát lại sau ít giây.`);
       }
       if (!data.success) throw new Error(data.error || 'Không phát được video');
+      // Nếu user đã bấm video khác trong lúc chờ → bỏ kết quả cũ, không ghi đè video mới
+      if (seq !== playSeqRef.current) return;
       setSelected((prev) => ({ ...prev, stream_url: data.stream_url, description: data.description }));
       setStreamLoading(false);
       const _tok = (() => { try { return localStorage.getItem('rexi_token') || ''; } catch { return ''; } })();
       const pUrl = `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(data.stream_url)}${_tok ? `&token=${encodeURIComponent(_tok)}` : ''}`;
-      setIsHlsStream(await probeHls(pUrl));
+      const hls = await probeHls(pUrl);
+      if (seq !== playSeqRef.current) return; // probe cũ về chậm → bỏ, không gắn HLS nhầm
+      setIsHlsStream(hls);
     } catch (err) {
+      if (seq !== playSeqRef.current) return;
       setError('Lỗi phát video: ' + err.message);
       setStreamLoading(false);
     }
@@ -343,6 +354,7 @@ showToast, active }) {
   // HLS m3u: Chromium không chơi trực tiếp — gắn hls.js (như IPTV).
   // Khi đổi video hoặc HLS→MP4, dọn hls.js cũ + gỡ blob URL cũ trước, nếu không
   // thẻ video cũ kẹt (blob detached) và xuất hiện 2 thẻ video (1 kẹt HLS + 1 MP4).
+  // Fix bổ sung: thẻ video MP4 KHÔNG bao giờ dùng blob — chặn từ đầu ở đây.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return undefined;
@@ -360,6 +372,15 @@ showToast, active }) {
       } else {
         setError('Trình duyệt không hỗ trợ luồng HLS.');
       }
+    } else if (proxyUrl) {
+      // Nhánh MP4: gỡ sạch blob HLS cũ (nếu có) rồi gán src trực tiếp + phát ngay.
+      // Không để video cũ giữ blob detached — đó là "player kẹt t=0" user thấy.
+      try {
+        const old = v.getAttribute('src') || '';
+        if (old.startsWith('blob:')) { v.removeAttribute('src'); v.load(); }
+      } catch (e) { /* ignore */ }
+      if (v.getAttribute('src') !== proxyUrl) v.setAttribute('src', proxyUrl);
+      tryPlay();
     }
     return () => {
       if (hls) { try { hls.destroy(); } catch (e) { console.warn('[rexi] hls cleanup failed', e); } }
@@ -570,6 +591,7 @@ showToast, active }) {
               ) : proxyUrl ? (
                 <>
                   <video
+                    key={selected?.id || 'yt-single'}
                     ref={videoRef}
                     src={isHlsStream ? undefined : proxyUrl}
                     controls
