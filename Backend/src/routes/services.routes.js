@@ -1573,9 +1573,18 @@ router.get('/youtube/comments', rateLimit({ windowMs: 60000, max: 30 }), async (
 
   if (!globalThis.__ytCommentsCache) globalThis.__ytCommentsCache = new Map();
   const cacheKey = url.replace(/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/, '').replace(/&.*$/, '').replace(/^https?:\/\/youtu\.be\//, '');
+  // Comment local của app luôn đọc fresh từ DB (không qua cache yt-dlp)
+  const localRows = await dbAll(
+    'SELECT id, ten_hien_thi AS author, noi_dung AS text, ngay_tao AS time FROM binh_luan_youtube WHERE video_id = ? ORDER BY ngay_tao DESC LIMIT 50',
+    [cacheKey]
+  ).catch(() => []);
+  const localComments = (localRows || []).map((r) => ({
+    id: r.id, author: r.author || 'Bạn', text: r.text, likes: 0,
+    time: String(r.time || '').substring(0, 10), local: true,
+  }));
   const hit = globalThis.__ytCommentsCache.get(cacheKey);
   if (hit && Date.now() - hit.t < 24 * 3600 * 1000) {
-    return res.json({ success: true, ...hit.data, cached: true });
+    return res.json({ success: true, comments: [...localComments, ...(hit.data.comments || [])], count: hit.data.count, localCount: localComments.length, cached: true });
   }
 
   try {
@@ -1584,12 +1593,54 @@ router.get('/youtube/comments', rateLimit({ windowMs: 60000, max: 30 }), async (
     if (!workerUrl) return res.status(503).json({ success: false, error: 'Thiếu worker để lấy bình luận (YTDLP_WORKER_URL).' });
     const resp = await fetch(`${workerUrl}/comments?${workerTok ? `token=${encodeURIComponent(workerTok)}&` : ''}id=${encodeURIComponent(cacheKey)}`, { signal: AbortSignal.timeout(100000) });
     const data = await resp.json();
-    if (!data.ok) return res.status(500).json({ success: false, error: data.error || 'Lấy bình luận thất bại.' });
+    if (!data.ok) {
+      // Worker thua → vẫn trả comment local (không trắng trang)
+      if (localComments.length) return res.json({ success: true, comments: localComments, count: localComments.length, localCount: localComments.length });
+      return res.status(500).json({ success: false, error: data.error || 'Lấy bình luận thất bại.' });
+    }
     globalThis.__ytCommentsCache.set(cacheKey, { t: Date.now(), data: { comments: data.comments, count: data.count } });
-    res.json({ success: true, comments: data.comments, count: data.count });
+    res.json({ success: true, comments: [...localComments, ...(data.comments || [])], count: data.count, localCount: localComments.length });
   } catch (e) {
     console.error('[YouTube] Comments error:', e.message);
+    // Worker/timeout thua → vẫn trả comment local (không trắng trang)
+    if (localComments.length) return res.json({ success: true, comments: localComments, count: localComments.length, localCount: localComments.length });
     res.status(500).json({ success: false, error: 'Lỗi lấy bình luận: ' + e.message });
+  }
+});
+
+// ─── Bình luận LOCAL (của app, không cần Google OAuth) ─────────────────────
+// YouTube Data API đòi OAuth scope youtube.force-ssl + user re-consent nên
+// comment app để ở lớp riêng: ai cũng xem/gửi được bình luận ngay trong app,
+// không phụ thuộc tài khoản Google. Comment yt-dlp (GET /comments) + comment
+// local hiển thị chung trong tab (local ghim lên đầu, có nhãn "trong app").
+db.run(`CREATE TABLE IF NOT EXISTS binh_luan_youtube (
+  id TEXT PRIMARY KEY,
+  video_id TEXT NOT NULL,
+  ma_nguoi_dung TEXT NOT NULL,
+  ten_hien_thi TEXT,
+  noi_dung TEXT NOT NULL,
+  ngay_tao TEXT DEFAULT CURRENT_TIMESTAMP
+)`, () => {});
+db.run('CREATE INDEX IF NOT EXISTS idx_binhluan_video ON binh_luan_youtube (video_id, ngay_tao DESC)', () => {});
+
+// Gửi bình luận local — cần đăng nhập
+router.post('/youtube/comments/local', authMiddleware, async (req, res) => {
+  try {
+    const { url, text } = req.body || {};
+    if (!url || !isValidYouTubeUrl(url)) return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ.' });
+    const content = String(text || '').trim().slice(0, 2000);
+    if (content.length < 1) return res.status(400).json({ success: false, error: 'Bình luận trống.' });
+    const vid = url.replace(/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/, '').replace(/&.*$/, '').replace(/^https?:\/\/youtu\.be\//, '');
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const me = req.user || {};
+    await dbRun(
+      'INSERT INTO binh_luan_youtube (id, video_id, ma_nguoi_dung, ten_hien_thi, noi_dung) VALUES (?, ?, ?, ?, ?)',
+      [id, vid, me.ma_nguoi_dung || me.id || 'guest', me.ten_day_du || me.email || 'Bạn', content]
+    );
+    res.json({ success: true, comment: { id, author: me.ten_day_du || me.email || 'Bạn', text: content, likes: 0, time: new Date().toISOString().substring(0, 10), local: true } });
+  } catch (e) {
+    console.error('[YouTube] Local comment error:', e.message);
+    res.status(500).json({ success: false, error: 'Lỗi gửi bình luận: ' + e.message });
   }
 });
 

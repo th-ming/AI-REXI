@@ -95,6 +95,8 @@ showToast, active }) {
   const [isHlsStream, setIsHlsStream] = useState(false); // stream_url là m3u (Chromium cần hls.js)
   const [comments, setComments] = useState(null); // {comments, count} — bấm mới load (chậm 10-30s)
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentText, setCommentText] = useState(''); // ô gửi bình luận local
+  const [sendingComment, setSendingComment] = useState(false);
   const [history, setHistory] = useState([]); // Video đã xem — localStorage persist
   const [activeCat, setActiveCat] = useState(null);
   // Tóm tắt AI
@@ -215,8 +217,7 @@ showToast, active }) {
     }
   };
 
-  // Dò stream có phải HLS m3u không — worker có thể trả manifest khi video không có mp4 progressive.
-  // Dùng HEAD (nhẹ, ~1s) thay vì Range GET: Range phải đi qua chuỗi Render→tunnel→
+  // Dò stream có phải HLS m3u không — worker có thể trả manifest khi video không có mp4 progressive.  // Dùng HEAD (nhẹ, ~1s) thay vì Range GET: Range phải đi qua chuỗi Render→tunnel→
   // googlevideo (~4-20s) rồi mới gán src cho video → video kẹt t=0 rất lâu.
   // Sniff Content-Type; chỉ sniff body khi CT lạ (m3u không Range có thể trả 200 full).
   const probeHls = async (url) => {
@@ -244,6 +245,32 @@ showToast, active }) {
       }
     } catch {
       return false;
+    }
+  };
+
+  // Gửi bình luận local của app (không cần Google OAuth — xem BE /comments/local)
+  const sendComment = async () => {
+    if (!selected || sendingComment) return;
+    const text = commentText.trim();
+    if (!text) { showToast?.('Nhập nội dung bình luận trước.', 'error'); return; }
+    setSendingComment(true);
+    try {
+      const res = await fetch(`${API_BASE}/services/youtube/comments/local`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ url: selected.id, text }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Gửi bình luận thất bại.');
+      setCommentText('');
+      setComments((prev) => prev
+        ? { ...prev, comments: [data.comment, ...(prev.comments || [])], count: (prev.count || 0) + 1, localCount: (prev.localCount || 0) + 1 }
+        : { success: true, comments: [data.comment], count: 1, localCount: 1 });
+      showToast?.('Đã gửi bình luận.', 'success');
+    } catch (e) {
+      showToast?.('Lỗi gửi bình luận: ' + e.message, 'error');
+    } finally {
+      setSendingComment(false);
     }
   };
 
@@ -712,14 +739,41 @@ showToast, active }) {
               </button>
               {comments && comments.comments && comments.comments.length > 0 && (
                 <div className="px-4 pb-3 space-y-3.5">
+                  {/* Ô gửi bình luận local của app (không cần Google OAuth) */}
+                  <div className="flex gap-2.5 items-start pb-1">
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                      B
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <textarea
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
+                        placeholder="Viết bình luận trong app... (Enter để gửi)"
+                        rows={1}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/60 resize-none"
+                      />
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <button
+                          onClick={sendComment}
+                          disabled={sendingComment || !commentText.trim()}
+                          className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-[11px] font-semibold transition-all"
+                        >
+                          {sendingComment ? 'Đang gửi...' : 'Gửi bình luận'}
+                        </button>
+                        <span className="text-[10px] text-slate-500">Hiển thị trong app ngay, ghim lên đầu</span>
+                      </div>
+                    </div>
+                  </div>
                   {comments.comments.map((c, i) => (
-                    <div key={i} className="flex gap-2.5">
+                    <div key={c.id || i} className="flex gap-2.5">
                       <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-600 to-slate-800 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
                         {String(c.author || 'Ẩ').trim().charAt(0).toUpperCase()}
                       </span>
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400">
                           <span className="font-semibold text-slate-300">{c.author}</span>
+                          {c.local && <span className="ml-1.5 px-1.5 py-px rounded bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-[9px] font-bold">trong app</span>}
                           {c.time ? ` · ${c.time}` : ''}
                         </p>
                         <p className="text-xs text-slate-200 leading-relaxed mt-0.5 whitespace-pre-wrap break-words">{c.text}</p>
@@ -734,7 +788,32 @@ showToast, active }) {
                 </div>
               )}
               {comments && (!comments.comments || comments.comments.length === 0) && (
-                <p className="px-4 pb-3 text-[11px] text-slate-500">Video này chưa có bình luận hoặc không lấy được bình luận.</p>
+                <div className="px-4 pb-3">
+                  {/* Ô gửi ngay cả khi chưa có bình luận nào */}
+                  <div className="flex gap-2.5 items-start mb-2">
+                    <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                      B
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <textarea
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
+                        placeholder="Hãy là người đầu tiên bình luận trong app... (Enter để gửi)"
+                        rows={1}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/60 resize-none"
+                      />
+                      <button
+                        onClick={sendComment}
+                        disabled={sendingComment || !commentText.trim()}
+                        className="mt-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-[11px] font-semibold transition-all"
+                      >
+                        {sendingComment ? 'Đang gửi...' : 'Gửi bình luận'}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500">Video này chưa có bình luận hoặc không lấy được bình luận.</p>
+                </div>
               )}
             </div>
 
