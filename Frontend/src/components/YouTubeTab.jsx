@@ -197,9 +197,15 @@ showToast, active }) {
 
   // Dò stream có phải HLS m3u không — worker có thể trả manifest khi video không có mp4 progressive.
   // Range 0-63: worker proxy forward Range nên chỉ tải 64 bytes, không kéo nguyên video.
+  // Range request đôi khi trả 200 full (proxy bỏ qua Range) → sniff cả Content-Type
+  // và body để không nhầm MP4 thành HLS (race khiến hls.js attach blob nhưng không chạy).
   const probeHls = async (url) => {
     try {
       const res = await fetch(url, { headers: { Range: 'bytes=0-63' } });
+      if (!res.ok && res.status !== 206) return false;
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('mpegurl') || ct.includes('x-mpegurl')) return true;
+      if (ct.includes('video/') || ct.includes('audio/')) return false;
       const txt = await res.text();
       return txt.trimStart().startsWith('#EXTM3U');
     } catch {
@@ -306,25 +312,35 @@ showToast, active }) {
     }
   };
 
-  // HLS m3u: Chromium không chơi trực tiếp — gắn hls.js (như IPTV)
+  // HLS m3u: Chromium không chơi trực tiếp — gắn hls.js (như IPTV).
+  // Khi đổi video hoặc HLS→MP4, dọn hls.js cũ + gỡ blob URL cũ trước, nếu không
+  // thẻ video cũ kẹt (blob detached) và xuất hiện 2 thẻ video (1 kẹt HLS + 1 MP4).
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || !isHlsStream || !proxyUrl) return undefined;
+    if (!v) return undefined;
     let hls = null;
-    if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: false });
-      hls.loadSource(proxyUrl);
-      hls.attachMedia(v);
-      hls.on(Hls.Events.ERROR, (evt, data) => {
-        if (data.fatal) setError('Luồng HLS lỗi. Thử video khác.');
-      });
-    } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
-      v.src = proxyUrl; // Safari native HLS
-    } else {
-      setError('Trình duyệt không hỗ trợ luồng HLS.');
+    if (isHlsStream && proxyUrl) {
+      if (Hls.isSupported()) {
+        hls = new Hls({ enableWorker: false });
+        hls.loadSource(proxyUrl);
+        hls.attachMedia(v);
+        hls.on(Hls.Events.ERROR, (evt, data) => {
+          if (data.fatal) setError('Luồng HLS lỗi. Thử video khác.');
+        });
+      } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
+        v.src = proxyUrl; // Safari native HLS
+      } else {
+        setError('Trình duyệt không hỗ trợ luồng HLS.');
+      }
     }
-    return () => { if (hls) { try { hls.destroy(); } catch (e) { console.warn('[rexi] hls cleanup failed', e); } } };
-  }, [isHlsStream, proxyUrl]);
+    return () => {
+      if (hls) { try { hls.destroy(); } catch (e) { console.warn('[rexi] hls cleanup failed', e); } }
+      try {
+        const old = v.getAttribute('src') || '';
+        if (old.startsWith('blob:')) { v.removeAttribute('src'); v.load(); }
+      } catch (e) { /* ignore */ }
+    };
+  }, [isHlsStream, proxyUrl, selected?.id]);
 
   return (
     <div className="flex flex-col h-full w-full bg-[#0d0e11] overflow-hidden">
