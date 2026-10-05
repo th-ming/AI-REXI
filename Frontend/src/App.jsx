@@ -1897,8 +1897,8 @@ useEffect(() => {
             />
           )}
 
-          {/* TAB 4: IPTV LIVE TV */}
-          {activeTab === 'iptv' && (
+          {/* TAB 4: IPTV LIVE TV — giữ mount (display:none khi ẩn) để phát nền khi chuyển tab */}
+          <div className={activeTab === 'iptv' ? 'contents' : 'hidden'}>
             <IPTVTab
               iptvTab={iptvTab} setIptvTab={setIptvTab}
               iptvCategory={iptvCategory} setIptvCategory={setIptvCategory}
@@ -1911,7 +1911,7 @@ useEffect(() => {
               iptvEmbeddedSubs={iptvEmbeddedSubs}
               hlsRef={hlsRef}
             />
-          )}
+          </div>
 
           {/* TAB 5a: TTS STUDIO */}
           {activeTab === 'tts' && (
@@ -1965,13 +1965,13 @@ useEffect(() => {
             />
           )}
 
-          {/* TAB 5d: YOUTUBE FREE (không quảng cáo) */}
-          {activeTab === 'youtube' && (
+          {/* TAB 5d: YOUTUBE FREE (không quảng cáo) — giữ mount để phát nền khi chuyển tab */}
+          <div className={activeTab === 'youtube' ? 'contents' : 'hidden'}>
             <YouTubeTab
               authToken={authToken}
               showToast={showToast}
             />
-          )}
+          </div>
 
           {/* TAB 5e: GAME ZONE (HTML5 games) */}
           {activeTab === 'games' && (
