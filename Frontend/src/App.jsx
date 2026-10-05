@@ -1970,6 +1970,7 @@ useEffect(() => {
             <YouTubeTab
               authToken={authToken}
               showToast={showToast}
+              active={activeTab === 'youtube'}
             />
           </div>
 

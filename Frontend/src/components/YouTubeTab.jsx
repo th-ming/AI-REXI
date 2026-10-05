@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2} from 'lucide-react';
+import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2, MessageSquare, History } from 'lucide-react';
 import Hls from 'hls.js';
 import { API_BASE } from '../config';
 
 // Danh mục trending (tự động tải khi mở tab — không cần gõ từ khóa)
-const CATEGORIES = ['nhạc trẻ 2026', 'viral', 'phim chiếu rạp', 'bóng đá highlight', 'công nghệ mới', 'kiến thức hữu ích'];
+const CATEGORIES = ['nhạc trẻ 2026', 'viral', 'phim chiếu rạp', 'bóng đá highlight', 'công nghệ mới', 'kiến thức hữu ích', 'âm nhạc', 'trò chơi', 'tin tức', 'trực tiếp', 'podcast', 'học tập'];
 
 function fmtDuration(sec) {
   if (!sec) return '0:00';
@@ -67,7 +67,8 @@ function renderMarkdown(text) {
   return elements;
 }
 
-export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
+export default function YouTubeTab({ API_BASE: _api, authToken,
+showToast, active }) {
   const [query, setQuery] = useState('');
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -75,6 +76,9 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
   const [selected, setSelected] = useState(null); // video đang xem
   const [streamLoading, setStreamLoading] = useState(false);
   const [isHlsStream, setIsHlsStream] = useState(false); // stream_url là m3u (Chromium cần hls.js)
+  const [comments, setComments] = useState(null); // {comments, count} — bấm mới load (chậm 10-30s)
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [history, setHistory] = useState([]); // Video đã xem — localStorage persist
   const [activeCat, setActiveCat] = useState(null);
   // Tóm tắt AI
   const [summarizing, setSummarizing] = useState(false);
@@ -122,13 +126,18 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     handleSearch(null, cat);
   };
 
-  // Tự động tải danh mục đầu tiên khi mở tab (thay cho màn hình trống)
+  // Tự động tải danh mục đầu tiên khi mở tab (thay cho màn hình trống).
+  // Tab giữ mount để phát nền → check khi tab được mở lại (active), không chỉ lúc mount.
+  const [checkNonce, setCheckNonce] = useState(0);
   useEffect(() => {
+    if (active === false) return;
     if (!activeCat && videos.length === 0) handleSearch(null, CATEGORIES[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active]);
 
   useEffect(() => {
+    if (active === false) return; // tab ẩn (phát nền) → không check
+    if (engineReady === true) return; // đã sẵn sàng → thôi
     let cancelled = false;
     let retries = 0;
     const check = async () => {
@@ -154,7 +163,37 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     };
     check();
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active, checkNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lịch sử xem (Video đã xem) — localStorage persist, tối đa 24 video
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('rexi_watch_history');
+      if (raw) setHistory(JSON.parse(raw).slice(0, 24));
+    } catch (e) { console.warn('[rexi] watch history load failed', e); }
+  }, []);
+
+  const clearHistory = () => {
+    try { localStorage.removeItem('rexi_watch_history'); } catch (e) { console.warn('[rexi] clear failed', e); }
+    setHistory([]);
+  };
+
+  // Bình luận — bấm mới load (yt-dlp --write-comments chậm 10-30s, cache 24h server)
+  const loadComments = async () => {
+    if (!selected || commentsLoading) return;
+    if (comments) { setComments(null); return; } // toggle đóng
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/services/youtube/comments?url=${encodeURIComponent(selected.id)}`, { headers: headers() });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Lấy bình luận thất bại.');
+      setComments(data);
+    } catch (e) {
+      showToast?.('Lỗi bình luận: ' + e.message, 'error');
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
 
   // Dò stream có phải HLS m3u không — worker có thể trả manifest khi video không có mp4 progressive.
   // Range 0-63: worker proxy forward Range nên chỉ tải 64 bytes, không kéo nguyên video.
@@ -174,6 +213,15 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
     setError(null);
     setSummary(null);
     setIsHlsStream(false);
+    setComments(null);
+    // Lưu vào lịch sử xem (localStorage) — đầu danh sách, tối đa 24
+    try {
+      const raw = localStorage.getItem('rexi_watch_history');
+      const prev = raw ? JSON.parse(raw) : [];
+      const next = [{ id: video.id, title: video.title, thumb: video.thumb, author: video.author, views: video.views, duration: video.duration }, ...prev.filter((v) => v.id !== video.id)].slice(0, 24);
+      localStorage.setItem('rexi_watch_history', JSON.stringify(next));
+      setHistory(next);
+    } catch (e) { console.warn('[rexi] watch history save failed', e); }
     try {
       const res = await fetch(`${API_BASE}/services/youtube/stream?url=${encodeURIComponent(video.id)}`, { headers: headers() });
       // 4/10: proxy/Vercel có thể trả non-JSON (vd 502 "An error occurred...") khi
@@ -297,10 +345,16 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
       {engineReady === false && (
         <div className="mx-4 mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2.5 shrink-0">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-          <div>
+          <div className="flex-1">
             <p className="font-semibold mb-0.5">YouTube chưa sẵn sàng trên server</p>
             <p className="text-amber-300/80">{engineNote || 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.'}</p>
           </div>
+          <button
+            onClick={() => { setEngineReady(null); setCheckNonce((n) => n + 1); }}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-[11px] font-semibold transition-all"
+          >
+            Thử lại
+          </button>
         </div>
       )}
 
@@ -351,6 +405,37 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
             {error && (
               <div className="max-w-2xl mx-auto mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
                 {error}
+              </div>
+            )}
+
+            {/* Lịch sử xem — Video đã xem (kiểu YouTube, localStorage) */}
+            {history.length > 0 && (
+              <div className="max-w-[1600px] mx-auto mt-5">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <History size={14} className="text-slate-400" />
+                  <span className="text-sm font-bold text-white">Video đã xem</span>
+                  <span className="text-[10px] text-slate-500">({history.length})</span>
+                  <button onClick={clearHistory} className="ml-auto text-[10px] text-slate-500 hover:text-rose-400 transition-colors">
+                    Xóa lịch sử
+                  </button>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2">
+                  {history.map((h) => (
+                    <button key={h.id} onClick={() => handlePlay({ ...h })} className="group shrink-0 w-44 text-left">
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
+                        {h.thumb ? (
+                          <img src={h.thumb} alt={h.title} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-red-900/40 to-[#181920]">
+                            <Play size={18} className="text-slate-600" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-100 line-clamp-2 leading-snug mt-1.5">{h.title}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{h.author}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -521,6 +606,49 @@ export default function YouTubeTab({ API_BASE: _api, authToken, showToast }) {
                 <p className="text-[11px] text-slate-500 mt-1 font-semibold">{descOpen ? 'Ẩn bớt' : '...xem thêm'}</p>
               </div>
             )}
+
+            {/* Bình luận kiểu YouTube — bấm để tải (chậm 10-30s, cache 24h server) */}
+            <div className="mt-4 rounded-2xl bg-white/5 border border-white/5 overflow-hidden">
+              <button onClick={loadComments} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-white/[0.06] transition-colors text-left">
+                <MessageSquare size={14} className="text-slate-400 shrink-0" />
+                <span className="text-xs font-bold text-white flex-1">
+                  Bình luận{comments?.count ? ` — ${comments.count.toLocaleString('vi-VN')} bình luận` : ''}
+                </span>
+                {commentsLoading ? (
+                  <span className="text-[10px] text-cyan-400 animate-pulse flex items-center gap-1 shrink-0">
+                    <Loader2 size={10} className="animate-spin" /> Đang tải (10-30 giây)...
+                  </span>
+                ) : (
+                  <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${comments ? 'rotate-180' : ''}`} />
+                )}
+              </button>
+              {comments && comments.comments && comments.comments.length > 0 && (
+                <div className="px-4 pb-3 space-y-3.5">
+                  {comments.comments.map((c, i) => (
+                    <div key={i} className="flex gap-2.5">
+                      <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-600 to-slate-800 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                        {String(c.author || 'Ẩ').trim().charAt(0).toUpperCase()}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] text-slate-400">
+                          <span className="font-semibold text-slate-300">{c.author}</span>
+                          {c.time ? ` · ${c.time}` : ''}
+                        </p>
+                        <p className="text-xs text-slate-200 leading-relaxed mt-0.5 whitespace-pre-wrap break-words">{c.text}</p>
+                        {c.likes > 0 && (
+                          <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                            <ThumbsUp size={10} /> {c.likes.toLocaleString('vi-VN')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {comments && (!comments.comments || comments.comments.length === 0) && (
+                <p className="px-4 pb-3 text-[11px] text-slate-500">Video này chưa có bình luận hoặc không lấy được bình luận.</p>
+              )}
+            </div>
 
               {/* Kết quả tóm tắt */}
               {summary && summary.summary && (
