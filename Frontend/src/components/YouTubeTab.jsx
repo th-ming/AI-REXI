@@ -207,18 +207,32 @@ showToast, active }) {
   };
 
   // Dò stream có phải HLS m3u không — worker có thể trả manifest khi video không có mp4 progressive.
-  // Range 0-63: worker proxy forward Range nên chỉ tải 64 bytes, không kéo nguyên video.
-  // Range request đôi khi trả 200 full (proxy bỏ qua Range) → sniff cả Content-Type
-  // và body để không nhầm MP4 thành HLS (race khiến hls.js attach blob nhưng không chạy).
+  // Dùng HEAD (nhẹ, ~1s) thay vì Range GET: Range phải đi qua chuỗi Render→tunnel→
+  // googlevideo (~4-20s) rồi mới gán src cho video → video kẹt t=0 rất lâu.
+  // Sniff Content-Type; chỉ sniff body khi CT lạ (m3u không Range có thể trả 200 full).
   const probeHls = async (url) => {
     try {
-      const res = await fetch(url, { headers: { Range: 'bytes=0-63' } });
-      if (!res.ok && res.status !== 206) return false;
-      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), 12000);
+      const head = await fetch(url, { method: 'HEAD', signal: ctl.signal });
+      clearTimeout(to);
+      const ct = (head.headers.get('content-type') || '').toLowerCase();
       if (ct.includes('mpegurl') || ct.includes('x-mpegurl')) return true;
       if (ct.includes('video/') || ct.includes('audio/')) return false;
-      const txt = await res.text();
-      return txt.trimStart().startsWith('#EXTM3U');
+      // CT lạ hoặc không có → sniff 64 bytes đầu (fallback, có timeout riêng)
+      try {
+        const ctl2 = new AbortController();
+        const to2 = setTimeout(() => ctl2.abort(), 12000);
+        const res = await fetch(url, { headers: { Range: 'bytes=0-63' }, signal: ctl2.signal });
+        clearTimeout(to2);
+        const ct2 = (res.headers.get('content-type') || '').toLowerCase();
+        if (ct2.includes('mpegurl') || ct2.includes('x-mpegurl')) return true;
+        if (ct2.includes('video/') || ct2.includes('audio/')) return false;
+        const txt = await res.text();
+        return txt.trimStart().startsWith('#EXTM3U');
+      } catch {
+        return false;
+      }
     } catch {
       return false;
     }
