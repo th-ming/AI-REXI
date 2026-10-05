@@ -590,13 +590,16 @@ export default function App() {
   const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // Tính hiện/ẩn nút cuộn từ vị trí thực tế — gọi sau mọi thay đổi nội dung/
-  // chuyển đoạn chat (fix bug cờ kẹt true khi chat mới ngắn không cuộn được)
+  // chuyển đoạn chat (fix bug cờ kẹt true khi chat mới ngắn không cuộn được).
+  // Ở sát đáy (cách đáy <= 60px) thì ẩn HẾT — đang đọc tin mới nhất, pill
+  // nổi che chữ rất khó chịu.
   const updateScrollFlags = () => {
     const el = chatScrollRef.current;
     if (!el) return;
     const distFromTop = el.scrollTop;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollTop(distFromTop > 220);
+    const nearBottom = distFromBottom <= 60;
+    setShowScrollTop(distFromTop > 220 && !nearBottom);
     setShowScrollBottom(distFromBottom > 220);
   };
 
