@@ -598,7 +598,7 @@ export default function App() {
     if (!el) return;
     const distFromTop = el.scrollTop;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const nearBottom = distFromBottom <= 60;
+    const nearBottom = distFromBottom <= 80;
     setShowScrollTop(distFromTop > 220 && !nearBottom);
     setShowScrollBottom(distFromBottom > 220);
   };
