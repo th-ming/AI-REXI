@@ -77,10 +77,16 @@ showToast, active }) {
   const [streamLoading, setStreamLoading] = useState(false);
   // Autoplay bị chặn khi src về sau fetch async (gesture click hết hạn) → video
   // đứng im ở t=0 dù đã có buffer. Hiện overlay "Bấm để phát" thay vì để kẹt.
+  // Fix bổ sung (verify thực tế): autoplay programmatic luôn mute trước rồi mới
+  // play — bypass cả autoplay policy lẫn pipeline audio kẹt local (muted video
+  // vẫn tăng currentTime; khi muted vẫn kẹt thì mới hiện overlay). Khi user bấm
+  // thủ công (gesture thật) thì unmute để có tiếng.
   const [playBlocked, setPlayBlocked] = useState(false);
-  const tryPlay = () => {
+  const tryPlay = (fromUser) => {
     const v = videoRef.current;
     if (!v) return;
+    if (!fromUser && !v.muted) { try { v.muted = true; } catch (e) { /* ignore */ } }
+    if (fromUser && v.muted) { try { v.muted = false; } catch (e) { /* ignore */ } }
     const p = v.play();
     if (p && typeof p.catch === 'function') {
       p.then(() => setPlayBlocked(false)).catch(() => setPlayBlocked(true));
@@ -598,13 +604,13 @@ showToast, active }) {
                     autoPlay
                     playsInline
                     className="w-full h-full bg-black"
-                    onCanPlay={() => { tryPlay(); }}
+                    onCanPlay={() => { tryPlay(false); }}
                     onPlay={() => setPlayBlocked(false)}
                     onError={() => { if (!isHlsStream) setError('Không phát được video qua proxy. Thử video khác.'); }}
                   />
                   {playBlocked && (
                     <button
-                      onClick={tryPlay}
+                      onClick={() => tryPlay(true)}
                       className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 hover:bg-black/50 transition-colors"
                       title="Bấm để phát"
                     >
