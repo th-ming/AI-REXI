@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const db = require('../config/db');
+const { encryptKey, decryptKey } = require('../utils/cryptoKeys');
 const { authMiddleware, adminMiddleware, getJWTSecret } = require('../middleware/auth.middleware');
 
 function generateToken(user) {
@@ -20,6 +21,30 @@ function sanitizeUser(user) {
         phan_quyen: user.phan_quyen,
         anh_dai_dien: user.anh_dai_dien || null
     };
+}
+
+// Helper: lưu Google OAuth tokens (để gửi bình luận lên YouTube thật).
+// Bảng google_oauth_tokens: ma_nguoi_dung PK, access mã hoá, refresh mã hoá, scope, ngay_cap_nhat.
+db.run(`CREATE TABLE IF NOT EXISTS google_oauth_tokens (
+    ma_nguoi_dung TEXT PRIMARY KEY,
+    access_token TEXT,
+    refresh_token TEXT,
+    scope TEXT,
+    ngay_cap_nhat TEXT DEFAULT CURRENT_TIMESTAMP
+)`, () => {});
+function saveGoogleTokens(userId, access, refresh, scope) {
+    db.get('SELECT refresh_token FROM google_oauth_tokens WHERE ma_nguoi_dung = ?', [userId], (err, row) => {
+        if (err) { console.error('[Auth] google_oauth_tokens read error:', err.message); return; }
+        const keepRefresh = refresh || (row && row.refresh_token) || null;
+        db.run(
+            `INSERT INTO google_oauth_tokens (ma_nguoi_dung, access_token, refresh_token, scope) VALUES (?, ?, ?, ?)
+             ON CONFLICT(ma_nguoi_dung) DO UPDATE SET access_token = excluded.access_token,
+             refresh_token = COALESCE(excluded.refresh_token, google_oauth_tokens.refresh_token),
+             scope = excluded.scope, ngay_cap_nhat = CURRENT_TIMESTAMP`,
+            [userId, access ? encryptKey(access) : null, keepRefresh ? encryptKey(keepRefresh) : null, scope || ''],
+            (e) => { if (e) console.error('[Auth] google_oauth_tokens save error:', e.message); }
+        );
+    });
 }
 
 // Tìm user hoặc tạo mới theo email
@@ -194,7 +219,7 @@ router.post('/google', async (req, res) => {
     }
 });
 
-// Google OAuth Callback (for OAuth flow)
+  // Google OAuth Callback (for OAuth flow)
 router.get('/google/callback', async (req, res) => {
     const { code, state } = req.query;
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -245,6 +270,11 @@ router.get('/google/callback', async (req, res) => {
                 console.error('[Auth] Google callback user error:', err);
                 return res.redirect(`${frontendUrl}?error=server_error`);
             }
+
+            // Kiểm tra scope trả về: Google echo lại scope đã cấp trong token response
+            // (granted_scopes) hoặc id_token — lấy khi có.
+            const granted = tokenData.scope || '';
+            saveGoogleTokens(user.ma_nguoi_dung, tokenData.access_token, tokenData.refresh_token, granted);
 
             const token = generateToken(user);
             // Redirect back to frontend with token in hash fragment (không lộ vào URL query/history/log)

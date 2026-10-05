@@ -1623,7 +1623,63 @@ db.run(`CREATE TABLE IF NOT EXISTS binh_luan_youtube (
 )`, () => {});
 db.run('CREATE INDEX IF NOT EXISTS idx_binhluan_video ON binh_luan_youtube (video_id, ngay_tao DESC)', () => {});
 
-// Gửi bình luận local — cần đăng nhập
+// Gửi bình luận LÊN YOUTUBE THẬT qua YouTube Data API (cần Google OAuth scope
+// youtube.force-ssl). FE gửi cùng lúc với comment local; không có token liên kết
+// thì chỉ lưu local. Access token hết hạn → dùng refresh token để lấy mới.
+router.post('/youtube/comments/youtube', authMiddleware, async (req, res) => {
+  try {
+    const { url, text } = req.body || {};
+    if (!url || !isValidYouTubeUrl(url)) return res.status(400).json({ success: false, error: 'URL/ID video không hợp lệ.' });
+    const content = String(text || '').trim().slice(0, 2000);
+    if (content.length < 1) return res.status(400).json({ success: false, error: 'Bình luận trống.' });
+    const vid = url.replace(/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/, '').replace(/&.*$/, '').replace(/^https?:\/\/youtu\.be\//, '');
+
+    const { decryptKey } = require('../utils/cryptoKeys');
+    const row = await dbGet(
+      'SELECT access_token, refresh_token, scope FROM google_oauth_tokens WHERE ma_nguoi_dung = ?',
+      [req.user.id]
+    ).catch(() => null);
+    const hasScope = row && String(row.scope || '').includes('youtube.force-ssl');
+    if (!row || !hasScope) {
+      return res.status(409).json({ success: false, error: 'NO_YOUTUBE_SCOPE', message: 'Chưa liên kết quyền YouTube (đăng nhập Google lại, tick ô YouTube).' });
+    }
+    let access = decryptKey(row.access_token);
+    const doPost = (tok) => fetch('https://www.googleapis.com/youtube/v3/commentThreads?part=snippet', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snippet: { videoId: vid, topLevelComment: { snippet: { textOriginal: content } } } }),
+      signal: AbortSignal.timeout(30000),
+    });
+    let r = await doPost(access);
+    if (r.status === 401 && row.refresh_token) {
+      // Access hết hạn → refresh rồi thử lại 1 lần
+      const rt = decryptKey(row.refresh_token);
+      const tk = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.VITE_GOOGLE_CLIENT_ID,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+          refresh_token: rt,
+          grant_type: 'refresh_token',
+        }),
+      }).then((x) => x.json()).catch(() => ({}));
+      if (!tk.access_token) return res.status(401).json({ success: false, error: 'Token Google hết hạn, vui lòng đăng nhập Google lại.' });
+      const { encryptKey } = require('../utils/cryptoKeys');
+      access = tk.access_token;
+      await dbRun('UPDATE google_oauth_tokens SET access_token = ?, ngay_cap_nhat = CURRENT_TIMESTAMP WHERE ma_nguoi_dung = ?', [encryptKey(access), req.user.id]).catch(() => {});
+      r = await doPost(access);
+    }
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '');
+      return res.status(502).json({ success: false, error: `YouTube từ chối (HTTP ${r.status}). ${detail.substring(0, 180)}` });
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[YouTube] Comment-to-YouTube error:', e.message);
+    res.status(500).json({ success: false, error: 'Lỗi gửi bình luận lên YouTube: ' + e.message });
+  }
+});
 router.post('/youtube/comments/local', authMiddleware, async (req, res) => {
   try {
     const { url, text } = req.body || {};

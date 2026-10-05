@@ -1552,12 +1552,15 @@ useEffect(() => {
   };
 
 
-
   // Google Sign-In Handler
+
 
 
   // Open Google OAuth popup → backend callback redirects popup to localhost:5173?google_token=...
   // Parent window detects token via storage event listener (useEffect above)
+  const [youtubeScopeOn, setYoutubeScopeOn] = useState(() => {
+    try { return localStorage.getItem('rexi_youtube_scope') === '1'; } catch (e) { return false; }
+  });
   const openGoogleOAuth = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -1565,7 +1568,12 @@ useEffect(() => {
       return;
     }
     const redirectUri = `${window.location.origin}/api/auth/google/callback`;
-    const scope = 'email profile';
+    // Mở rộng scope để gửi bình luận lên YouTube thật (user đã ok). Lần login
+    // sau Google hỏi thêm 1 màn; comment chỉ gửi khi có youtubeTokenSaved.
+    const wantYouTube = localStorage.getItem('rexi_youtube_scope') === '1';
+    const scope = wantYouTube
+      ? 'email profile https://www.googleapis.com/auth/youtube.force-ssl'
+      : 'email profile';
     
     const params = new URLSearchParams({
       client_id: clientId,
@@ -2301,6 +2309,15 @@ useEffect(() => {
                    </svg>
                     {t(lang, 'continueGoogle')}
                   </button>
+                  <label className="mt-2 flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={youtubeScopeOn}
+                      onChange={(e) => { try { localStorage.setItem('rexi_youtube_scope', e.target.checked ? '1' : '0'); } catch (err) {} setYoutubeScopeOn(e.target.checked); }}
+                      className="accent-red-500"
+                    />
+                    Cho phép gửi bình luận lên YouTube thật (Google hỏi thêm 1 màn)
+                  </label>
 
                   <button type="button" onClick={openGitHubOAuth} className="w-full py-2.5 mt-2 rounded-xl bg-[#131417] hover:bg-white/5 text-slate-200 text-xs font-medium flex items-center justify-center gap-2 border border-white/10 transition-all">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

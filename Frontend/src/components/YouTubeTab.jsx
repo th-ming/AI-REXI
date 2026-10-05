@@ -283,6 +283,8 @@ showToast, active }) {
   };
 
   // Gửi bình luận local của app (không cần Google OAuth — xem BE /comments/local)
+  // Đồng thời thử gửi lên YouTube thật nếu đã liên kết quyền (tick ô YouTube
+  // khi đăng nhập Google). Không liên kết → chỉ lưu local, báo rõ.
   const sendComment = async () => {
     if (!selected || sendingComment) return;
     const text = commentText.trim();
@@ -300,7 +302,20 @@ showToast, active }) {
       setComments((prev) => prev
         ? { ...prev, comments: [data.comment, ...(prev.comments || [])], count: (prev.count || 0) + 1, localCount: (prev.localCount || 0) + 1 }
         : { success: true, comments: [data.comment], count: 1, localCount: 1 });
-      showToast?.('Đã gửi bình luận.', 'success');
+      // Thử gửi lên YouTube thật (không bắt buộc)
+      try {
+        const yt = await fetch(`${API_BASE}/services/youtube/comments/youtube`, {
+          method: 'POST',
+          headers: headers(),
+          body: JSON.stringify({ url: selected.id, text }),
+        });
+        const ytd = await yt.json().catch(() => ({}));
+        if (ytd && ytd.success) showToast?.('Đã gửi cả lên YouTube.', 'success');
+        else if (ytd && ytd.error === 'NO_YOUTUBE_SCOPE') showToast?.('Đã lưu trong app. Muốn hiện lên YouTube thật: đăng nhập Google lại + tick ô YouTube.', 'info');
+        else showToast?.('Đã gửi bình luận.', 'success');
+      } catch (e) {
+        showToast?.('Đã gửi bình luận.', 'success');
+      }
     } catch (e) {
       showToast?.('Lỗi gửi bình luận: ' + e.message, 'error');
     } finally {
@@ -738,6 +753,30 @@ showToast, active }) {
                 >
                   <Share2 size={13} /> Chia sẻ
                 </button>
+                {/* Tốc độ phát kiểu YouTube — playbackRate trực tiếp, giữ vị trí phát */}
+                <div className="relative">
+                  <button
+                    onClick={() => setSpeedOpen((o) => !o)}
+                    title="Tốc độ phát"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
+                  >
+                    <Gauge size={13} /> {playbackRate === 1 ? 'Tốc độ' : `${playbackRate}x`}
+                  </button>
+                  {speedOpen && (
+                    <div className="absolute right-0 bottom-full mb-2 w-40 rounded-xl bg-[#1e1f20] border border-white/10 shadow-2xl overflow-hidden z-30">
+                      {[0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => { setRate(r); setSpeedOpen(false); }}
+                          className={`w-full flex items-center justify-between px-4 py-2 text-xs transition-colors ${playbackRate === r ? 'bg-cyan-500/20 text-cyan-300 font-bold' : 'text-slate-200 hover:bg-white/10'}`}
+                        >
+                          <span>{r === 1 ? 'Bình thường' : `${r}x`}</span>
+                          {playbackRate === r && <Check size={13} />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {proxyUrl && (
                   <button
                     onClick={enterPip}
