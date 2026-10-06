@@ -33,7 +33,7 @@
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>D:\AI REXI\admin_final.bat</Command>
+      <Command>D:\Rexi AI\admin_final.bat</Command>
     </Exec>
   </Actions>
 </Task>

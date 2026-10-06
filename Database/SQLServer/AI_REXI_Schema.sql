@@ -1,5 +1,5 @@
 -- ============================================================
--- AI REXI — SQL Server Database Schema
+-- Rexi AI — SQL Server Database Schema
 -- ============================================================
 
 USE master;
@@ -244,9 +244,9 @@ BEGIN
     VALUES ('u1111111-1111-1111-1111-111111111111', 'user@rexi.ai', 'hashed_pass', N'Nguoi Dung Thu Nghiem', 'admin');
 
     INSERT INTO thu_muc_du_an (ma_thu_muc, ma_nguoi_dung, ten_thu_muc, duong_dan_may_tinh)
-    VALUES ('w2222222-2222-2222-2222-222222222222', 'u1111111-1111-1111-1111-111111111111', 'AI REXI Project', 'D:\AI REXI');
+    VALUES ('w2222222-2222-2222-2222-222222222222', 'u1111111-1111-1111-1111-111111111111', 'Rexi AI Project', 'D:\Rexi AI');
 END
 GO
 
-PRINT 'AI REXI Database Schema — Hoan tat!';
+PRINT 'Rexi AI Database Schema — Hoan tat!';
 GO

@@ -1,6 +1,6 @@
 """
 OCR Server — LightOnOCR-2-1B (local, CPU)
-Chạy bằng: D:/AI REXI/Backend/ocr_venv/Scripts/python.exe ocr_server.py
+Chạy bằng: D:/Rexi AI/Backend/ocr_venv/Scripts/python.exe ocr_server.py
 Port: 8099
 Endpoints:
   POST /ocr   — multipart file (ảnh hoặc PDF) -> { text, pages, duration_ms }

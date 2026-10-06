@@ -6,7 +6,7 @@ Investigate autonomous process launching, window management, DirectInput hardwar
 ## 🔒 My Identity
 - Archetype: teamwork_preview_explorer
 - Roles: investigation, synthesis
-- Working directory: D:\AI REXI\.agents\explorer_survey_2
+- Working directory: D:\Rexi AI\.agents\explorer_survey_2
 - Original parent: fe37c0b1-4f29-4e97-a397-b935bb8f29bf
 - Milestone: Launch & Input Navigation Specs
 
@@ -27,5 +27,5 @@ Investigate autonomous process launching, window management, DirectInput hardwar
 - Structure investigation into 5 core pillars: Process Launching & Windowing, DirectInput Scancode Injection, Full Navigation Sequence Mapping, Synchronization & State Detection, Implementation Guidelines.
 
 ## Artifact Index
-- `D:\AI REXI\.agents\explorer_survey_2\handoff.md` — Complete technical specifications handoff
-- `D:\AI REXI\.agents\explorer_survey_2\progress.md` — Liveness and progress tracker
+- `D:\Rexi AI\.agents\explorer_survey_2\handoff.md` — Complete technical specifications handoff
+- `D:\Rexi AI\.agents\explorer_survey_2\progress.md` — Liveness and progress tracker

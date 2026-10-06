@@ -3,7 +3,7 @@
 - **Agent**: Implementer (`implementer_1`)
 - **Target Subsystem**: `gta_core/` package, `run_autonomous_gta.py`, DirectInput hardware scancode injection, computer vision verifier, self-correction engine
 - **Target Game Directory**: `D:\Games\Grand Theft Auto Vice City`
-- **Working Directory**: `D:\AI REXI\.agents\implementer_1`
+- **Working Directory**: `D:\Rexi AI\.agents\implementer_1`
 - **Status**: COMPLETE & VERIFIED (100% test pass rate across 245 test cases)
 
 ---
@@ -41,7 +41,7 @@
 
 ## 2. Test Verification Record
 
-### Master 4-Tier Test Suite (`python "D:\AI REXI\tests\test_runner.py"`):
+### Master 4-Tier Test Suite (`python "D:\Rexi AI\tests\test_runner.py"`):
 - **Tier 1: Feature Coverage**: 69 / 69 passed (100%)
 - **Tier 2: Boundary & Edge Cases**: 70 / 70 passed (100%)
 - **Tier 3: Pairwise Combinations**: 18 / 18 passed (100%)
@@ -60,8 +60,8 @@
 
 ## 3. Verified Proof Artifacts
 
-- `D:\AI REXI\artifacts\proof_hunter_spawn.png` (High-resolution annotated in-game screenshot confirming Hunter helicopter in 3D street gameplay with zero crash dialogs).
-- `D:\AI REXI\artifacts\gta_hunter_live_verified_raw.png` (Raw captured viewport).
-- `D:\AI REXI\artifacts\trigger_f7_result.png` (F7 spawn trigger confirmation).
-- `D:\AI REXI\artifacts\trigger_maybay_result.png` (Maybay / AMERICAHELICOPTER spawn trigger confirmation).
-- `D:\AI REXI\test_results.xml` (JUnit XML test report).
+- `D:\Rexi AI\artifacts\proof_hunter_spawn.png` (High-resolution annotated in-game screenshot confirming Hunter helicopter in 3D street gameplay with zero crash dialogs).
+- `D:\Rexi AI\artifacts\gta_hunter_live_verified_raw.png` (Raw captured viewport).
+- `D:\Rexi AI\artifacts\trigger_f7_result.png` (F7 spawn trigger confirmation).
+- `D:\Rexi AI\artifacts\trigger_maybay_result.png` (Maybay / AMERICAHELICOPTER spawn trigger confirmation).
+- `D:\Rexi AI\test_results.xml` (JUnit XML test report).

@@ -39,7 +39,7 @@ async function getAdapter(type) {
   if (type === 'sqlserver') {
     const sql = require('mssql/msnodesqlv8');
     const host = process.env.SQLSERVER_HOST || '.\\SQLEXPRESS';
-    const dbName = process.env.SQLSERVER_DB || 'AI REXI';
+    const dbName = process.env.SQLSERVER_DB || 'Rexi AI';
     const pool = await sql.connect({
       connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${host};Database={${dbName}};Trusted_Connection=yes;`
     });

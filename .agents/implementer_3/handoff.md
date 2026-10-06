@@ -42,5 +42,5 @@
 
 ## 4. Acceptance Criteria Satisfaction
 1. **R1. Diagnose and Fix the Crash**: Fixed via model-streamed CLEO binary in D:\Games\Grand Theft Auto Vice City\CLEO\F7_Hunter.cs (168 bytes) with single core CPU affinity.
-2. **R2. Stable Helicopter Spawn**: Dual-trigger listener in D:\AI REXI\scripts\gta_hunter_listener.ahk maps both F7 and maybay to DirectInput pulses without crashing.
+2. **R2. Stable Helicopter Spawn**: Dual-trigger listener in D:\Rexi AI\scripts\gta_hunter_listener.ahk maps both F7 and maybay to DirectInput pulses without crashing.
 3. **R3. Visual Verification**: High-resolution in-game viewport screenshots (800x600) saved to artifacts/proof_hunter_spawn.png and auxiliary trigger artifacts, verified zero crash dialogs and confirmed Hunter combat helicopter in 3D gameplay world.

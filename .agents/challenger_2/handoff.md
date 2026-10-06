@@ -16,10 +16,10 @@
   - Tier 2 (Boundary & Edge Cases): 65/65 PASS (0.28s)
   - Tier 3 (Pairwise Combinations): 18/15 PASS (0.28s)
   - Tier 4 (Real-World Scenarios): 8/7 PASS (0.14s)
-  - Aggregate Total: **156/156 Tests Passed (100%)** in 1.58s. JUnit XML exported to `D:\AI REXI\test_results.xml`.
+  - Aggregate Total: **156/156 Tests Passed (100%)** in 1.58s. JUnit XML exported to `D:\Rexi AI\test_results.xml`.
 
 ### Dedicated Adversarial Stress Suite Execution
-- **Harness File**: `D:\AI REXI\tests\test_adversarial_challenger2.py`
+- **Harness File**: `D:\Rexi AI\tests\test_adversarial_challenger2.py`
 - **Command**: `python -m unittest tests/test_adversarial_challenger2.py -v`
 - **Result**: **31/31 Adversarial Stress Tests Passed (100%)** in 28.93s.
 - **Coverage Breakdown**:

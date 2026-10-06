@@ -13,7 +13,7 @@
 
 Direct forensic observations from independent workspace inspection and execution:
 
-- **Original Request & Scope**: `D:\AI REXI\.agents\ORIGINAL_REQUEST.md` specifies autonomous launch without UAC prompts (R1), navigation to 3D street gameplay (R1), Hunter combat helicopter spawn and God Mode execution (R2), and objective visual proof capture confirming helicopter presence with ZERO crash dialogs (R3).
+- **Original Request & Scope**: `D:\Rexi AI\.agents\ORIGINAL_REQUEST.md` specifies autonomous launch without UAC prompts (R1), navigation to 3D street gameplay (R1), Hunter combat helicopter spawn and God Mode execution (R2), and objective visual proof capture confirming helicopter presence with ZERO crash dialogs (R3).
 - **Source Code Modules**:
   - `gta_core/launch_manager.py` (269 lines): Uses `__COMPAT_LAYER=RunAsInvoker`, `psutil.cpu_affinity([0])` with Win32 `SetProcessAffinityMask(h_proc, 1 << core_index)` fallback, `win32gui.EnumWindows`, `AttachThreadInput`, `SetForegroundWindow`, and strict type/bounds checking.
   - `gta_core/input_engine.py` (259 lines): Uses `ctypes.windll.user32.SendInput` with 64-bit/32-bit `ULONG_PTR` `INPUT`, `KEYBDINPUT`, `MOUSEINPUT`, `HARDWAREINPUT` structures and `KEYEVENTF_SCANCODE` (`0x0008`) for DirectInput Set 1 scancodes.

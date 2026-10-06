@@ -3,8 +3,8 @@
 ## 2026-08-28T03:20:02+07:00
 You are the Project Orchestrator for the autonomous GTA Vice City task.
 
-Your Working Directory: D:\AI REXI\.agents\orchestrator_1
-Original Request Path: D:\AI REXI\.agents\ORIGINAL_REQUEST.md
+Your Working Directory: D:\Rexi AI\.agents\orchestrator_1
+Original Request Path: D:\Rexi AI\.agents\ORIGINAL_REQUEST.md
 Target Game Directory: D:\Games\Grand Theft Auto Vice City
 Integrity Mode: development
 

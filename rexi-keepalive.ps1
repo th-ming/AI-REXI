@@ -7,7 +7,7 @@
 # ──────────────────────────────────────────────────────────────
 
 $urls = @(
-    "https://ai-rexi-backend.onrender.com/api/health"
+    "https://ai-rexi-backend-nmue.onrender.com/api/health"
 )
 
 $failCount = 0        # Dem so lan fail lien tiep

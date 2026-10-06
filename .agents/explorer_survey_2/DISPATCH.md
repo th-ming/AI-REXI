@@ -1,10 +1,10 @@
 ## 2026-08-27T20:20:31Z
 
 You are Survey Explorer 2 for the autonomous GTA Vice City project.
-Your Working Directory: D:\AI REXI\.agents\explorer_survey_2
-Original Request Path: D:\AI REXI\.agents\ORIGINAL_REQUEST.md
+Your Working Directory: D:\Rexi AI\.agents\explorer_survey_2
+Original Request Path: D:\Rexi AI\.agents\ORIGINAL_REQUEST.md
 
-You MUST read D:\AI REXI\.agents\ORIGINAL_REQUEST.md before starting work.
+You MUST read D:\Rexi AI\.agents\ORIGINAL_REQUEST.md before starting work.
 
 Mission & Tasks:
 1. Investigate autonomous process launching and window management in Windows (Python `subprocess`, `ctypes`, `win32gui`, `win32process`, setting CPU affinity to core 0, window handle `HWND` discovery, `SetForegroundWindow`, `ShowWindow`, handling fullscreen vs windowed mode).
@@ -14,5 +14,5 @@ Mission & Tasks:
    - Main menu navigation ("Start Game" -> "New Game" or load game).
    - Skipping opening cutscenes (Marco's Bistro dialogue, car ride to Ocean View Hotel) until Tommy Vercetti is standing in active 3D gameplay outside Ocean View Hotel.
 4. Investigate robust synchronization / state detection methods (e.g. deterministic timing sequences, window status checks, screen pixel sampling) to ensure cutscenes are fully skipped before proceeding to cheat input.
-5. Document all technical specifications, scancode tables, timing diagrams, and state detection strategies in `D:\AI REXI\.agents\explorer_survey_2\handoff.md`.
+5. Document all technical specifications, scancode tables, timing diagrams, and state detection strategies in `D:\Rexi AI\.agents\explorer_survey_2\handoff.md`.
 6. Update your `progress.md` and send a completion message back to the orchestrator when done.

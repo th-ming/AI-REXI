@@ -1,4 +1,4 @@
-# 🗺️ KẾ HOẠCH TỔNG THỂ — AI REXI + OpenCut (Sản phẩm cho khách, chạy trên VPS rác)
+# 🗺️ KẾ HOẠCH TỔNG THỂ — Rexi AI + OpenCut (Sản phẩm cho khách, chạy trên VPS rác)
 
 > Ngày lập: 10/08/2026
 > Mục tiêu: **Khách dùng FREE 100%, chất lượng ngon, chạy trên VPS giá rẻ (~200k/tháng, không GPU)**
@@ -13,13 +13,13 @@
 | 2 | **Khách free 100%** | Không thu phí trực tiếp, không giới hạn thô bạo, vẫn giữ quota mềm để chống spam |
 | 3 | **Local-first triết lý** | Whisper/OCR/PDF chạy CPU được; cái nào quá nặng thì dùng API free (Groq, edge-tts) |
 | 4 | **API key có sẵn** | 9 key đã lưu trong DB `khoa_api`: Gemini, Groq, NVIDIA, Cerebras, Cohere, OpenRouter, Mistral, OpenCode, GitHub + 109 model active |
-| 5 | **Không phá luồng cũ** | Mọi thay đổi theo đúng pattern có sẵn của AI REXI (tab/FAB/modal) |
+| 5 | **Không phá luồng cũ** | Mọi thay đổi theo đúng pattern có sẵn của Rexi AI (tab/FAB/modal) |
 
 ---
 
 ## 2. HIỆN TRẠNG (INVENTORY)
 
-### 2.1 AI REXI — đã có ✅
+### 2.1 Rexi AI — đã có ✅
 
 | Chức năng | File chính | Ghi chú |
 |---|---|---|
@@ -30,7 +30,7 @@
 | IPTV Xem TV (200+ nước) | `Frontend/src/components/IPTVTab.jsx`, `/services/iptv/*` | HLS + phụ đề AI |
 | Remote Desktop | inline trong App.jsx, `/services/desktop/*` | chụp + click |
 | Browser Agent (Playwright WS) | `Frontend/src/components/BrowserView.jsx`, `/services/browser/*` | Stagehand |
-| Workspace Files (D:\AI REXI) | `/workspace/*` | đọc/ghi file dự án |
+| Workspace Files (D:\Rexi AI) | `/workspace/*` | đọc/ghi file dự án |
 | Super Tools (Terminal/Git/Memory) | inline App.jsx, `/chat/exec|git|memory` | |
 | 35+ Skills | `SkillsModal.jsx`, `/services/skills` | |
 | Admin Panel | `AdminPanel.jsx`, `/admin/*` | users/models/channels/logs |
@@ -95,7 +95,7 @@
                                       │
               ┌───────────────────────┼───────────────────────┐
               ▼                       ▼                       ▼
-   Backend AI REXI (Node)   OpenCut web (Next standalone)  SQLite (tro_ly_ai.db)
+   Backend Rexi AI (Node)   OpenCut web (Next standalone)  SQLite (tro_ly_ai.db)
    - chat/agent/workspace   - editor WebGPU (client-side)
    - services: tts/iptv/    - Whisper ONNX local (client)
      desktop/browser/office
@@ -118,7 +118,7 @@ Tổng RAM dự kiến: ~1.5GB (Node ~300MB + OpenCut ~400MB + SQLite + OS)
 | # | Task | File đụng tới | Trạng thái | Verify |
 |---|---|---|---|---|
 | 0.1 | Fix 74 lint errors OpenCut (no-unsafe-assertion, prefer-object-params) | OpenCut ~30 file | ✅ XONG | eslint 0 errors |
-| 0.2 | Tích hợp OpenCut thành tab AI REXI | OpenCutTab.jsx + config.js + App.jsx | ✅ XONG | oxlint + build |
+| 0.2 | Tích hợp OpenCut thành tab Rexi AI | OpenCutTab.jsx + config.js + App.jsx | ✅ XONG | oxlint + build |
 | 0.3 | PDF/DOCX extract backend | services.routes.js + agent.routes.js | ✅ XONG | curl test OK |
 | 0.4 | OpenCut vào HelpModal | HelpModal.jsx | ✅ XONG | oxlint 0 lỗi |
 | 0.5 | Frontend: nút "Gửi PDF cho AI" trong ChatTab | ChatTab.jsx | ✅ XONG — test 3 lớp: UI + API + AI trả lời | build |

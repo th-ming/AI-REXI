@@ -14,7 +14,7 @@ TOKEN=$(curl -s -X POST http://localhost:5000/api/auth/login   -H 'Content-Type:
 # Sau đó: curl -H "Authorization: Bearer $TOKEN" ...
 ```
 
-## API Keys đã lưu trong bảng `khoa_api` (DB: D:/AI REXI/Database/tro_ly_ai.db)
+## API Keys đã lưu trong bảng `khoa_api` (DB: D:/Rexi AI/Database/tro_ly_ai.db)
 Gemini · Groq · NVIDIA · Cerebras · Cohere · OpenRouter · Mistral · OpenCode · GitHub
 → 109 model active (gemini 13, mistral 32, nvidia 25, groq 11, openrouter 11, cohere 6, cerebras 3, opencode 8)
 → Backend tự đọc/giải mã keys này (AES-256-GCM, xem src/utils/cryptoKeys.js) — agent KHÔNG cần lấy key thủ công.
@@ -22,7 +22,7 @@ Gemini · Groq · NVIDIA · Cerebras · Cohere · OpenRouter · Mistral · OpenC
 ## Ghi chú
 - User thường trong DB (test@rexi.ai, test@test.com...) KHÔNG có password mặc định — không dùng được login, đừng phí thời gian thử.
 - Guest: email `guest@rexi.ai`, dùng không cần mật khẩu (chế độ khách tự động).
-- File seed admin: `D:/AI REXI/Database/admin-seed.js` + `Backend/src/ensure-admin.js`.
+- File seed admin: `D:/Rexi AI/Database/admin-seed.js` + `Backend/src/ensure-admin.js`.
 
 ---
 ## 1. NGUYÊN TẮC CỐT LÕI

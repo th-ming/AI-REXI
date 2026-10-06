@@ -8,4 +8,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wake REXI backend
-        run: curl -fsS -o /dev/null -m 90 -w "HTTP %{http_code} in %{time_total}s\n" https://ai-rexi-backend.onrender.com/api/health
+        run: curl -fsS -o /dev/null -m 90 -w "HTTP %{http_code} in %{time_total}s\n" https://ai-rexi-backend-nmue.onrender.com/api/health

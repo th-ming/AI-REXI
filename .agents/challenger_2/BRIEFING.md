@@ -6,7 +6,7 @@ Adversarially stress-test Autonomous GTA Vice City process lifecycle, window foc
 ## 🔒 My Identity
 - Archetype: challenger
 - Roles: critic, specialist
-- Working directory: D:\AI REXI\.agents\challenger_2
+- Working directory: D:\Rexi AI\.agents\challenger_2
 - Original parent: fe37c0b1-4f29-4e97-a397-b935bb8f29bf
 - Milestone: M4 Verification & Adversarial Stress Testing
 - Instance: 2 of 2
@@ -58,5 +58,5 @@ Adversarially stress-test Autonomous GTA Vice City process lifecycle, window foc
 - Issued verdict: **APPROVE**.
 
 ## Artifact Index
-- `D:\AI REXI\tests\test_adversarial_challenger2.py` — Adversarial stress test harness
-- `D:\AI REXI\.agents\challenger_2\handoff.md` — Final Challenger 2 assessment & verdict
+- `D:\Rexi AI\tests\test_adversarial_challenger2.py` — Adversarial stress test harness
+- `D:\Rexi AI\.agents\challenger_2\handoff.md` — Final Challenger 2 assessment & verdict

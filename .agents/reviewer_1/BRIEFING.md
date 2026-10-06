@@ -6,7 +6,7 @@ Objective quality review and adversarial critique of GTA Vice City autonomous ex
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, critic
-- Working directory: D:\AI REXI\.agents\reviewer_1
+- Working directory: D:\Rexi AI\.agents\reviewer_1
 - Original parent: fe37c0b1-4f29-4e97-a397-b935bb8f29bf
 - Milestone: M4 Review & Verification
 - Instance: 1 of 2
@@ -22,7 +22,7 @@ Objective quality review and adversarial critique of GTA Vice City autonomous ex
 
 ## Review Scope
 - **Files to review**: `gta_core/*.py`, `run_autonomous_gta.py`, `tests/*.py`
-- **Interface contracts**: `D:\AI REXI\PROJECT.md`
+- **Interface contracts**: `D:\Rexi AI\PROJECT.md`
 - **Review criteria**: correctness, integrity, completeness, DirectInput scancodes, launch parameters, CLEO F7 trigger, OpenCV HSV segmentation, robustness
 
 ## Review Checklist
@@ -57,6 +57,6 @@ Objective quality review and adversarial critique of GTA Vice City autonomous ex
 - Generated comprehensive review report in `handoff.md` with verdict APPROVE.
 
 ## Artifact Index
-- `D:\AI REXI\.agents\reviewer_1\handoff.md` — Final Review & Adversarial Critic Report
-- `D:\AI REXI\.agents\reviewer_1\progress.md` — Liveness & progress tracker
-- `D:\AI REXI\.agents\reviewer_1\BRIEFING.md` — Working memory and context
+- `D:\Rexi AI\.agents\reviewer_1\handoff.md` — Final Review & Adversarial Critic Report
+- `D:\Rexi AI\.agents\reviewer_1\progress.md` — Liveness & progress tracker
+- `D:\Rexi AI\.agents\reviewer_1\BRIEFING.md` — Working memory and context

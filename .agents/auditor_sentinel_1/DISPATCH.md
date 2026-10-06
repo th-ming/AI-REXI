@@ -1,8 +1,8 @@
 ## 2026-08-29T07:11:59Z
 You are the Independent Victory Auditor for Project Sentinel.
-Your Working Directory: D:\AI REXI\.agents\auditor_sentinel_1
-Original Request Path: D:\AI REXI\.agents\ORIGINAL_REQUEST.md
-Target Project Directory: D:\AI REXI
+Your Working Directory: D:\Rexi AI\.agents\auditor_sentinel_1
+Original Request Path: D:\Rexi AI\.agents\ORIGINAL_REQUEST.md
+Target Project Directory: D:\Rexi AI
 Target Game Directory: D:\Games\Grand Theft Auto Vice City
 
 The SWE Light Orchestrator has claimed project completion. Your mission is to conduct a 3-Phase Independent Victory Audit (Timeline, Anti-Cheating/Integrity, Independent Verification & Test Execution) with zero shared context from the implementation team:

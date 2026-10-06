@@ -2,7 +2,7 @@
 
 **Agent**: Challenger 1 (`challenger_1`)  
 **Role**: Empirical Challenger / Critic & Computer Vision Specialist  
-**Working Directory**: `D:\AI REXI\.agents\challenger_1`  
+**Working Directory**: `D:\Rexi AI\.agents\challenger_1`  
 **Verdict**: **APPROVE**  
 **Timestamp**: 2026-08-28T03:36:00+07:00  
 

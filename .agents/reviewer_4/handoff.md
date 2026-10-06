@@ -2,7 +2,7 @@
 
 **Reviewer**: Reviewer Round 4 (reviewer@swe_light, qa@swe_light)  
 **Target Codebase**: `gta_core/`, `scripts/`, `tests/`, `run_autonomous_gta.py`  
-**Working Directory**: `D:\AI REXI\.agents\reviewer_4`  
+**Working Directory**: `D:\Rexi AI\.agents\reviewer_4`  
 **Date**: 2026-08-28  
 **Verdict**: **APPROVE & COMPLETE** (100% tests passing, zero crashes, robust visual proof)
 
@@ -54,7 +54,7 @@
 - **Master 4-Tier Test Runner (`python tests/test_runner.py`)**: 165 / 152 tests PASSED (100% pass rate, 0 failures, Duration: 1.89s)
 - **Comprehensive Pytest Suite (`python -m pytest tests/`)**: 224 / 224 tests PASSED (100% pass rate, 0 failures in 42.98s)
 - **Parametric Vision Stress Suite (`python tests/stress_eval_vision.py`)**: ALL PASS (0 false positives)
-- **JUnit XML Report**: `D:\AI REXI\test_results.xml`
+- **JUnit XML Report**: `D:\Rexi AI\test_results.xml`
 
 ---
 

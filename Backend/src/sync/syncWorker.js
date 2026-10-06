@@ -63,12 +63,12 @@ async function initConnections() {
       const config = authType === 'sa' ? {
         server: process.env.SQLSERVER_HOST || 'localhost',
         port: parseInt(process.env.SQLSERVER_PORT) || 1433,
-        database: process.env.SQLSERVER_DB || 'AI REXI',
+        database: process.env.SQLSERVER_DB || 'Rexi AI',
         user: process.env.SQLSERVER_USER || 'sa',
         password: process.env.SQLSERVER_PASS || '',
         options: { encrypt: false, trustServerCertificate: true }
       } : {
-        connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${process.env.SQLSERVER_HOST || '.\\SQLEXPRESS'};Database={${process.env.SQLSERVER_DB || 'AI REXI'}};Trusted_Connection=yes;`
+        connectionString: `Driver={ODBC Driver 17 for SQL Server};Server=${process.env.SQLSERVER_HOST || '.\\SQLEXPRESS'};Database={${process.env.SQLSERVER_DB || 'Rexi AI'}};Trusted_Connection=yes;`
       };
       const sqlMod = authType === 'sa' ? require('mssql') : require('mssql/msnodesqlv8');
       mssqlPool = await sqlMod.connect(config);

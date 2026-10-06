@@ -3,8 +3,8 @@
 ## Initial Request — 2026-08-29T06:19:14+07:00
 
 You are the SWE Light Orchestrator.
-Your Working Directory: D:\AI REXI\.agents\swe_1
-Original Request Path: D:\AI REXI\.agents\ORIGINAL_REQUEST.md
+Your Working Directory: D:\Rexi AI\.agents\swe_1
+Original Request Path: D:\Rexi AI\.agents\ORIGINAL_REQUEST.md
 Target Game Directory: D:\Games\Grand Theft Auto Vice City
 Integrity Mode: development
 

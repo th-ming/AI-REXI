@@ -12,7 +12,7 @@
    - `VC.CLEO.asi` disabled.
    - `F7_Hunter.cs` disabled and archived in `backup_mods/CLEO/disabled/F7_Hunter.cs.disabled`.
 2. Developed Stable Input Listener:
-   - `D:\AI REXI\scripts\gta_hunter_listener.ahk` maps F7 and hotstring "maybay" to DirectInput sequence `AMERICAHELICOPTER`.
+   - `D:\Rexi AI\scripts\gta_hunter_listener.ahk` maps F7 and hotstring "maybay" to DirectInput sequence `AMERICAHELICOPTER`.
    - `gta_core/spawner.py` updated with `trigger_americahelicopter_spawn()` and `trigger_maybay_spawn()` utilizing canonical native RenderWare streaming pipeline.
    - `run_autonomous_gta.py` and `gta_core/` provide zero-touch launch, Core 0 affinity locking, menu/cutscene navigation, and vision verification.
 3. Test Suite Verification:

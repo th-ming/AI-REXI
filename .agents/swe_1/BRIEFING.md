@@ -6,13 +6,13 @@ Autonomous execution to cleanly launch GTA Vice City into active user session, n
 ## 🔒 My Identity
 - Archetype: orchestrator
 - Roles: orchestrator, user_liaison, human_reporter, successor
-- Working directory: D:\AI REXI\.agents\swe_1
+- Working directory: D:\Rexi AI\.agents\swe_1
 - Original parent: parent
 - Original parent conversation ID: 6c4d9e96-cdc9-4625-9e8f-dc7c46d66bff
 
 ## 🔒 My Workflow
 - **Pattern**: SWE Light
-- **Scope document**: D:\AI REXI\.agents\ORIGINAL_REQUEST.md
+- **Scope document**: D:\Rexi AI\.agents\ORIGINAL_REQUEST.md
 1. **Decompose**: No decomposition (SWE Light single line of work).
 2. **Dispatch & Execute**:
    - `teamwork_preview_implementer` -> `teamwork_preview_reviewer` (r1) -> `teamwork_preview_reviewer` (r2) -> `teamwork_preview_reviewer` (r3) -> `teamwork_preview_victory_auditor` -> completion.
@@ -73,18 +73,18 @@ Autonomous execution to cleanly launch GTA Vice City into active user session, n
 *(Empty - All issues closed and verified)*
 
 ## Artifact Index
-- D:\AI REXI\.agents\ORIGINAL_REQUEST.md — Original User Request
-- D:\AI REXI\.agents\swe_1\DISPATCH.md — Dispatch log
-- D:\AI REXI\.agents\swe_1\progress.md — Progress and iteration tracker
-- D:\AI REXI\.agents\swe_1\BRIEFING.md — Persistent working memory
-- D:\AI REXI\.agents\swe_1\handoff.md — Orchestrator final handoff report
-- D:\AI REXI\.agents\implementer_1\handoff.md — Implementer handoff report
-- D:\AI REXI\.agents\reviewer_1\handoff.md — Reviewer 1 handoff report
-- D:\AI REXI\.agents\reviewer_2\handoff.md — Reviewer 2 handoff report
-- D:\AI REXI\.agents\reviewer_3\handoff.md — Reviewer 3 handoff report
-- D:\AI REXI\.agents\auditor_1\handoff.md — Victory Auditor handoff report
-- D:\AI REXI\test_results.xml — Master JUnit XML test results
-- D:\AI REXI\artifacts\proof_hunter_spawn.png — In-game verified helicopter screenshot
-- D:\AI REXI\artifacts\gta_hunter_live_verified_raw.png — Live raw viewport capture
-- D:\AI REXI\artifacts\trigger_f7_result.png — F7 spawn trigger verification
-- D:\AI REXI\artifacts\trigger_maybay_result.png — Maybay / cheat trigger verification
+- D:\Rexi AI\.agents\ORIGINAL_REQUEST.md — Original User Request
+- D:\Rexi AI\.agents\swe_1\DISPATCH.md — Dispatch log
+- D:\Rexi AI\.agents\swe_1\progress.md — Progress and iteration tracker
+- D:\Rexi AI\.agents\swe_1\BRIEFING.md — Persistent working memory
+- D:\Rexi AI\.agents\swe_1\handoff.md — Orchestrator final handoff report
+- D:\Rexi AI\.agents\implementer_1\handoff.md — Implementer handoff report
+- D:\Rexi AI\.agents\reviewer_1\handoff.md — Reviewer 1 handoff report
+- D:\Rexi AI\.agents\reviewer_2\handoff.md — Reviewer 2 handoff report
+- D:\Rexi AI\.agents\reviewer_3\handoff.md — Reviewer 3 handoff report
+- D:\Rexi AI\.agents\auditor_1\handoff.md — Victory Auditor handoff report
+- D:\Rexi AI\test_results.xml — Master JUnit XML test results
+- D:\Rexi AI\artifacts\proof_hunter_spawn.png — In-game verified helicopter screenshot
+- D:\Rexi AI\artifacts\gta_hunter_live_verified_raw.png — Live raw viewport capture
+- D:\Rexi AI\artifacts\trigger_f7_result.png — F7 spawn trigger verification
+- D:\Rexi AI\artifacts\trigger_maybay_result.png — Maybay / cheat trigger verification

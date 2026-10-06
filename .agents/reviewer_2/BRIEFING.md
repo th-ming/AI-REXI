@@ -6,7 +6,7 @@ Independently review the robustness, edge-case coverage, and safety of gta_core 
 ## 🔒 My Identity
 - Archetype: reviewer_critic
 - Roles: reviewer, qa
-- Working directory: D:\AI REXI\.agents\reviewer_2
+- Working directory: D:\Rexi AI\.agents\reviewer_2
 - Milestone: autonomous_gta_review
 - Instance: Round 2 of 2
 
@@ -20,7 +20,7 @@ Independently review the robustness, edge-case coverage, and safety of gta_core 
 - **Verdict**: APPROVE
 
 ## Artifact Index
-- D:\AI REXI\.agents\reviewer_2\DISPATCH.md — Dispatch log
-- D:\AI REXI\.agents\reviewer_2\progress.md — Liveness heartbeat and progress tracker
-- D:\AI REXI\.agents\reviewer_2\BRIEFING.md — Working memory index
-- D:\AI REXI\.agents\reviewer_2\handoff.md — Final handoff report
+- D:\Rexi AI\.agents\reviewer_2\DISPATCH.md — Dispatch log
+- D:\Rexi AI\.agents\reviewer_2\progress.md — Liveness heartbeat and progress tracker
+- D:\Rexi AI\.agents\reviewer_2\BRIEFING.md — Working memory index
+- D:\Rexi AI\.agents\reviewer_2\handoff.md — Final handoff report

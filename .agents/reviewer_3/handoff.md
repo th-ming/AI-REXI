@@ -2,7 +2,7 @@
 
 **Reviewer**: Reviewer 3 (Reviewer & Adversarial Critic)  
 **Target Codebase**: `gta_core/`, `run_autonomous_gta.py`, `tests/`  
-**Working Directory**: `D:\AI REXI\.agents\reviewer_3`  
+**Working Directory**: `D:\Rexi AI\.agents\reviewer_3`  
 **Date**: 2026-08-29  
 **Verdict**: **APPROVE & COMPLETE** (100% verified across 242 tests, 0 crashes, robust visual proof)
 
@@ -83,7 +83,7 @@ During adversarial probing and edge-case testing of the prior implementation, 7 
   - **Tier 3 (Pairwise Combinations)**: 18/15 tests PASSED (0.08s)
   - **Tier 4 (Real-World Scenarios)**: 8/7 tests PASSED (0.10s)
   - **Total**: 183/152 tests PASSED (**100% pass rate, 0 failures, 0 errors in 0.89s**).
-  - **JUnit XML Report**: Exported to `D:\AI REXI\test_results.xml`.
+  - **JUnit XML Report**: Exported to `D:\Rexi AI\test_results.xml`.
 
 - **Comprehensive Pytest Suite (`python -m pytest tests/`)**:
   - **Total**: 242/242 tests PASSED (**100% pass rate, 0 failures, 0 errors in 9.14s**).

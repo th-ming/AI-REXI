@@ -6,13 +6,13 @@ Autonomous end-to-end execution of GTA Vice City: clean launch & menu/cutscene b
 ## 🔒 My Identity
 - Archetype: orchestrator
 - Roles: orchestrator, user_liaison, human_reporter, successor
-- Working directory: D:\AI REXI\.agents\orchestrator_1
+- Working directory: D:\Rexi AI\.agents\orchestrator_1
 - Original parent: parent
 - Original parent conversation ID: d08a66ed-c1be-4390-bf05-16eb89500213
 
 ## 🔒 My Workflow
 - **Pattern**: Project Pattern (Survey -> Assess -> Decompose/Iterate -> Gate -> Verify)
-- **Scope document**: D:\AI REXI\PROJECT.md
+- **Scope document**: D:\Rexi AI\PROJECT.md
 1. **Decompose**: Decompose into Survey, E2E Test Track, and Implementation Milestones (Launch & Navigation, Input/Spawn Execution, Visual Verification & Self-Correction, Master E2E).
 2. **Dispatch & Execute**:
    - Survey: Completed.
@@ -82,8 +82,8 @@ Autonomous end-to-end execution of GTA Vice City: clean launch & menu/cutscene b
 - Safety timer: none
 
 ## Artifact Index
-- D:\AI REXI\PROJECT.md — Project Master Specification
-- D:\AI REXI\TEST_INFRA.md — E2E Test Infrastructure
-- D:\AI REXI\TEST_READY.md — E2E Test Suite Pass Status
-- D:\AI REXI\.agents\orchestrator_1\GATE_STATUS.md — Gate Verdicts (PASS)
-- D:\AI REXI\artifacts\proof_hunter_spawn.png — Final Visual Proof Artifact
+- D:\Rexi AI\PROJECT.md — Project Master Specification
+- D:\Rexi AI\TEST_INFRA.md — E2E Test Infrastructure
+- D:\Rexi AI\TEST_READY.md — E2E Test Suite Pass Status
+- D:\Rexi AI\.agents\orchestrator_1\GATE_STATUS.md — Gate Verdicts (PASS)
+- D:\Rexi AI\artifacts\proof_hunter_spawn.png — Final Visual Proof Artifact

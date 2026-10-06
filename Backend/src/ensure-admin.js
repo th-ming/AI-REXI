@@ -4,7 +4,7 @@ const db = require('./config/db');
 
 let ADMIN_SEED = null;
 // FIX PROD: ưu tiên cấu hình từ env (ADMIN_EMAIL + ADMIN_PASSWORD) — dùng được trên Render,
-// không phụ thuộc file 'D:/AI REXI/...' chỉ tồn tại trên máy local.
+// không phụ thuộc file 'D:/Rexi AI/...' chỉ tồn tại trên máy local.
 const isProd = process.env.NODE_ENV === 'production';
 const envEmail = (process.env.ADMIN_EMAIL || '').trim();
 const envPassword = (process.env.ADMIN_PASSWORD || '').trim();
@@ -20,7 +20,7 @@ if (envEmail && envPassword) {
   // Mật khẩu KHÔNG hardcode — được sinh ngẫu nhiên + in ra 1 lần DUY NHẤT
   // tại thời điểm tạo admin (trong ensureAdmin), không log ở boot thường.
   try {
-    ADMIN_SEED = require('D:/AI REXI/Database/admin-seed.js');
+    ADMIN_SEED = require('D:/Rexi AI/Database/admin-seed.js');
   } catch (e) {
     ADMIN_SEED = { email: 'admin@rexi.local', mat_khau_ma_hoa_hash: null, ten_day_du: 'Administrator (dev)' };
     console.warn('[ADMIN-SEED] Dev: không có ADMIN_EMAIL/ADMIN_PASSWORD env và không có admin-seed.js — sẽ seed admin tạm khi DB chưa có admin nào.');

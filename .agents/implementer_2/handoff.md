@@ -3,7 +3,7 @@
 - **Agent**: Implementer Round 2 (`implementer_2`)
 - **Target Subsystem**: GTA Vice City Crash Fix, DirectInput Key Listener & Spawner (`gta_core/`, `scripts/gta_hunter_listener.ahk`, `scripts/compile_stable_cleo_hunter.py`, `run_autonomous_gta.py`)
 - **Target Game Environment**: `D:\Games\Grand Theft Auto Vice City`
-- **Working Directory**: `D:\AI REXI\.agents\implementer_2`
+- **Working Directory**: `D:\Rexi AI\.agents\implementer_2`
 - **Status**: COMPLETE & 100% VERIFIED
 
 ---
@@ -80,4 +80,4 @@
   - Resolution Invariant Scaling (480p to 4K): PASS
   - Occlusion Density Sweeps (0% to 90%): PASS
   - Clutter False Positive Resistance (Grass, Trees, Water, Road): PASS (0 false positives).
-- **JUnit XML Report**: `D:\AI REXI\test_results.xml`.
+- **JUnit XML Report**: `D:\Rexi AI\test_results.xml`.

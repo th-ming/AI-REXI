@@ -1,5 +1,5 @@
 -- ============================================================
--- AI REXI — PostgreSQL Schema (Supabase / Render)
+-- Rexi AI — PostgreSQL Schema (Supabase / Render)
 -- ============================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";

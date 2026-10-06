@@ -45,7 +45,7 @@ An adversarial, deep-probing code review and quality assurance pass was conducte
 
 ## 3. Test Verification Record
 
-### Master 4-Tier Test Suite (`python "D:\AI REXI\tests\test_runner.py"`):
+### Master 4-Tier Test Suite (`python "D:\Rexi AI\tests\test_runner.py"`):
 - **Tier 1: Feature Coverage**: 72 / 72 passed (100%)
 - **Tier 2: Boundary & Edge Cases**: 70 / 70 passed (100%)
 - **Tier 3: Pairwise Combinations**: 18 / 18 passed (100%)

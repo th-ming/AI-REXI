@@ -93,7 +93,7 @@ class SQLServerAdapter {
       this.pool = await sql.connect({
           server: process.env.SQLSERVER_HOST || 'localhost',
           port: parseInt(process.env.SQLSERVER_PORT) || 1433,
-          database: process.env.SQLSERVER_DB || 'AI REXI',
+          database: process.env.SQLSERVER_DB || 'Rexi AI',
           user: process.env.SQLSERVER_USER || 'sa',
           password: process.env.SQLSERVER_PASS || '',
           options: { encrypt: false, trustServerCertificate: true }
@@ -108,7 +108,7 @@ class SQLServerAdapter {
           'localhost\\SQLEXPRESS',
           'localhost'
         ];
-        const dbNames = [process.env.SQLSERVER_DB || 'AI REXI', 'AI_REXI'];
+        const dbNames = [process.env.SQLSERVER_DB || 'Rexi AI', 'AI_REXI'];
         let connected = false;
         let lastErr = null;
 

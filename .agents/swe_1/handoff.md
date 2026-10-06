@@ -1,8 +1,8 @@
 # Orchestrator Final Handoff Report: Autonomous GTA Vice City Execution Pipeline
 
 - **Orchestrator**: SWE Light Orchestrator (`swe_1`)
-- **Working Directory**: `D:\AI REXI\.agents\swe_1`
-- **Original Request Path**: `D:\AI REXI\.agents\ORIGINAL_REQUEST.md`
+- **Working Directory**: `D:\Rexi AI\.agents\swe_1`
+- **Original Request Path**: `D:\Rexi AI\.agents\ORIGINAL_REQUEST.md`
 - **Target Game Directory**: `D:\Games\Grand Theft Auto Vice City`
 - **Status**: **COMPLETE, DEFECT-FREE, AND INDEPENDENTLY AUDITED (VICTORY CONFIRMED)**
 

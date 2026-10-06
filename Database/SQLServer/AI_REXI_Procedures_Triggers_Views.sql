@@ -180,5 +180,5 @@ BEGIN
 END;
 GO
 
-PRINT 'Triggers, Views & Stored Procedures for AI REXI — Done!';
+PRINT 'Triggers, Views & Stored Procedures for Rexi AI — Done!';
 GO

@@ -6,7 +6,7 @@ Adversarially stress-test the computer vision verification and self-correction m
 ## 🔒 My Identity
 - Archetype: EMPIRICAL CHALLENGER
 - Roles: critic, specialist
-- Working directory: D:\AI REXI\.agents\challenger_1
+- Working directory: D:\Rexi AI\.agents\challenger_1
 - Original parent: fe37c0b1-4f29-4e97-a397-b935bb8f29bf
 - Milestone: M3 / Verification Challenge
 - Instance: 1 of 1
@@ -35,8 +35,8 @@ Adversarially stress-test the computer vision verification and self-correction m
 - **Untested angles**: Hardware GPU VRAM exhaustion (outside Python headless test scope).
 
 ## Loaded Skills
-- **Source**: d:\AI REXI\.agents\skills\computer-vision-opencv\SKILL.md
-- **Local copy**: D:\AI REXI\.agents\challenger_1\skills\computer-vision-opencv\SKILL.md
+- **Source**: d:\Rexi AI\.agents\skills\computer-vision-opencv\SKILL.md
+- **Local copy**: D:\Rexi AI\.agents\challenger_1\skills\computer-vision-opencv\SKILL.md
 - **Core methodology**: Advanced image processing with OpenCV, HSV color segmentation, morphology, contour geometry, and synthetic test harness generation.
 
 ## Key Decisions Made
@@ -47,5 +47,5 @@ Adversarially stress-test the computer vision verification and self-correction m
 ## Artifact Index
 - `tests/test_adversarial_vision.py` — Adversarial stress test harness (24 tests)
 - `tests/stress_eval_vision.py` — Parametric empirical sweep test script
-- `D:\AI REXI\.agents\challenger_1\progress.md` — Liveness & task execution log
-- `D:\AI REXI\.agents\challenger_1\handoff.md` — Final 5-component handoff report
+- `D:\Rexi AI\.agents\challenger_1\progress.md` — Liveness & task execution log
+- `D:\Rexi AI\.agents\challenger_1\handoff.md` — Final 5-component handoff report

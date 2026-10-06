@@ -7,7 +7,7 @@ Dự Án Trợ Lý Rexi AI (Rexi AI Assistant).
 ## 📁 Cấu Trúc Thư Mục Dự Án
 
 ```text
-D:\AI REXI\
+D:\Rexi AI\
 ├── .agents/                  # Skills & officecli configs
 ├── Backend/                  # Node.js/Express API
 ├── Database/                 # SQLite + thiết kế DB
@@ -21,13 +21,13 @@ D:\AI REXI\
 
 ```powershell
 # Backend
-cd D:\AI REXI\Backend
+cd D:\Rexi AI\Backend
 npm install
 node init_db.js
 node server.js
 
 # Frontend
-cd D:\AI REXI\Frontend
+cd D:\Rexi AI\Frontend
 npm install
 npm run dev
 ```
@@ -36,7 +36,7 @@ npm run dev
 
 ## 🌐 Deploy Production (Render)
 
-- Backend + Frontend build gộp 1 service: `https://ai-rexi-backend.onrender.com` (Render free — cold start 30–60s).
+- Backend + Frontend build gộp 1 service: `https://ai-rexi-backend-nmue.onrender.com` (Render free — cold start 30–60s).
 - DB: PostgreSQL (Supabase free, session pooler + ssl). Biến môi trường & cách xoay mật khẩu: xem [`docs/PROD-ENV.md`](docs/PROD-ENV.md).
 - Kiểm tra nhanh: `GET /api/health` → `db_type:"postgresql"`, `db:"connected"`.
 
@@ -50,7 +50,7 @@ origin	https://github.com/th-ming/REXI-AI.git (push)
 ## 📤 Push Code Mẫu
 
 ```powershell
-cd D:\AI REXI
+cd D:\Rexi AI
 git add .
 git commit -m "chore: update Rexi AI"
 git push origin main

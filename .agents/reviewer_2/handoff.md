@@ -2,7 +2,7 @@
 
 **Reviewer**: Reviewer 2 (Reviewer & Adversarial Critic)  
 **Target Codebase**: `gta_core/`, `run_autonomous_gta.py`, `tests/`  
-**Working Directory**: `D:\AI REXI\.agents\reviewer_2`  
+**Working Directory**: `D:\Rexi AI\.agents\reviewer_2`  
 **Date**: 2026-08-29  
 **Verdict**: **APPROVE / COMPLETE** (All defects resolved, 100% verified across 233 tests)
 
@@ -80,7 +80,7 @@ During adversarial review and deep stress probing, 6 concrete defects were ident
   - **Tier 3 (Pairwise Combinations)**: 18/15 tests PASSED (0.08s)
   - **Tier 4 (Real-World Scenarios)**: 8/7 tests PASSED (0.09s)
   - **Total**: 174/152 tests PASSED (**100% pass rate, 0 failures, 0 errors in 1.01s**).
-  - **JUnit XML Report**: Exported to `D:\AI REXI\test_results.xml`.
+  - **JUnit XML Report**: Exported to `D:\Rexi AI\test_results.xml`.
 
 - **Complete Unittest Discovery (`python -m unittest discover -s tests`)**:
   - **Total**: 233/233 tests PASSED (**100% pass rate, 0 failures, 0 errors in 8.43s**).

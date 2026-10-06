@@ -1,6 +1,6 @@
 # Progress Record — Implementer Round 1
 
-- **Working Directory**: `D:\AI REXI\.agents\implementer_1`
+- **Working Directory**: `D:\Rexi AI\.agents\implementer_1`
 - **Subsystem**: GTA Vice City Autonomous Launch, Crash-Free Navigation, Hunter Spawner, Computer Vision Verification & Self-Correction Pipeline (`gta_core/`, `run_autonomous_gta.py`)
 - **Status**: COMPLETE & VERIFIED (100% Pass Rate across 245 automated & adversarial tests)
 
@@ -24,8 +24,8 @@
   - Adversarial & Stress Suites: 80 / 80 passed (100%)
   - **Aggregate**: 245 / 245 test cases passed with 0 failures and 0 errors.
 - [x] **Verified Artifacts**:
-  - `D:\AI REXI\artifacts\proof_hunter_spawn.png`
-  - `D:\AI REXI\artifacts\gta_hunter_live_verified_raw.png`
-  - `D:\AI REXI\artifacts\trigger_f7_result.png`
-  - `D:\AI REXI\artifacts\trigger_maybay_result.png`
-  - `D:\AI REXI\test_results.xml` (JUnit XML report)
+  - `D:\Rexi AI\artifacts\proof_hunter_spawn.png`
+  - `D:\Rexi AI\artifacts\gta_hunter_live_verified_raw.png`
+  - `D:\Rexi AI\artifacts\trigger_f7_result.png`
+  - `D:\Rexi AI\artifacts\trigger_maybay_result.png`
+  - `D:\Rexi AI\test_results.xml` (JUnit XML report)

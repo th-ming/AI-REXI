@@ -1,9 +1,9 @@
 ﻿# Independent Victory Audit Report: Project Sentinel (GTA Vice City Autonomous Execution Pipeline)
 
 - **Auditor**: Independent Victory Auditor (`auditor_sentinel_1`)
-- **Working Directory**: `D:\AI REXI\.agents\auditor_sentinel_1`
-- **Original Request Path**: `D:\AI REXI\.agents\ORIGINAL_REQUEST.md`
-- **Target Project Directory**: `D:\AI REXI`
+- **Working Directory**: `D:\Rexi AI\.agents\auditor_sentinel_1`
+- **Original Request Path**: `D:\Rexi AI\.agents\ORIGINAL_REQUEST.md`
+- **Target Project Directory**: `D:\Rexi AI`
 - **Target Game Directory**: `D:\Games\Grand Theft Auto Vice City`
 - **Audit Date**: 2026-08-29T07:14:00Z
 - **Integrity Mode**: Development Mode (per `ORIGINAL_REQUEST.md`)

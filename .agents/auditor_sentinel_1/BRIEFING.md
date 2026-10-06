@@ -6,7 +6,7 @@ Independent 3-phase Victory Audit of Project Sentinel (GTA Vice City Autonomous 
 ## 🔒 My Identity
 - Archetype: victory_auditor
 - Roles: [critic, specialist, auditor, victory_verifier]
-- Working directory: D:\AI REXI\.agents\auditor_sentinel_1
+- Working directory: D:\Rexi AI\.agents\auditor_sentinel_1
 - Original parent: 6c4d9e96-cdc9-4625-9e8f-dc7c46d66bff
 - Target: full project
 
@@ -22,7 +22,7 @@ Independent 3-phase Victory Audit of Project Sentinel (GTA Vice City Autonomous 
 - Updated: 2026-08-29T07:14:00Z
 
 ## Audit Scope
-- **Work product**: D:\AI REXI (gta_core/, tests/, artifacts/, run_autonomous_gta.py)
+- **Work product**: D:\Rexi AI (gta_core/, tests/, artifacts/, run_autonomous_gta.py)
 - **Profile loaded**: General Project / Victory Audit Profile
 - **Audit type**: victory audit (Phases A, B, C)
 
@@ -50,7 +50,7 @@ Independent 3-phase Victory Audit of Project Sentinel (GTA Vice City Autonomous 
 - None explicitly required
 
 ## Artifact Index
-- D:\AI REXI\.agents\auditor_sentinel_1\DISPATCH.md — Initial dispatch prompt
-- D:\AI REXI\.agents\auditor_sentinel_1\BRIEFING.md — Persistent context & memory
-- D:\AI REXI\.agents\auditor_sentinel_1\progress.md — Liveness & step tracker
-- D:\AI REXI\.agents\auditor_sentinel_1\handoff.md — Final Victory Audit Report
+- D:\Rexi AI\.agents\auditor_sentinel_1\DISPATCH.md — Initial dispatch prompt
+- D:\Rexi AI\.agents\auditor_sentinel_1\BRIEFING.md — Persistent context & memory
+- D:\Rexi AI\.agents\auditor_sentinel_1\progress.md — Liveness & step tracker
+- D:\Rexi AI\.agents\auditor_sentinel_1\handoff.md — Final Victory Audit Report

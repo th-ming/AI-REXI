@@ -5,7 +5,7 @@ Coordinate and monitor autonomous GTA Vice City interactive launch, cutscene ski
 
 ## 🔒 My Identity
 - Archetype: sentinel
-- Working directory: D:\AI REXI\.agents\sentinel_1
+- Working directory: D:\Rexi AI\.agents\sentinel_1
 - Orchestrator: a69b72ab-ef1b-4289-a022-958bd5e92010
 - Victory Auditor: 63cd5f5e-c38d-40a4-b32d-b0e2c048c289
 
@@ -20,7 +20,7 @@ Coordinate and monitor autonomous GTA Vice City interactive launch, cutscene ski
 - **Delivered results**:
   - Autonomous launch and navigation without UAC elevation or 0xC0000005 crashes.
   - Native DirectInput key injection (F7 / AMERICAHELICOPTER / maybay) and God Mode immortality suite.
-  - Objective visual proof with 0 crash dialogs in D:\AI REXI\artifacts\proof_hunter_spawn.png.
+  - Objective visual proof with 0 crash dialogs in D:\Rexi AI\artifacts\proof_hunter_spawn.png.
   - 100% passing tests (183/183 master runner, 242/242 pytest).
 
 ## Project Status
@@ -33,6 +33,6 @@ Coordinate and monitor autonomous GTA Vice City interactive launch, cutscene ski
 - **Retry count**: 1
 
 ## Artifact Index
-- D:\AI REXI\.agents\ORIGINAL_REQUEST.md — Authoritative user request record
-- D:\AI REXI\artifacts\proof_hunter_spawn.png — High-resolution verified gameplay screenshot
-- D:\AI REXI\.agents\auditor_sentinel_1\handoff.md — Independent Victory Audit Report
+- D:\Rexi AI\.agents\ORIGINAL_REQUEST.md — Authoritative user request record
+- D:\Rexi AI\artifacts\proof_hunter_spawn.png — High-resolution verified gameplay screenshot
+- D:\Rexi AI\.agents\auditor_sentinel_1\handoff.md — Independent Victory Audit Report

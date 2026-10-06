@@ -2,7 +2,7 @@
 
 **Reviewer**: Reviewer Round 5 (reviewer@swe_light, qa@swe_light)  
 **Target Codebase**: `gta_core/`, `scripts/`, `tests/`, `run_autonomous_gta.py`  
-**Working Directory**: `D:\AI REXI\.agents\reviewer_5`  
+**Working Directory**: `D:\Rexi AI\.agents\reviewer_5`  
 **Date**: 2026-08-28  
 **Verdict**: **APPROVE & COMPLETE** (100% test pass rate across 165 runner tests and 224 pytest tests; 0x0055F544 crash root cause eliminated; robust dual triggers F7 & "maybay" verified; crash dialog rejection confirmed)
 
@@ -64,7 +64,7 @@
   * Aspect ratio sweep (0.8 - 5.0): 100% verified
   * Resolution scaling (640x480 up to 3840x2160): 100% verified
   * Clutter false positive sweep (grass, palm trees, ocean, neon signs, asphalt): 0 false positives
-- **JUnit XML Report**: `D:\AI REXI\test_results.xml`
+- **JUnit XML Report**: `D:\Rexi AI\test_results.xml`
 
 ---
 

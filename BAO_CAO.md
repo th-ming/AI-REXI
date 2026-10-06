@@ -1,4 +1,4 @@
-# 📋 BÁO CÁO CHI TIẾT — AI REXI + OpenCut (Phiên làm việc 10/08/2026)
+# 📋 BÁO CÁO CHI TIẾT — Rexi AI + OpenCut (Phiên làm việc 10/08/2026)
 
 > Mọi công việc đã **test kỹ 3 lớp** (code + API + môi trường thực tế Playwright), không làm hỏng chức năng nào liên quan.
 
@@ -9,10 +9,10 @@
 | # | Công việc | Loại | Trạng thái |
 |---|---|---|---|
 | 1 | Fix 74 lint errors trong OpenCut (bản đang phát triển tại `D:/repos/OpenCut`) | OpenCut | ✅ Hoàn thành |
-| 2 | Tích hợp OpenCut thành **tab mới trong AI REXI** | AI REXI Frontend | ✅ Hoàn thành |
-| 3 | **AI Rexi đọc được PDF + Word** (backend) | AI REXI Backend | ✅ Hoàn thành |
-| 4 | **Nút "Gửi PDF cho AI"** trong ChatTab | AI REXI Frontend | ✅ Hoàn thành |
-| 5 | OpenCut vào **HelpModal** (hướng dẫn chính thức) | AI REXI Frontend | ✅ Hoàn thành |
+| 2 | Tích hợp OpenCut thành **tab mới trong Rexi AI** | Rexi AI Frontend | ✅ Hoàn thành |
+| 3 | **AI Rexi đọc được PDF + Word** (backend) | Rexi AI Backend | ✅ Hoàn thành |
+| 4 | **Nút "Gửi PDF cho AI"** trong ChatTab | Rexi AI Frontend | ✅ Hoàn thành |
+| 5 | OpenCut vào **HelpModal** (hướng dẫn chính thức) | Rexi AI Frontend | ✅ Hoàn thành |
 | 6 | Kế hoạch tổng thể **PLAN.md** (4 giai đoạn) | Tài liệu | ✅ Hoàn thành |
 
 ---
@@ -41,7 +41,7 @@
 
 > Ghi chú: 111 errors còn lại ở toàn repo là **pre-existing** trong các file cũ (timeline controllers, apply.ts, browser.ts...) không thuộc phạm vi.
 
-### 2.2 Tích hợp OpenCut vào AI REXI (tab mới)
+### 2.2 Tích hợp OpenCut vào Rexi AI (tab mới)
 
 **File mới:** `Frontend/src/components/OpenCutTab.jsx` (83 dòng)
 - Render OpenCut qua **iframe fullscreen**, dark theme khớp app
@@ -93,7 +93,7 @@
 
 ### 2.5 Kế hoạch tổng thể PLAN.md
 
-`D:/AI REXI/PLAN.md` — 4 giai đoạn:
+`D:/Rexi AI/PLAN.md` — 4 giai đoạn:
 - **Phase 0 — Nền tảng** (XONG 5/6)
 - **Phase 1 — AI services nhẹ** (Groq STT, WhisperX subtitle, MinerU OCR, dịch sub) — ưu tiên cao nhất
 - **Phase 2 — Nâng cấp OpenCut** (blend modes, speed ramps, reverse/freeze, 4K export)

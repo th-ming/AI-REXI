@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BASE = (process.env.REXI_BASE || 'https://ai-rexi-backend.onrender.com').replace(/\/$/, '');
+const BASE = (process.env.REXI_BASE || 'https://ai-rexi-backend-nmue.onrender.com').replace(/\/$/, '');
 const EMAIL = process.env.ADMIN_EMAIL || process.env.REXI_ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD || process.env.REXI_ADMIN_PASSWORD;
 if (!EMAIL || !PASSWORD) { console.error('Thieu env ADMIN_EMAIL/ADMIN_PASSWORD'); process.exit(2); }
