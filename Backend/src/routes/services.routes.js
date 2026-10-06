@@ -1608,6 +1608,40 @@ router.get('/youtube/comments', rateLimit({ windowMs: 60000, max: 30 }), async (
   }
 });
 
+// Avatar kênh YouTube thật — qua worker (yt-dlp trang channel → avatar_uncropped).
+// Cache 7 ngày in-memory (avatar hiếm khi đổi). FE hiển thị chữ cái trước,
+// swap sang ảnh thật khi về (progressive enhancement như YouTube).
+if (!globalThis.__ytAvatarCache) globalThis.__ytAvatarCache = new Map();
+const YT_AVATAR_TTL_MS = 7 * 24 * 3600 * 1000;
+router.get('/youtube/channel-avatar', rateLimit({ windowMs: 60000, max: 60 }), async (req, res) => {
+  const channelId = String(req.query.channel_id || '').trim();
+  if (!/^UC[\w-]{20,}$/.test(channelId)) {
+    return res.status(400).json({ success: false, error: 'channel_id không hợp lệ.' });
+  }
+  const hit = globalThis.__ytAvatarCache.get(channelId);
+  if (hit && Date.now() - hit.t < YT_AVATAR_TTL_MS) {
+    return res.json({ success: true, ...hit.data, cached: true });
+  }
+  try {
+    const workerUrl = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/+$/, '');
+    const workerTok = (process.env.YTDLP_WORKER_TOKEN || '').trim();
+    if (!workerUrl) return res.status(503).json({ success: false, error: 'Thiếu worker (YTDLP_WORKER_URL).' });
+    const resp = await fetch(`${workerUrl}/channel-avatar?${workerTok ? `token=${encodeURIComponent(workerTok)}&` : ''}id=${encodeURIComponent(channelId)}`, { signal: AbortSignal.timeout(40000) });
+    const data = await resp.json();
+    if (!data.ok || !data.avatar_url) return res.status(500).json({ success: false, error: data.error || 'Lấy avatar thất bại.' });
+    const out = { channel_id: channelId, avatar_url: data.avatar_url, channel: data.channel || '' };
+    globalThis.__ytAvatarCache.set(channelId, { t: Date.now(), data: out });
+    if (globalThis.__ytAvatarCache.size > 500) {
+      const first = globalThis.__ytAvatarCache.keys().next().value;
+      globalThis.__ytAvatarCache.delete(first);
+    }
+    res.json({ success: true, ...out });
+  } catch (e) {
+    console.error('[YouTube] Channel-avatar error:', e.message);
+    res.status(500).json({ success: false, error: 'Lỗi lấy avatar: ' + e.message });
+  }
+});
+
 // ─── Bình luận LOCAL (của app, không cần Google OAuth) ─────────────────────
 // YouTube Data API đòi OAuth scope youtube.force-ssl + user re-consent nên
 // comment app để ở lớp riêng: ai cũng xem/gửi được bình luận ngay trong app,

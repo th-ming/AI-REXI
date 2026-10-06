@@ -155,6 +155,7 @@ async function searchVideos(query, limit = 12) {
         id: e.id,
         title: e.title,
         author: e.channel || e.uploader || '',
+        channel_id: e.channel_id || null,
         duration: e.duration,
         views: e.view_count,
         thumbnails: thumbs,
@@ -235,7 +236,7 @@ async function workerResolve(urlOrId) {
   const j = await res.json().catch(() => null);
   if (!j || !j.ok || !j.stream_url) throw new Error('worker không trả stream_url');
   return {
-    id: j.id, title: j.title, author: j.author, duration: j.duration, views: j.views,
+    id: j.id, title: j.title, author: j.author, channel_id: j.channel_id || null, duration: j.duration, views: j.views,
     description: String(j.description || '').slice(0, 2000),
     stream_url: j.stream_url,
     format_id: j.format_id ? `worker:${j.format_id}` : 'worker',
@@ -301,6 +302,7 @@ async function getVideoStream(urlOrId) {
         id: info.id,
         title: info.title,
         author: info.channel || info.uploader || '',
+        channel_id: info.channel_id || null,
         duration: info.duration,
         views: info.view_count,
         description: String(info.description || '').slice(0, 2000),
