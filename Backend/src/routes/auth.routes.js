@@ -324,7 +324,7 @@ router.get('/github/callback', async (req, res) => {
         const ghHeaders = {
             'Authorization': `Bearer ${tokenData.access_token}`,
             'Accept': 'application/vnd.github+json',
-            'User-Agent': 'AI-REXI',
+            'User-Agent': 'REXI-AI',
         };
         const meRes = await fetch('https://api.github.com/user', { headers: ghHeaders });
         const ghUser = await meRes.json();
@@ -379,7 +379,7 @@ async function sendOTPMail(to, otpCode) {
   await transporter.sendMail({
     from: SMTP_FROM || SMTP_USER,
     to,
-    subject: `AI REXI — Mã OTP đặt lại mật khẩu: ${otpCode}`,
+    subject: `Rexi AI — Mã OTP đặt lại mật khẩu: ${otpCode}`,
     text: `Mã OTP của bạn là: ${otpCode}\nCó hiệu lực trong 10 phút. Không chia sẻ mã này cho ai.`,
     html: `<p>Mã OTP của bạn là: <strong style="font-size:20px;letter-spacing:4px">${otpCode}</strong></p><p>Có hiệu lực trong 10 phút. Không chia sẻ mã này cho ai.</p>`
   });

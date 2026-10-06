@@ -1,5 +1,5 @@
 ﻿/**
- * AI REXI BRAIN — TOKENIZER UTILS + STOPWORDS VIỆT (Phase 1: NLP Core)
+ * Rexi AI BRAIN — TOKENIZER UTILS + STOPWORDS VIỆT (Phase 1: NLP Core)
  *
  * Công cụ chuẩn hoá văn bản tiếng Việt:
  *  - removeDiacritics: bỏ dấu (khớp từ điển không dấu)

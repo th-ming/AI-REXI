@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — CONTEXT ENGINE (Phase 4: Context Engine)
+ * Rexi AI BRAIN — CONTEXT ENGINE (Phase 4: Context Engine)
  *
  * Theo dõi ngữ cảnh phiên chat, tracking topics, detect topic transition.
  *

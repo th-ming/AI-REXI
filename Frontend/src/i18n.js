@@ -1,7 +1,7 @@
 // ─── ĐA NGÔN NGỮ (vi/en) — module dịch giao diện ───
 const translations = {
   vi: {
-    brand: 'AI REXI OS',
+    brand: 'Rexi AI OS',
     chatPlaceholder: "Gõ câu hỏi ở đây rồi bấm Enter — VD: 'Soạn giúp tôi kịch bản video...'",
     exportMd: 'Xuất Markdown',
     ttsBrowser: 'Trình duyệt (miễn phí)',
@@ -107,7 +107,7 @@ const translations = {
     lightMode: 'Chế độ sáng',
   },
   en: {
-    brand: 'AI REXI OS',
+    brand: 'Rexi AI OS',
     chatPlaceholder: "Type your question here and press Enter — e.g. 'Write me a video script...'",
     exportMd: 'Export Markdown',
     ttsBrowser: 'Browser (free)',

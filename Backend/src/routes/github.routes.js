@@ -53,7 +53,7 @@ function ensureGithubToken() {
 async function githubFetch(path, token) {
   const headers = {
     'Accept': 'application/vnd.github.v3+json',
-    'User-Agent': 'AI-REXI-Admin',
+    'User-Agent': 'REXI-AI-Admin',
   };
   const authToken = token || (await ensureGithubToken());
   if (authToken) headers['Authorization'] = `token ${authToken}`;
@@ -432,7 +432,7 @@ router.get('/export/starred', rateLimit({ windowMs: 60000, max: 10 }), async (re
       headers: {
         'Authorization': `token ${ghToken}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'AI-REXI-Admin',
+        'User-Agent': 'REXI-AI-Admin',
       },
     });
     if (!response.ok) throw new Error(`GitHub API ${response.status}`);
@@ -536,7 +536,7 @@ router.get('/starred/:owner/:name', async (req, res) => {
     if (GITHUB_TOKEN) {
       try {
         const response = await fetch(`https://api.github.com/user/starred/${owner}/${name}`, {
-          headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'AI-REXI-Admin' },
+          headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'REXI-AI-Admin' },
         });
         const isStarredOnGithub = response.status === 204;
 
@@ -574,7 +574,7 @@ router.post('/starred/batch', async (req, res) => {
     if (GITHUB_TOKEN) {
       try {
         const response = await fetch('https://api.github.com/user/starred?per_page=100&sort=created&direction=desc', {
-          headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'AI-REXI-Admin' },
+          headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'REXI-AI-Admin' },
         });
         if (response.ok) {
           const starred = await response.json();
@@ -622,7 +622,7 @@ router.post('/star', async (req, res) => {
     if (GITHUB_TOKEN) {
       try {
         const r = await fetch(`https://api.github.com/user/starred/${owner}/${name}`, {
-          method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'AI-REXI-Admin', 'Content-Length': '0' }
+          method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'REXI-AI-Admin', 'Content-Length': '0' }
         });
         return res.json({ success: true, starred: true, github: r.status === 204, message: `Starred ${fullName}` });
       } catch {}
@@ -645,7 +645,7 @@ router.delete('/star/:owner/:name', async (req, res) => {
     if (GITHUB_TOKEN) {
       try {
         await fetch(`https://api.github.com/user/starred/${owner}/${name}`, {
-          method: 'DELETE', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'AI-REXI-Admin' }
+          method: 'DELETE', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'REXI-AI-Admin' }
         });
       } catch {}
     }
@@ -666,7 +666,7 @@ router.get('/starred', async (req, res) => {
       headers: {
         'Authorization': `token ${GITHUB_TOKEN}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'AI-REXI-Admin',
+        'User-Agent': 'REXI-AI-Admin',
       },
     });
     if (!response.ok) throw new Error(`GitHub API ${response.status}`);

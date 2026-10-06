@@ -44,7 +44,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
 
   const handleTTSTest = async () => {
     if (!videoToolsOpen) return;
-    const testText = 'Xin chào, đây là giọng nói thử nghiệm từ AI Rexi.';
+    const testText = 'Xin chào, đây là giọng nói thử nghiệm từ Rexi AI.';
     const headers = { 'Content-Type': 'application/json' };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 

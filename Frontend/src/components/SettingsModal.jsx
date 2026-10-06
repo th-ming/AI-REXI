@@ -137,7 +137,7 @@ export default function SettingsModal({
       <div className="bg-[#141522] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-            <Settings size={18} className="text-cyan-500" /> Cài Đặt Hệ Thống AI Rexi
+            <Settings size={18} className="text-cyan-500" /> Cài Đặt Hệ Thống Rexi AI
           </h2>
           <div className="flex items-center gap-2">
             <button onClick={fetchProviders} title="Tải lại danh sách Provider" className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">

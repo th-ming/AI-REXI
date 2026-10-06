@@ -1,5 +1,5 @@
 /**
- * AI REXI Code Guardian
+ * Rexi AI Code Guardian
  * Quét tất cả file, phát hiện và xóa file rác,
  * kiểm tra Vietnamese diacritics, báo cáo chất lượng code.
  *
@@ -132,7 +132,7 @@ function fmt(b) {
 
 console.log('');
 console.log('============================================================');
-console.log('  AI REXI CODE GUARDIAN — Người Giám Sát Code');
+console.log('  Rexi AI CODE GUARDIAN — Người Giám Sát Code');
 console.log('============================================================');
 
 console.log('\n[1/3] Đang quét file rác...');

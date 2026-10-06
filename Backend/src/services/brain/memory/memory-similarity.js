@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — MEMORY SIMILARITY (Phase 2: Memory Layer)
+ * Rexi AI BRAIN — MEMORY SIMILARITY (Phase 2: Memory Layer)
  *
  * Đo độ tương đồng giữa 2 chuỗi tiếng Việt để chống trùng lặp memory.
  * Dùng Jaccard trên từ-bag (không dấu) + trọng số keyword.

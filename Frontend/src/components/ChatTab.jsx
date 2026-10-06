@@ -40,7 +40,7 @@ export default function ChatTab({
 
   const shareTargets = (url) => {
     const u = encodeURIComponent(url);
-    const tx = encodeURIComponent('Xem hội thoại này trên AI REXI');
+    const tx = encodeURIComponent('Xem hội thoại này trên Rexi AI');
     return [
       ['Telegram', `https://t.me/share/url?url=${u}&text=${tx}`],
       ['Messenger', `https://www.facebook.com/dialog/send?link=${u}&app_id=291494419107518&redirect_uri=${u}`],
@@ -118,7 +118,7 @@ export default function ChatTab({
               <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo w-16 h-16 object-contain" />
               <div>
                 <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-                  Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là AI Rexi Master.
+                  Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
                 </h2>
                 <p className="text-xs text-slate-400 mt-2">Bạn muốn làm gì hôm nay?</p>
               </div>
@@ -168,7 +168,7 @@ export default function ChatTab({
               </div>
 
               <p className="text-[10px] text-slate-500 max-w-md leading-relaxed">
-                👇 Hoặc <b>gõ câu hỏi vào ô chat bên dưới</b> — ví dụ: "Soạn giúp tôi một bài văn" — và bấm Enter. AI Rexi sẽ trả lời ngay.
+                👇 Hoặc <b>gõ câu hỏi vào ô chat bên dưới</b> — ví dụ: "Soạn giúp tôi một bài văn" — và bấm Enter. Rexi AI sẽ trả lời ngay.
               </p>
             </div>
           ) : (

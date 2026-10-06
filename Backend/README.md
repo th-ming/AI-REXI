@@ -1,4 +1,4 @@
-# AI REXI — Backend
+# Rexi AI — Backend
 
 Self-host AI assistant backend. Chạy local hoặc deploy Render/Railway.
 

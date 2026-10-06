@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — INTELLIGENCE (Phase 5: Adaptive Response)
+ * Rexi AI BRAIN — INTELLIGENCE (Phase 5: Adaptive Response)
  *
  * Xây dựng response adaptive:
  *  1. Gắn entity (extractEntities) → xác định ai đang nói, thông tin họ hỏi
@@ -55,8 +55,8 @@ function buildFullContext(userId, message) {
 function generateAdaptiveResponse(context) {
   if (!context || !context.entities) {
     return {
-      text: 'Xin chào! Tôi là AI REXI.',
-      response: 'Xin chào! Tôi là AI REXI, hệ thống đang hoạt động.',
+      text: 'Xin chào! Tôi là Rexi AI.',
+      response: 'Xin chào! Tôi là Rexi AI, hệ thống đang hoạt động.',
       intent: 'chao_hoi',
       sentiment: { score: 0, label: 'neutral', degree: 'khong', keywords: [] },
       entities: {}

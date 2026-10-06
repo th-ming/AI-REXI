@@ -1,5 +1,5 @@
 /**
- * AI REXI — CODE RUNNER (Chạy code trong chat — ADMIN ONLY ở tầng route)
+ * Rexi AI — CODE RUNNER (Chạy code trong chat — ADMIN ONLY ở tầng route)
  * Chỉ hỗ trợ Python / JavaScript. Bash/sh bị CHẶN HOÀN TOÀN.
  * - Python: chạy qua execFile('python', [file]) với env whitelist tối thiểu + timeout + giới hạn output.
  * - JavaScript: chạy trong vm sandbox với realm RỖNG hoàn toàn (không require/process/

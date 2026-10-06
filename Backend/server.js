@@ -162,7 +162,7 @@ const sessionSecret = resolveSessionSecret();
     db.get('SELECT 1 AS ok', [], (err) => {
       res.json({
         status: 'ok',
-        service: 'ai-rexi-backend',
+        service: 'rexi-ai-backend',
         db: err ? 'error' : 'connected',
         db_type: db.type || 'unknown',
         uptime_seconds: Math.round(process.uptime()),
@@ -243,7 +243,7 @@ const sessionSecret = resolveSessionSecret();
   const { startGitHubScheduler } = require('./src/github-trending-scheduler');
   const { startModelScannerScheduler } = require('./src/model-scanner.scheduler');
   const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Server] AI REXI Backend Ä‘ang cháº¡y táº¡i http://localhost:${PORT}`);
+    console.log(`[Server] Rexi AI Backend Ä‘ang cháº¡y táº¡i http://localhost:${PORT}`);
     if (process.env.ENABLE_IPTV_SCHEDULER !== 'false') {
       startScheduler();
     }

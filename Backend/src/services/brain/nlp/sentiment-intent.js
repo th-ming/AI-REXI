@@ -1,5 +1,5 @@
 ﻿/**
- * AI REXI BRAIN — SENTIMENT + INTENT CLASSIFIER (Phase 1: NLP Core)
+ * Rexi AI BRAIN — SENTIMENT + INTENT CLASSIFIER (Phase 1: NLP Core)
  *
  * Phân tích tiếng Việt KHÔNG gọi LLM:
  *  - Sentiment: từ điển + negator + intensifier

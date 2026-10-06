@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — ENTITY EXTRACTOR (Phase 1: NLP Core)
+ * Rexi AI BRAIN — ENTITY EXTRACTOR (Phase 1: NLP Core)
  *
  * Trích xuất thông tin quan trọng từ tin nhắn tiếng Việt bằng vntk:
  *  - NER (Nhận dạng thực thể có tên: người, địa điểm, tổ chức)

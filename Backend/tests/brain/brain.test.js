@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — Unit test (Phase 7: Self-test)
+ * Rexi AI BRAIN — Unit test (Phase 7: Self-test)
  *
  * Chạy: node Backend/tests/brain/brain.test.js
  * Kiểm thử toàn bộ Brain stack với hàng trăm trường hợp:
@@ -46,7 +46,7 @@ async function cleanupUser(uid) {
 }
 
 async function main() {
-  console.log('=== AI REXI BRAIN SELF-TEST (FULL) ===\n');
+  console.log('=== Rexi AI BRAIN SELF-TEST (FULL) ===\n');
 
   // ═══════════════════════════════════════════════
   // PHASE 1: NLP — ENTITY EXTRACTOR

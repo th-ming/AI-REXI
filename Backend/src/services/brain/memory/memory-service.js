@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — MEMORY SERVICE (Phase 2: Memory Layer)
+ * Rexi AI BRAIN — MEMORY SERVICE (Phase 2: Memory Layer)
  *
  * Quản lý "bộ nhớ dài hạn" cho từng người dùng trong bảng `bo_nho_dai_han`.
  * KHÔNG dùng LLM để ghi nhớ — chạy hoàn toàn local, tiết kiệm quota:

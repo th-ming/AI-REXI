@@ -1,5 +1,5 @@
 ﻿/**
- * AI REXI BRAIN — PROFILE ENGINE (Phase 3: Hồ sơ người dùng)
+ * Rexi AI BRAIN — PROFILE ENGINE (Phase 3: Hồ sơ người dùng)
  *
  * Xây dựng hồ sơ người dùng "tích luỹ" từ nhiều lần trò chuyện.
  * Khác memory: profile = bức tranh cấu trúc tổng quan, merge và cập nhật

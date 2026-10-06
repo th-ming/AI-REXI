@@ -1772,7 +1772,7 @@ async function classroomAuth(req) {
 
 router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, res) => {
   const user = await classroomAuth(req);
-  if (!user) return res.status(401).send('Unauthorized — vui lòng đăng nhập AI Rexi để dùng Lớp Học AI.');
+  if (!user) return res.status(401).send('Unauthorized — vui lòng đăng nhập Rexi AI để dùng Lớp Học AI.');
 
   // subpath sau /api/classroom (Express 5 đã strip mount point khỏi req.url)
   let sub = req.url || '/';
@@ -1839,7 +1839,7 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
     // QUAN TRỌNG: helmet của chính backend mình gắn X-Frame-Options: SAMEORIGIN lên
     // MỌI response → phải gỡ ở đây, nếu không iframe vẫn bị chặn.
     res.removeHeader('x-frame-options');
-    res.setHeader('content-security-policy', "frame-ancestors 'self' https://airexi.dpdns.org https://*.vercel.app http://localhost:*");
+    res.setHeader('content-security-policy', "frame-ancestors 'self' https://airexi.dpdns.org https://rexiai.dpdns.org https://*.vercel.app http://localhost:*");
 
     const rct = (upstream.headers.get('content-type') || '').toLowerCase();
     if (rct.includes('text/html')) {
@@ -2346,8 +2346,8 @@ router.post('/office/generate-docx', authMiddleware, async (req, res) => {
     }
 
     const doc = new Document({
-      title: title || 'Tài liệu AI Rexi',
-      description: 'Được tạo bởi AI Rexi Office Generator',
+      title: title || 'Tài liệu Rexi AI',
+      description: 'Được tạo bởi Rexi AI Office Generator',
       styles: { default: { document: { run: { font: 'Times New Roman', size: 24 } } } },
       sections: [{ children, properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } } }]
     });
@@ -2359,7 +2359,7 @@ router.post('/office/generate-docx', authMiddleware, async (req, res) => {
       success: true,
       data: base64,
       format: 'docx',
-      filename: `${(title || 'Tai_lieu_AIRexi').replace(/[^a-zA-Z0-9_]/g, '_')}.docx`,
+      filename: `${(title || 'Tai_lieu_RexiAI').replace(/[^a-zA-Z0-9_]/g, '_')}.docx`,
       size: buffer.length
     });
   } catch (err) {
@@ -2380,8 +2380,8 @@ router.post('/office/generate-pptx', authMiddleware, async (req, res) => {
 
     // Slide 1: Tiêu đề
     const slide1 = pres.addSlide();
-    slide1.addText(title || 'Bài thuyết trình AI Rexi', { x: 0.5, y: 1, w: 9, h: 2, fontSize: 36, color: 'FFFFFF', bold: true, align: 'center' });
-    slide1.addText('Được tạo bởi AI Rexi Office Generator', { x: 0.5, y: 3.2, w: 9, h: 0.8, fontSize: 16, color: 'AAAAAA', align: 'center' });
+    slide1.addText(title || 'Bài thuyết trình Rexi AI', { x: 0.5, y: 1, w: 9, h: 2, fontSize: 36, color: 'FFFFFF', bold: true, align: 'center' });
+    slide1.addText('Được tạo bởi Rexi AI Office Generator', { x: 0.5, y: 3.2, w: 9, h: 0.8, fontSize: 16, color: 'AAAAAA', align: 'center' });
     slide1.background = { color: '1E1E2E' };
 
     // Các slide nội dung
@@ -2413,7 +2413,7 @@ router.post('/office/generate-pptx', authMiddleware, async (req, res) => {
       success: true,
       data: base64,
       format: 'pptx',
-      filename: `${(title || 'Bai_thuyet_trinh_AIRexi').replace(/[^a-zA-Z0-9_]/g, '_')}.pptx`,
+      filename: `${(title || 'Bai_thuyet_trinh_RexiAI').replace(/[^a-zA-Z0-9_]/g, '_')}.pptx`,
       slides_count: slides.length + 1,
       size: buffer.length
     });
@@ -2441,7 +2441,7 @@ router.post('/office/process-pdf', authMiddleware, async (req, res) => {
         author: doc.getAuthor() || 'Unknown',
         subject: doc.getSubject() || '',
         keywords: doc.getKeywords() || '',
-        creator: doc.getCreator() || 'AI Rexi PDF Processor'
+        creator: doc.getCreator() || 'Rexi AI PDF Processor'
       });
     } else if (action === 'extract' || action === 'extract-text') {
       // Trích xuất toàn bộ nội dung chữ trong PDF (chạy CPU, không cần GPU)

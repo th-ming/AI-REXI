@@ -9,9 +9,9 @@ const FALLBACK_VOICES = [
 ];
 
 const QUICK_SAMPLES = [
-  { label: 'Chào mừng', text: 'Xin chào, tôi là AI Rexi, trợ lý ảo thông minh của bạn.' },
+  { label: 'Chào mừng', text: 'Xin chào, tôi là Rexi AI, trợ lý ảo thông minh của bạn.' },
   { label: 'Bản tin', text: 'Hôm nay thời tiết Hà Nội ổn định, nền kinh tế tăng trưởng 6.5% so với quý trước.' },
-  { label: 'Giới thiệu', text: 'Dự án AI Rexi đang phát triển rất tốt với hơn 10 tính năng AI tích hợp.' },
+  { label: 'Giới thiệu', text: 'Dự án Rexi AI đang phát triển rất tốt với hơn 10 tính năng AI tích hợp.' },
   { label: 'Quảng cáo', text: 'Giảm giá sốc 50% tất cả sản phẩm! Chỉ còn 3 ngày, nhanh tay đặt hàng ngay!' },
 ];
 
@@ -333,7 +333,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
     } catch {}
   };
   const apiSnippet = (id) =>
-`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://airexi.dpdns.org'}/api/services/tts/custom-voices/${id}/speak \\
+`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://rexiai.dpdns.org'}/api/services/tts/custom-voices/${id}/speak \\
   -H "Authorization: Bearer <APP_TOKEN>" \\
   -H "Content-Type: application/json" \\
   -d "{\\"text\\":\\"Xin chào\\"}"`;

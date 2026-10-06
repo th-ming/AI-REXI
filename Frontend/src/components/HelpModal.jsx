@@ -129,7 +129,7 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
 
   const FAQS = [
     { q: 'Màn hình trắng khi mở app?', a: 'Bấm F12 → tab Console xem lỗi đỏ. Thường do thiếu icon import (lỗi "X is not defined") hoặc Backend chưa chạy. Thử: chạy lại `npm run dev` ở Frontend và `node server.js` ở Backend.' },
-    { q: 'Không gửi được tin nhắn, báo lỗi server?', a: 'Kiểm tra Backend đã chạy chưa (cửa sổ CMD hiện "AI REXI Backend đang chạy tại http://localhost:5000"). Vào ⚙️ Cài Đặt để kiểm tra API Key.' },
+    { q: 'Không gửi được tin nhắn, báo lỗi server?', a: 'Kiểm tra Backend đã chạy chưa (cửa sổ CMD hiện "Rexi AI Backend đang chạy tại http://localhost:5000"). Vào ⚙️ Cài Đặt để kiểm tra API Key.' },
     { q: 'File audio TTS tải về ở đâu?', a: 'Sau khi bấm "Chuyển Thành Giọng Nói" ở TTS Studio, bấm nút tải ⬇️ — file MP3 sẽ lưu vào thư mục "Tải xuống" (Downloads) của máy bạn.' },
     { q: 'Chế độ khách bị giới hạn?', a: 'Chưa đăng nhập: 10 tin nhắn chat + 3 lượt Agent. Đăng nhập (nút "Đăng nhập" góc dưới sidebar) để dùng không giới hạn.' }
   ];
@@ -145,7 +145,7 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-800">Trung Tâm Trợ Giúp</h2>
-              <p className="text-[10px] text-slate-500">Hướng dẫn sử dụng AI Rexi từ A đến Z</p>
+              <p className="text-[10px] text-slate-500">Hướng dẫn sử dụng Rexi AI từ A đến Z</p>
             </div>
           </div>
           <button onClick={() => setHelpOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
@@ -210,7 +210,7 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between bg-white">
-          <p className="text-[10px] text-slate-500">Vẫn thắc mắc? Gõ câu hỏi vào chat, AI Rexi sẽ hướng dẫn bạn.</p>
+          <p className="text-[10px] text-slate-500">Vẫn thắc mắc? Gõ câu hỏi vào chat, Rexi AI sẽ hướng dẫn bạn.</p>
           <button
             onClick={() => setHelpOpen(false)}
             className="px-4 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-600 text-xs font-medium hover:bg-cyan-100 transition-colors"

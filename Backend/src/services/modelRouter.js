@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // SMART MODEL ROUTER — tự phân loại câu hỏi + chọn model + fallback
-// Trung tâm định tuyến model của AI REXI: quyết định dùng provider
+// Trung tâm định tuyến model của Rexi AI: quyết định dùng provider
 // nào + model nào cho từng câu hỏi, kèm chuỗi fallback tự động.
 // ─────────────────────────────────────────────────────────────
 'use strict';

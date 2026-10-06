@@ -152,7 +152,7 @@ function exportCSV(rows, filePath) {
 // ─── MAIN ──────────────────────────────────────────────────────
 async function main() {
   console.log('╔══════════════════════════════════════╗');
-  console.log('║     IPTV SCANNER - AI REXI         ║');
+  console.log('║     IPTV SCANNER - Rexi AI         ║');
   console.log('╚══════════════════════════════════════╝\n');
 
   if (!fs.existsSync(CONFIG.outputDir)) {

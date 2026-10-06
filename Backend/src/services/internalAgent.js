@@ -42,7 +42,7 @@ function buildSystemPrompt() {
       : '';
     return `- ${t.name}: ${String(t.description || '').slice(0, 160)}${params ? ' | tham số: ' + params : ''}`;
   }).join('\n');
-  return `Bạn là agent nội bộ của AI REXI, chạy trên server Linux. Bạn giải quyết việc bằng cách lặp lại các bước.
+  return `Bạn là agent nội bộ của Rexi AI, chạy trên server Linux. Bạn giải quyết việc bằng cách lặp lại các bước.
 
 TOOL KHẢ DỤNG:
 ${tools}

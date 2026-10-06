@@ -1,5 +1,5 @@
 /**
- * AI REXI - Teencode & Prompt Normalizer Middleware
+ * Rexi AI - Teencode & Prompt Normalizer Middleware
  * Standardizes informal Vietnamese shortcuts, teencode, and common typos
  * before passing prompts to AI models (Gemini, Ollama, OpenCode).
  */

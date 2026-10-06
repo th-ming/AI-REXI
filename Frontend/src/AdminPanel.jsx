@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// ADMIN PANEL - AI REXI OS (Auto-Reloaded & Synced)
+// ADMIN PANEL - Rexi AI OS (Auto-Reloaded & Synced)
 // ═══════════════════════════════════════════════════════════
 import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import {
@@ -1899,7 +1899,7 @@ export default function AdminPanel(props) {
             </div>
             <div>
               <h1 className="text-xs font-bold bg-gradient-to-r from-amber-300 via-amber-400 to-orange-400 bg-clip-text text-transparent">Admin Hub</h1>
-              <p className="text-[9px] text-slate-500 font-medium tracking-wide">AI REXI OS v2.0</p>
+              <p className="text-[9px] text-slate-500 font-medium tracking-wide">Rexi AI OS v2.0</p>
             </div>
           </div>
         </div>

@@ -579,7 +579,7 @@
 			x:game.width-10,
 			y:game.height-5,
 			draw:function(context){
-				var text = 'AI Rexi';
+				var text = 'Rexi AI';
 				context.font = '12px/20px PressStart2P';
 				context.textAlign = 'left';
 				context.textBaseline = 'top';

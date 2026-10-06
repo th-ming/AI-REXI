@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — RAG SERVICE (Đọc & hiểu FILE)
+ * Rexi AI BRAIN — RAG SERVICE (Đọc & hiểu FILE)
  *
  * Người dùng đưa file TXT/PDF/DOCX vào → mình trích xuất nội dung,
  * chia chunk, vector hóa bằng Gemini embedding → khi hỏi, tìm chunk

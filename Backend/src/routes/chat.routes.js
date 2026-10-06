@@ -134,7 +134,7 @@ function buildGeminiParts(noiDung) {
   return parts;
 }
 
-// ─── AI REXI BRAIN INTEGRATION ────────────────────────────────
+// ─── Rexi AI BRAIN INTEGRATION ────────────────────────────────
 const brain = require('../services/brain/intelligence/intelligence');
 const { extractEntities } = require('../services/brain/nlp/entity-extractor');
 const { loadSmartMemory, updateProfileFromMessage, saveMemoryAuto } = brain;
@@ -876,7 +876,7 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
         const userIdForBrain = req.user ? req.user.id : GUEST_USER_ID;
         const messageText = noi_dung;
 
-        // --- AI REXI BRAIN: tự lưu memory + cập nhật profile (fire-and-forget, không chặn chat) ---
+        // --- Rexi AI BRAIN: tự lưu memory + cập nhật profile (fire-and-forget, không chặn chat) ---
         // P0-privacy: CHỈ user đăng nhập mới có memory/profile. Guest dùng chung
         // GUEST_USER_ID → lưu memory guest = rò rỉ thông tin cá nhân cho mọi guest khác.
         if (req.user) {
@@ -889,7 +889,7 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
         } catch (e) { /* brain không bao giờ được chặn chat */ }
         }
 
-        // --- AI REXI BRAIN: load memory thông minh (priority + keyword match) + profile ---
+        // --- Rexi AI BRAIN: load memory thông minh (priority + keyword match) + profile ---
         // P0-privacy: guest KHÔNG đọc memory/profile chung (chứa dữ liệu người khác).
         let memoryText = '';
         let profileText = '';

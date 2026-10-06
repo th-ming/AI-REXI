@@ -1,5 +1,5 @@
 /**
- * AI REXI BRAIN — EMBEDDING SERVICE (Vector Understanding)
+ * Rexi AI BRAIN — EMBEDDING SERVICE (Vector Understanding)
  *
  * Chuyển văn bản thành VECTOR (embedding) bằng Gemini `gemini-embedding-001`
  * (dim 3072, miễn phí, chạy bằng key Gemini trong khoa_api).

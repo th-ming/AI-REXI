@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// AI REXI OS - Master Web Suite (Auto-Synced & Reloaded)
+// Rexi AI OS - Master Web Suite (Auto-Synced & Reloaded)
 // ═══════════════════════════════════════════════════════════
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
@@ -265,7 +265,7 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
 
           <div className="p-2 border-t border-white/10 bg-[#0e0f15] text-[10px] text-slate-400 flex items-center justify-between">
             <span className="flex items-center gap-1"><Zap size={11} className="text-cyan-400" /> Tự động chuyển Provider</span>
-            <span className="text-cyan-400 font-mono">AI REXI OS</span>
+            <span className="text-cyan-400 font-mono">Rexi AI OS</span>
           </div>
         </div>
       )}
@@ -1279,7 +1279,7 @@ useEffect(() => {
           }
         }
         if (finalText && (finalText.includes('The filename, directory name') || finalText.includes('syntax is incorrect'))) {
-          finalText = `Xin chào **${currentUser?.ten_day_du || 'USER'}**! Tôi là **AI Rexi Assistant**.\n\nHệ thống đã sẵn sàng 100% với bộ **35+ Skills Agent**, Quản Lý Files Workspace, Live IPTV & Remote Desktop Control. Bạn muốn tôi làm gì giúp bạn?`;
+          finalText = `Xin chào **${currentUser?.ten_day_du || 'USER'}**! Tôi là **Rexi AI Assistant**.\n\nHệ thống đã sẵn sàng 100% với bộ **35+ Skills Agent**, Quản Lý Files Workspace, Live IPTV & Remote Desktop Control. Bạn muốn tôi làm gì giúp bạn?`;
         }
         return { ...m, ma_tin_nhan: finalMaTinNhan, noi_dung: finalText };
       }));
@@ -1547,7 +1547,7 @@ useEffect(() => {
       // Nếu server trả lỗi cụ thể (vd sai mật khẩu) thì hiện lỗi đó thay vì thông báo chung
       alert(e.message && !e.message.includes('HTTP')
         ? e.message
-        : 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng hoặc khởi động lại server AI Rexi.');
+        : 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra mạng hoặc khởi động lại server Rexi AI.');
     }
   };
 
@@ -1850,7 +1850,7 @@ useEffect(() => {
                     <button onClick={() => { handleNewConversation(); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
                       <Plus size={14} /> Cuộc trò chuyện mới
                     </button>
-                    <button onClick={async () => { setMoreMenuOpen(false); try { const u = await handleShareConversation(); try { await navigator.clipboard?.writeText(u); showToast?.('Đã copy link chia sẻ', 'success'); } catch (e) { console.warn(e); } if (navigator.share) navigator.share({ title: 'AI REXI', url: u }).catch(() => {}); } catch (e) { showToast?.(e.message, 'error'); } }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
+                    <button onClick={async () => { setMoreMenuOpen(false); try { const u = await handleShareConversation(); try { await navigator.clipboard?.writeText(u); showToast?.('Đã copy link chia sẻ', 'success'); } catch (e) { console.warn(e); } if (navigator.share) navigator.share({ title: 'Rexi AI', url: u }).catch(() => {}); } catch (e) { showToast?.(e.message, 'error'); } }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
                       <Share2 size={14} /> Chia sẻ hội thoại
                     </button>
                     <button onClick={() => { try { exportMd(); } catch (e) { console.warn(e); } setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
@@ -2239,7 +2239,7 @@ useEffect(() => {
               <div className="auth-login-wrapper">
                 <div className="flex flex-col items-center pt-2 pb-2">
                   <img src="/rexi_cat_icon.png" alt="Logo" className="rexi-logo w-12 h-12 object-contain" />
-                  <span className="text-xs text-white/50 font-semibold tracking-widest mt-1">AI Rexi</span>
+                  <span className="text-xs text-white/50 font-semibold tracking-widest mt-1">Rexi AI</span>
                 </div>
 
 <div className="flex bg-[#131417] border border-white/10 rounded-xl p-1 mb-5">

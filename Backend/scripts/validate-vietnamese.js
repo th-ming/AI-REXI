@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * AI REXI — Vietnamese Diacritics Validator
+ * Rexi AI — Vietnamese Diacritics Validator
  * ============================================================
  * Quy tắc bắt buộc: MỌI string Vietnamese trong source code
  * PHẢI có dấu đầy đủ. KHÔNG được phép tạo string
@@ -123,7 +123,7 @@ function scanDir(dir) {
 
 // ─── MAIN ──────────────────────────────────────────────────
 console.log('═══════════════════════════════════════════════════════════');
-console.log('  AI REXI — Vietnamese Diacritics Validator');
+console.log('  Rexi AI — Vietnamese Diacritics Validator');
 console.log('  Mỗi string tiếng Việt PHẢI có dấu. Không được phép thiếu dấu.');
 console.log('═══════════════════════════════════════════════════════════\n');
 

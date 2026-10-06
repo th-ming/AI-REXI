@@ -96,7 +96,7 @@ export default function Sidebar({
           <RexiLogo className="w-8 h-8" />
           <div>
             <h1 className="font-bold text-base bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-              AI REXI OS
+              Rexi AI OS
             </h1>
             <span className="text-[10px] text-cyan-400/80 tracking-widest uppercase font-medium">Master Suite v2.0</span>
           </div>

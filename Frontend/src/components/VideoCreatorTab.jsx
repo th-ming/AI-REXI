@@ -41,7 +41,7 @@ const EASY_TEMPLATES = [
     desc: 'Aurora trôi suốt video + gradient quét qua chữ + film grain + vignette',
     category: 'intro',
     fields: [
-      { key: 'title', label: 'Tiêu đề chính', placeholder: 'VD: CHÀO MỪNG ĐẾN VỚI AI REXI', default: 'CHÀO MỪNG ĐẾN VỚI AI REXI' },
+      { key: 'title', label: 'Tiêu đề chính', placeholder: 'VD: CHÀO MỪNG ĐẾN VỚI Rexi AI', default: 'CHÀO MỪNG ĐẾN VỚI Rexi AI' },
       { key: 'subtitle', label: 'Phụ đề', placeholder: 'VD: Trợ lý đa mô hình — miễn phí', default: 'Trợ lý đa mô hình — miễn phí' },
     ],
     build: (f, dur) => { const A = fullDur(dur, 3); return `<meta charset="UTF-8">${GSAP_CDN}
