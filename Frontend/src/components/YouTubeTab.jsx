@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2, MessageSquare, History, PictureInPicture2 } from 'lucide-react';
+import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2, MessageSquare, History, PictureInPicture2, Gauge, Check } from 'lucide-react';
 import Hls from 'hls.js';
 import { API_BASE } from '../config';
 
@@ -130,6 +130,13 @@ showToast, active }) {
   // thủ công (gesture thật) thì unmute để có tiếng.
   const [playBlocked, setPlayBlocked] = useState(false);
   const [pipActive, setPipActive] = useState(false); // PiP: phát nền kiểu YouTube
+  // Tốc độ phát kiểu YouTube (0.25x–2x) — playbackRate trực tiếp, giữ vị trí phát
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [speedOpen, setSpeedOpen] = useState(false);
+  const setRate = (r) => {
+    setPlaybackRate(r);
+    try { if (videoRef.current) videoRef.current.playbackRate = r; } catch (e) { /* ignore */ }
+  };
   const pipCleanupRef = useRef(null);
   const tryPlay = (fromUser) => {
     const v = videoRef.current;
@@ -384,6 +391,8 @@ showToast, active }) {
     setIsHlsStream(false);
     setComments(null);
     setPlayBlocked(false);
+    setPlaybackRate(1);
+    setSpeedOpen(false);
     // Lưu vào lịch sử xem (localStorage) — đầu danh sách, tối đa 24
     try {
       const raw = localStorage.getItem('rexi_watch_history');
