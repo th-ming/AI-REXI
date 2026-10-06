@@ -383,7 +383,7 @@ async function snapshotSavedRepoStars() {
       try {
         const [owner, name] = full_name.split('/');
         const res = await fetch(`https://api.github.com/repos/${owner}/${name}`, {
-          headers: { 'User-Agent': 'AI-REXI-Admin' },
+          headers: { 'User-Agent': 'REXI-AI-Admin' },
         });
         if (!res.ok) continue;
         const data = await res.json();

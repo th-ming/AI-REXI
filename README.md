@@ -1,4 +1,4 @@
-﻿# AI-REXI
+﻿# REXI-AI
 
 Dự Án Trợ Lý Rexi AI (Rexi AI Assistant).
 
@@ -43,8 +43,8 @@ npm run dev
 ## 🔗 Remote Git
 
 ```
-origin	https://github.com/tranminh09818/AI-REXI.git (fetch)
-origin	https://github.com/tranminh09818/AI-REXI.git (push)
+origin	https://github.com/th-ming/REXI-AI.git (fetch)
+origin	https://github.com/th-ming/REXI-AI.git (push)
 ```
 
 ## 📤 Push Code Mẫu

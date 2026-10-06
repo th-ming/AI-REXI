@@ -1,5 +1,5 @@
 /**
- * AI REXI Multi-Database Adapter
+ * Rexi AI Multi-Database Adapter
  * Supports: sqlite | sqlserver | postgresql
  * Mode: single | parallel
  */
