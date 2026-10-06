@@ -1614,9 +1614,24 @@ router.get('/youtube/comments', rateLimit({ windowMs: 60000, max: 30 }), async (
 if (!globalThis.__ytAvatarCache) globalThis.__ytAvatarCache = new Map();
 const YT_AVATAR_TTL_MS = 7 * 24 * 3600 * 1000;
 router.get('/youtube/channel-avatar', rateLimit({ windowMs: 60000, max: 60 }), async (req, res) => {
-  const channelId = String(req.query.channel_id || '').trim();
+  let channelId = String(req.query.channel_id || '').trim();
+  const videoId = String(req.query.video_id || '').trim();
+  // Flat search đôi khi trả channel_id rỗng/"NA" → resolve từ video page (luôn có channel_id)
   if (!/^UC[\w-]{20,}$/.test(channelId)) {
-    return res.status(400).json({ success: false, error: 'channel_id không hợp lệ.' });
+    if (!/^[\w-]{6,}$/.test(videoId)) {
+      return res.status(400).json({ success: false, error: 'channel_id không hợp lệ.' });
+    }
+    try {
+      const workerUrl0 = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/+$/, '');
+      const workerTok0 = (process.env.YTDLP_WORKER_TOKEN || '').trim();
+      if (!workerUrl0) return res.status(503).json({ success: false, error: 'Thiếu worker.' });
+      const ir = await fetch(`${workerUrl0}/info?${workerTok0 ? `token=${encodeURIComponent(workerTok0)}&` : ''}id=${encodeURIComponent(videoId)}`, { signal: AbortSignal.timeout(45000) });
+      const ij = await ir.json().catch(() => null);
+      if (ij && ij.ok && /^UC[\w-]{20,}$/.test(ij.channel_id || '')) channelId = ij.channel_id;
+      else return res.status(404).json({ success: false, error: 'Không xác định được kênh của video.' });
+    } catch (e) {
+      return res.status(502).json({ success: false, error: 'Lỗi resolve kênh: ' + e.message });
+    }
   }
   const hit = globalThis.__ytAvatarCache.get(channelId);
   if (hit && Date.now() - hit.t < YT_AVATAR_TTL_MS) {

@@ -70,24 +70,27 @@ function renderMarkdown(text) {
 // Avatar kênh YouTube thật — hiển thị chữ cái trước, fetch ảnh thật rồi swap
 // (progressive enhancement như YouTube). Cache 7 ngày phía BE nên lần sau ăn ngay.
 const avatarMemCache = new Map();
-function ChannelAvatar({ channelId, author, size = 36, ring = true }) {
+function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
   const [src, setSrc] = useState(() => (channelId && avatarMemCache.get(channelId)) || null);
   useEffect(() => {
-    if (!channelId) return;
-    if (avatarMemCache.get(channelId)) { setSrc(avatarMemCache.get(channelId)); return; }
+    if (!channelId && !videoId) return;
+    if (channelId && avatarMemCache.get(channelId)) { setSrc(avatarMemCache.get(channelId)); return; }
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/services/youtube/channel-avatar?channel_id=${encodeURIComponent(channelId)}`);
+        const q = channelId
+          ? `channel_id=${encodeURIComponent(channelId)}`
+          : `video_id=${encodeURIComponent(videoId)}`;
+        const res = await fetch(`${API_BASE}/services/youtube/channel-avatar?${q}`);
         const data = await res.json().catch(() => null);
         if (!cancelled && data && data.success && data.avatar_url) {
-          avatarMemCache.set(channelId, data.avatar_url);
+          if (data.channel_id) avatarMemCache.set(data.channel_id, data.avatar_url);
           setSrc(data.avatar_url);
         }
       } catch { /* giữ chữ cái fallback */ }
     })();
     return () => { cancelled = true; };
-  }, [channelId]);
+  }, [channelId, videoId]);
   const letter = String(author || 'Y').trim().charAt(0).toUpperCase();
   if (src) {
     return (
@@ -676,7 +679,7 @@ showToast, active }) {
                       </div>
                     </div>
                     <div className="flex gap-2.5 mt-2.5">
-                      <ChannelAvatar channelId={v.channel_id} author={v.author} size={36} />
+                      <ChannelAvatar channelId={v.channel_id} videoId={v.id} author={v.author} size={36} />
                       <div className="min-w-0">
                         <p className="text-[13px] font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
                         <p className="text-xs text-slate-400 mt-1 truncate">{v.author}</p>
@@ -764,7 +767,7 @@ showToast, active }) {
             {/* Hàng kênh + hành động kiểu YouTube */}
             <div className="flex flex-wrap items-center gap-3 mt-2.5">
               <div className="flex items-center gap-2.5 min-w-0">
-                <ChannelAvatar channelId={selected.channel_id} author={selected.author} size={40} />
+                <ChannelAvatar channelId={selected.channel_id} videoId={selected.id} author={selected.author} size={40} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white truncate">{selected.author}</p>
                 </div>
