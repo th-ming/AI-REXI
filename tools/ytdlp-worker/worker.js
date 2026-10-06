@@ -223,6 +223,7 @@ async function resolveComments(idOrUrl) {
       text: c.text,
       likes: c.like_count || 0,
       time: c.timestamp ? new Date(c.timestamp * 1000).toISOString().substring(0, 10) : '',
+      avatar: c.author_thumbnail || null,
     }));
   return { comments, count: data.comment_count || comments.length };
 }

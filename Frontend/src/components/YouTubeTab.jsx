@@ -67,6 +67,50 @@ function renderMarkdown(text) {
   return elements;
 }
 
+// Avatar kênh YouTube thật — hiển thị chữ cái trước, fetch ảnh thật rồi swap
+// (progressive enhancement như YouTube). Cache 7 ngày phía BE nên lần sau ăn ngay.
+const avatarMemCache = new Map();
+function ChannelAvatar({ channelId, author, size = 36, ring = true }) {
+  const [src, setSrc] = useState(() => (channelId && avatarMemCache.get(channelId)) || null);
+  useEffect(() => {
+    if (!channelId) return;
+    if (avatarMemCache.get(channelId)) { setSrc(avatarMemCache.get(channelId)); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/services/youtube/channel-avatar?channel_id=${encodeURIComponent(channelId)}`);
+        const data = await res.json().catch(() => null);
+        if (!cancelled && data && data.success && data.avatar_url) {
+          avatarMemCache.set(channelId, data.avatar_url);
+          setSrc(data.avatar_url);
+        }
+      } catch { /* giữ chữ cái fallback */ }
+    })();
+    return () => { cancelled = true; };
+  }, [channelId]);
+  const letter = String(author || 'Y').trim().charAt(0).toUpperCase();
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={author || 'kênh'}
+        loading="lazy"
+        onError={() => { avatarMemCache.delete(channelId); setSrc(null); }}
+        className="rounded-full object-cover shrink-0"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <span
+      className={`${ring ? 'bg-gradient-to-tr from-red-600 to-rose-500' : 'bg-slate-700'} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}
+    >
+      {letter}
+    </span>
+  );
+}
+
 export default function YouTubeTab({ API_BASE: _api, authToken,
 showToast, active }) {
   const [query, setQuery] = useState('');
@@ -341,7 +385,7 @@ showToast, active }) {
     try {
       const raw = localStorage.getItem('rexi_watch_history');
       const prev = raw ? JSON.parse(raw) : [];
-      const next = [{ id: video.id, title: video.title, thumb: video.thumb, author: video.author, views: video.views, duration: video.duration }, ...prev.filter((v) => v.id !== video.id)].slice(0, 24);
+      const next = [{ id: video.id, title: video.title, thumb: video.thumb, author: video.author, channel_id: video.channel_id || null, views: video.views, duration: video.duration }, ...prev.filter((v) => v.id !== video.id)].slice(0, 24);
       localStorage.setItem('rexi_watch_history', JSON.stringify(next));
       setHistory(next);
     } catch (e) { console.warn('[rexi] watch history save failed', e); }
@@ -359,7 +403,7 @@ showToast, active }) {
       if (!data.success) throw new Error(data.error || 'Không phát được video');
       // Nếu user đã bấm video khác trong lúc chờ → bỏ kết quả cũ, không ghi đè video mới
       if (seq !== playSeqRef.current) return;
-      setSelected((prev) => ({ ...prev, stream_url: data.stream_url, description: data.description }));
+      setSelected((prev) => ({ ...prev, stream_url: data.stream_url, description: data.description, channel_id: data.channel_id || prev.channel_id || null }));
       setStreamLoading(false);
       const _tok = (() => { try { return localStorage.getItem('rexi_token') || ''; } catch { return ''; } })();
       const pUrl = `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(data.stream_url)}${_tok ? `&token=${encodeURIComponent(_tok)}` : ''}`;
@@ -632,9 +676,7 @@ showToast, active }) {
                       </div>
                     </div>
                     <div className="flex gap-2.5 mt-2.5">
-                      <span className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                        {(v.author || 'Y').trim().charAt(0).toUpperCase()}
-                      </span>
+                      <ChannelAvatar channelId={v.channel_id} author={v.author} size={36} />
                       <div className="min-w-0">
                         <p className="text-[13px] font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
                         <p className="text-xs text-slate-400 mt-1 truncate">{v.author}</p>
@@ -722,9 +764,7 @@ showToast, active }) {
             {/* Hàng kênh + hành động kiểu YouTube */}
             <div className="flex flex-wrap items-center gap-3 mt-2.5">
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className="w-10 h-10 rounded-full bg-gradient-to-tr from-red-600 to-rose-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
-                  {(selected.author || 'Y').trim().charAt(0).toUpperCase()}
-                </span>
+                <ChannelAvatar channelId={selected.channel_id} author={selected.author} size={40} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-white truncate">{selected.author}</p>
                 </div>
@@ -852,9 +892,13 @@ showToast, active }) {
                   </div>
                   {comments.comments.map((c, i) => (
                     <div key={c.id || i} className="flex gap-2.5">
-                      <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-600 to-slate-800 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
-                        {String(c.author || 'Ẩ').trim().charAt(0).toUpperCase()}
-                      </span>
+                      {c.avatar ? (
+                        <img src={c.avatar} alt={c.author} loading="lazy" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-600 to-slate-800 flex items-center justify-center text-[10px] font-bold text-white shrink-0">
+                          {String(c.author || 'Ẩ').trim().charAt(0).toUpperCase()}
+                        </span>
+                      )}
                       <div className="min-w-0">
                         <p className="text-[11px] text-slate-400">
                           <span className="font-semibold text-slate-300">{c.author}</span>
