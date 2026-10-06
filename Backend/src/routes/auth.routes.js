@@ -271,10 +271,14 @@ router.get('/google/callback', async (req, res) => {
                 return res.redirect(`${frontendUrl}?error=server_error`);
             }
 
-            // Kiểm tra scope trả về: Google echo lại scope đã cấp trong token response
-            // (granted_scopes) hoặc id_token — lấy khi có.
+            // Kiểm tra scope trả về: token response của Google chứa field `scope`
+            // (cách nhau bằng space) liệt kê các quyền user vừa cấp.
             const granted = tokenData.scope || '';
-            saveGoogleTokens(user.ma_nguoi_dung, tokenData.access_token, tokenData.refresh_token, granted);
+            if (tokenData.refresh_token || granted) {
+                saveGoogleTokens(user.ma_nguoi_dung, tokenData.access_token, tokenData.refresh_token, granted);
+            } else {
+                console.log('[Auth] Google callback: không có refresh_token/scope mới — giữ token cũ.');
+            }
 
             const token = generateToken(user);
             // Redirect back to frontend with token in hash fragment (không lộ vào URL query/history/log)
