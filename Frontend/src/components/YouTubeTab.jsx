@@ -282,6 +282,9 @@ showToast, active }) {
     }
   };
 
+  // Textarea bình luận tự giãn theo nội dung (mặc định 1 dòng cho gọn)
+  const commentRows = commentText.trim() ? Math.min(6, Math.max(2, commentText.split('\n').length + Math.floor(commentText.length / 60))) : 1;
+
   // Gửi bình luận local của app (không cần Google OAuth — xem BE /comments/local)
   // Đồng thời thử gửi lên YouTube thật nếu đã liên kết quyền (tick ô YouTube
   // khi đăng nhập Google). Không liên kết → chỉ lưu local, báo rõ.
@@ -832,7 +835,7 @@ showToast, active }) {
                         onChange={(e) => setCommentText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
                         placeholder="Viết bình luận trong app... (Enter để gửi)"
-                        rows={1}
+                        rows={commentRows}
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/60 resize-none"
                       />
                       <div className="flex items-center gap-2 mt-1.5">
@@ -882,7 +885,7 @@ showToast, active }) {
                         onChange={(e) => setCommentText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
                         placeholder="Hãy là người đầu tiên bình luận trong app... (Enter để gửi)"
-                        rows={1}
+                        rows={commentRows}
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/60 resize-none"
                       />
                       <button
