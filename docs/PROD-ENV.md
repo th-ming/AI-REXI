@@ -1,4 +1,4 @@
-# AI REXI — Biến môi trường Production (Render)
+# Rexi AI — Biến môi trường Production (Render)
 
 Chỉ liệt kê **tên** biến + cách tạo/xoay. Không bao giờ ghi giá trị secret vào repo.
 

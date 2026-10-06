@@ -1,6 +1,6 @@
 # ═══════════════════════════════════════════════════════════════
-# AI REXI — Backend Dockerfile (VPS rác friendly, ~300MB runtime)
-# Build:  docker build -f deploy/Dockerfile.backend -t ai-rexi-backend .
+# Rexi AI — Backend Dockerfile (VPS rác friendly, ~300MB runtime)
+# Build:  docker build -f deploy/Dockerfile.backend -t rexi-ai-backend .
 # ═══════════════════════════════════════════════════════════════
 FROM node:20-slim
 

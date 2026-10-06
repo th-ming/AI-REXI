@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# AI REXI — Deploy 1 lệnh lên VPS
+# Rexi AI — Deploy 1 lệnh lên VPS
 #
 # Yêu cầu trên VPS: Docker + Docker Compose plugin
 #   curl -fsSL https://get.docker.com | sh
@@ -9,7 +9,7 @@
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
-cd "$(dirname "$0")/.."   # về thư mục gốc AI REXI
+cd "$(dirname "$0")/.."   # về thư mục gốc Rexi AI
 
 # Tạo .env nếu chưa có
 if [ ! -f .env ]; then
@@ -24,7 +24,7 @@ if [ -z "$DOMAIN" ] || [ "$DOMAIN" = "rexi.example.com" ]; then
   exit 1
 fi
 
-echo "🚀 Deploy AI REXI → https://$DOMAIN"
+echo "🚀 Deploy Rexi AI → https://$DOMAIN"
 docker compose -f deploy/docker-compose.prod.yml up -d --build
 
 echo ""

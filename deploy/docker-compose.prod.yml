@@ -1,8 +1,8 @@
 # ═══════════════════════════════════════════════════════════════
-# AI REXI — docker-compose.prod.yml (deploy VPS)
+# Rexi AI — docker-compose.prod.yml (deploy VPS)
 #
 # Cách chạy (trên VPS):
-#   1. Copy toàn bộ thư mục AI REXI + D:/repos/OpenCut lên VPS
+#   1. Copy toàn bộ thư mục Rexi AI + D:/repos/OpenCut lên VPS
 #   2. cp deploy/.env.example .env  →  sửa DOMAIN=rexi.domain.com
 #   3. ./deploy/deploy.sh  (hoặc docker compose -f deploy/docker-compose.prod.yml up -d --build)
 #
@@ -12,7 +12,7 @@
 # ═══════════════════════════════════════════════════════════════
 
 services:
-  # ─── Backend AI REXI (Node) ───
+  # ─── Backend Rexi AI (Node) ───
   backend:
     build:
       context: ..

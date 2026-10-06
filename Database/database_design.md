@@ -1,4 +1,4 @@
-# Thiết Kế Cơ Sở Dữ Liệu Cho Trợ Lý AI Rexi (Bản Đầy Đủ & Tích Hợp Kỹ Năng)
+# Thiết Kế Cơ Sở Dữ Liệu Cho Trợ Lý Rexi AI (Bản Đầy Đủ & Tích Hợp Kỹ Năng)
 
 Chào bạn! Đây là bản sao tài liệu thiết kế cơ sở dữ liệu được đặt riêng trong thư mục dự án `D:\AI REXI`.
 

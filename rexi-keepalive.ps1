@@ -1,4 +1,4 @@
-﻿# rexi-keepalive.ps1 - Giu backend Render cua AI REXI luon tinh (chong sleep)
+﻿# rexi-keepalive.ps1 - Giu backend Render cua Rexi AI luon tinh (chong sleep)
 # Render free tier ngu sau 15 phut idle, goi moi 60s de no khong bao gio ngu.
 # Chay nen: dang ky Windows Scheduled Task (xem rexi-keepalive-task.ps1)
 # ──────────────────────────────────────────────────────────────
@@ -27,7 +27,7 @@ function Show-Alert {
             [System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null
             $balloon = New-Object System.Windows.Forms.NotifyIcon
             $balloon.Icon = [System.Drawing.SystemIcons]::Warning
-            $balloon.BalloonTipTitle = 'AI REXI Backend DEAD!'
+            $balloon.BalloonTipTitle = 'Rexi AI Backend DEAD!'
             $balloon.BalloonTipText = $Message
             $balloon.BalloonTipIcon = 'Warning'
             $balloon.Visible = $true
@@ -44,7 +44,7 @@ function Show-Alert {
 
 # ── Banner khi bat dau ──
 $ts = Get-Date -Format 'HH:mm:ss'
-Write-Host "[$ts] 🚀 AI REXI KeepAlive v2 — Dang giu backend song..." -ForegroundColor Cyan
+Write-Host "[$ts] 🚀 Rexi AI KeepAlive v2 — Dang giu backend song..." -ForegroundColor Cyan
 Write-Host "[$ts]    URL: $($urls[0])" -ForegroundColor DarkGray
 Write-Host "[$ts]    Interval: 60s | Dead threshold: $deadThreshold fail" -ForegroundColor DarkGray
 Write-Host "[$ts]    Log file: $(Join-Path $PSScriptRoot 'rexi-keepalive.log')" -ForegroundColor DarkGray

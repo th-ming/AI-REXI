@@ -1,4 +1,4 @@
-# VieNeu-TTS (CPU) — self-host cho AI REXI
+# VieNeu-TTS (CPU) — self-host cho Rexi AI
 
 Engine TTS tiếng Việt **miễn phí** chạy trên máy user (CPU, torch-free ONNX), có
 **clone giọng**. Cloud (Render free) không chạy nổi model nên chỉ đóng vai trò cầu nối:
@@ -45,7 +45,7 @@ Watchdog sẽ:
 3. Ghi URL mới vào `vieneu-tunnel.txt`.
 4. Khi URL đổi → verify `GET <url>/health` từ ngoài → `update-vieneu-url.py` PUT env + deploy Render.
 
-## Backend AI REXI
+## Backend Rexi AI
 
 - `VIENEU_BASE_URL` (env Render) = URL tunnel. Có env này thì:
   - `GET /api/services/tts/voices` trả 25 preset VieNeu (`engine: "vieneu"`, `voice_clone: true`).

@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════════
-# AI REXI — Caddyfile (HTTPS miễn phí tự động + reverse proxy)
+# Rexi AI — Caddyfile (HTTPS miễn phí tự động + reverse proxy)
 # $DOMAIN được thay bởi biến môi trường khi chạy container.
 # ═══════════════════════════════════════════════════════════════
 

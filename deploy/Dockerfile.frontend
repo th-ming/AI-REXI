@@ -1,6 +1,6 @@
 # ═══════════════════════════════════════════════════════════════
-# AI REXI — Frontend Dockerfile (build static + Caddy serve)
-# Build:  docker build -f deploy/Dockerfile.frontend -t ai-rexi-frontend .
+# Rexi AI — Frontend Dockerfile (build static + Caddy serve)
+# Build:  docker build -f deploy/Dockerfile.frontend -t rexi-ai-frontend .
 # ═══════════════════════════════════════════════════════════════
 FROM node:20-slim AS build
 

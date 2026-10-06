@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * ytdlp-worker.js - Worker yt-dlp chạy trên máy dân dụng (IP nhà) cho AI REXI.
+ * ytdlp-worker.js - Worker yt-dlp chạy trên máy dân dụng (IP nhà) cho Rexi AI.
  *
  * Mục đích: YouTube chặn bot theo IP datacenter (Render). Worker này chạy trên máy
  * nhà (residential IP), lấy URL stream THẬT rồi PROXY luôn bytes (không thể trả URL
@@ -27,7 +27,7 @@ const { URL } = require('url');
 const PORT = parseInt(process.env.PORT || '8787', 10);
 const TOKEN = (process.env.WORKER_TOKEN || '').trim();
 
-// Đường dẫn yt-dlp: mặc định binary bundled của repo AI REXI.
+// Đường dẫn yt-dlp: mặc định binary bundled của repo Rexi AI.
 const DEFAULT_YTDLP = path.join(
   __dirname, '..', '..', 'Backend', 'node_modules', 'youtube-dl-exec', 'bin',
   process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp'

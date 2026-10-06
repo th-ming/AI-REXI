@@ -8,7 +8,7 @@ $LogFile = Join-Path $LogDir 'auto-sync.log'
 if ($IntervalSeconds -lt 30) { throw 'Interval must be >= 30 seconds' }
 if (!(Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
 
-Write-Host "=== AI REXI Auto Sync ===" -ForegroundColor Green
+Write-Host "=== Rexi AI Auto Sync ===" -ForegroundColor Green
 Write-Host "Interval: $IntervalSeconds seconds" -ForegroundColor DarkGray
 Write-Host "Log: $LogFile" -ForegroundColor DarkGray
 Write-Host "Close this window to stop." -ForegroundColor Yellow

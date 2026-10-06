@@ -1,6 +1,6 @@
 ﻿# AI-REXI
 
-Dự Án Trợ Lý AI Rexi (AI Rexi Assistant).
+Dự Án Trợ Lý Rexi AI (Rexi AI Assistant).
 
 ---
 
@@ -52,7 +52,7 @@ origin	https://github.com/tranminh09818/AI-REXI.git (push)
 ```powershell
 cd D:\AI REXI
 git add .
-git commit -m "chore: update AI Rexi"
+git commit -m "chore: update Rexi AI"
 git push origin main
 ```
 ```

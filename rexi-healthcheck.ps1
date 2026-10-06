@@ -1,11 +1,11 @@
-# rexi-healthcheck.ps1 - Kiem tra nhanh trang thai backend AI REXI tren Render
+# rexi-healthcheck.ps1 - Kiem tra nhanh trang thai backend Rexi AI tren Render
 # Chay: powershell -ExecutionPolicy Bypass -File D:\AI REXI\rexi-healthcheck.ps1
 
 $url = "https://ai-rexi-backend.onrender.com"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  AI REXI Backend Health Check" -ForegroundColor Cyan
+Write-Host "  Rexi AI Backend Health Check" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -107,7 +107,7 @@ Write-Host ""
 Write-Host "Neu thay '404 Not Found' o bat ky endpoint nao:" -ForegroundColor Yellow
 Write-Host "  -> Backend da bi TAT/XOA tren Render" -ForegroundColor White
 Write-Host "  -> Vao https://dashboard.render.com" -ForegroundColor White
-Write-Host "  -> Tim service 'ai-rexi-backend'" -ForegroundColor White
+Write-Host "  -> Tim service 'rexi-ai-backend'" -ForegroundColor White
 Write-Host "  -> Click 'Resume' neu co, hoac 'Manual Deploy' de deploy lai" -ForegroundColor White
 Write-Host ""
 Write-Host "Neu thay '503/502' (sleep):" -ForegroundColor Yellow

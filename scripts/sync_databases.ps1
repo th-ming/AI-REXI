@@ -8,7 +8,7 @@ param(
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 if (!$Quiet) {
-    Write-Host "=== AI REXI Database Sync ===" -ForegroundColor Cyan
+    Write-Host "=== Rexi AI Database Sync ===" -ForegroundColor Cyan
     Write-Host "From: $From -> To: $To" -ForegroundColor DarkGray
 }
 

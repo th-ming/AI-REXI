@@ -1,4 +1,4 @@
-# AI REXI — Render blueprint (web service duy nhất; backend tự serve Frontend/dist)
+# Rexi AI — Render blueprint (web service duy nhất; backend tự serve Frontend/dist)
 # TÁCH HOÀN TOÀN khỏi project/service PKTY — không dùng chung repo, DB, env.
 #
 # LƯU Ý (14/9/2026): service prod THẬT hiện tạo qua API/dashboard (KHÔNG phải qua
@@ -10,7 +10,7 @@
 # Nếu mai sau switch sang Blueprint deploy thì giữ nguyên các giá trị này.
 services:
   - type: web
-    name: ai-rexi-backend
+    name: rexi-ai-backend
     runtime: node
     plan: free
     branch: main

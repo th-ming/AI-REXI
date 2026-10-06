@@ -1,5 +1,5 @@
 /**
- * AI REXI — Database Sync Tool
+ * Rexi AI — Database Sync Tool
  * Syncs data between SQLite, SQL Server, and PostgreSQL
  * Usage: node scripts/sync_databases.js --from=sqlite --to=sqlserver
  *        node scripts/sync_databases.js --from=sqlserver --to=postgresql
@@ -128,7 +128,7 @@ async function syncTable(from, to, table) {
 }
 
 async function main() {
-  console.log('=== AI REXI Database Sync ===\n');
+  console.log('=== Rexi AI Database Sync ===\n');
 
   const fromType = args.from || 'sqlite';
   const toType = args.to || 'sqlserver';
