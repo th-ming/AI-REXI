@@ -79,3 +79,11 @@ Database/backups/
 # Local credential/artifact
 Tempopencodegh-push-cred.txt
 *cred*.txt
+.creds.md
+*creds*.md
+
+# Local session memory (chứa secret - KHONG commit)
+STATE-REXI.md
+
+.vercel
+.env*

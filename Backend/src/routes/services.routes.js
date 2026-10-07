@@ -1839,7 +1839,7 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
     // QUAN TRỌNG: helmet của chính backend mình gắn X-Frame-Options: SAMEORIGIN lên
     // MỌI response → phải gỡ ở đây, nếu không iframe vẫn bị chặn.
     res.removeHeader('x-frame-options');
-    res.setHeader('content-security-policy', "frame-ancestors 'self' https://ai-rexi-app.vercel.app https://*.vercel.app http://localhost:*");
+    res.setHeader('content-security-policy', "frame-ancestors 'self' https://rexiai.bot.cd https://www.rexiai.bot.cd https://ai-rexi-app.vercel.app https://rexiai.de5.net https://*.vercel.app http://localhost:*");
 
     const rct = (upstream.headers.get('content-type') || '').toLowerCase();
     if (rct.includes('text/html')) {

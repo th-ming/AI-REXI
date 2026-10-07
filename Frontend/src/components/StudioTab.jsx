@@ -333,7 +333,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
     } catch {}
   };
   const apiSnippet = (id) =>
-`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://rexiai.dpdns.org'}/api/services/tts/custom-voices/${id}/speak \\
+`curl -X POST ${typeof window !== 'undefined' ? window.location.origin : 'https://rexiai.bot.cd'}/api/services/tts/custom-voices/${id}/speak \\
   -H "Authorization: Bearer <APP_TOKEN>" \\
   -H "Content-Type: application/json" \\
   -d "{\\"text\\":\\"Xin chào\\"}"`;
