@@ -250,8 +250,8 @@ async function executeTool(toolName, args) {
       return r;
     }
     case 'opencut_act': {
-      const { sendCommand } = require('./opencutBridge');
-      return await sendCommand(args.action, args);
+      const { enqueue } = require('./opencutBridge');
+      return await enqueue(args.action, args);
     }
     default:
       return { error: "Tool '" + toolName + "' chưa được implement" };

@@ -1,75 +1,62 @@
-// background.js — giữ WebSocket tới Rexi, chuyển lệnh agent → tab OpenCut.
-const WS_URL = 'wss://rexiai.bot.cd/api/opencut-bridge';
+// background.js — poll lệnh từ Rexi, chuyển xuống tab OpenCut, trả kết quả.
+const API = 'https://rexiai.bot.cd/api/opencut-bridge';
 
-let ws = null;
 let port = null;      // long-lived port từ content-opencut (tab OpenCut)
 let token = null;
-let status = 'idle';
-let reconnectTimer = null;
+let pollTimer = null;
 
 function log(...a) { try { console.log('[RexiBridge]', ...a); } catch (e) {} }
+function authHeaders() { return { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }; }
 
-function connect() {
-  if (!token) { status = 'no-token'; return; }
-  if (ws && (ws.readyState === 0 || ws.readyState === 1)) return;
-  try { ws = new WebSocket(WS_URL + '?token=' + encodeURIComponent(token)); }
-  catch (e) { status = 'error'; log('ws create err', e); scheduleReconnect(); return; }
+async function postResult(id, result) {
+  if (!token) return;
+  try { await fetch(API + '/result', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ id, result }) }); }
+  catch (e) {}
+}
 
-  ws.onopen = () => { status = 'connected'; log('WS connected'); };
-  ws.onmessage = (ev) => {
-    let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
-    if (msg.type === 'cmd') {
-      if (port) {
-        try { port.postMessage({ type: 'cmd', id: msg.id, action: msg.action, args: msg.args || {} }); }
-        catch (e) { sendResult(msg.id, { success: false, error: 'port gửi lỗi: ' + e.message }); }
-      } else {
-        sendResult(msg.id, { success: false, error: 'Chưa có tab OpenCut mở. Hãy mở https://opencut.app.' });
-      }
+function handleCmd(c) {
+  if (!port) { postResult(c.id, { success: false, error: 'Chưa có tab OpenCut mở. Hãy mở https://opencut.app.' }); return; }
+  try { port.postMessage({ type: 'cmd', id: c.id, action: c.action, args: c.args || {} }); }
+  catch (e) { postResult(c.id, { success: false, error: 'port gửi lỗi: ' + e.message }); }
+}
+
+async function pollOnce() {
+  if (!token) return;
+  try {
+    const r = await fetch(API + '/poll', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ hasTab: !!port }) });
+    if (r.ok) {
+      const d = await r.json();
+      for (const c of (d.commands || [])) handleCmd(c);
+    } else if (r.status === 401) {
+      token = null; // token hết hạn → chờ content-rexi đẩy lại
     }
-  };
-  ws.onclose = () => { status = 'disconnected'; log('WS closed'); scheduleReconnect(); };
-  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+  } catch (e) {}
 }
 
-function scheduleReconnect() {
-  if (reconnectTimer) return;
-  reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, 3000);
-}
+function loop() { if (pollTimer) clearInterval(pollTimer); pollOnce(); pollTimer = setInterval(pollOnce, 1500); }
 
-function sendResult(id, result) {
-  if (ws && ws.readyState === 1) {
-    try { ws.send(JSON.stringify({ type: 'result', id, ...result })); } catch (e) {}
-  }
-}
-
-// Token đẩy từ content-rexi (đọc localStorage rexiai.bot.cd)
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'token' && msg.token) {
-    if (msg.token !== token) {
-      token = msg.token;
-      chrome.storage.local.set({ rexi_token: token });
-      if (ws) { try { ws.close(); } catch (e) {} ws = null; }
-      connect();
-    }
-    sendResponse && sendResponse({ ok: true, status });
+    const changed = msg.token !== token;
+    token = msg.token;
+    chrome.storage.local.set({ rexi_token: token });
+    if (changed) { log('token received'); loop(); }
+    sendResponse && sendResponse({ ok: true });
   } else if (msg && msg.type === 'getStatus') {
-    sendResponse && sendResponse({ status, hasToken: !!token, hasTab: !!port });
+    fetch(API + '/status', { headers: authHeaders() })
+      .then(r => r.json())
+      .then(d => sendResponse && sendResponse({ hasToken: !!token, hasTab: !!port, ...d }))
+      .catch(() => sendResponse && sendResponse({ hasToken: !!token, hasTab: !!port }));
+    return true;
   }
   return true;
 });
 
-// Port dài hạn từ tab OpenCut
 chrome.runtime.onConnect.addListener((p) => {
   if (p.name !== 'opencut') return;
   port = p;
-  status = status === 'connected' ? 'connected' : status;
-  p.onMessage.addListener((m) => {
-    if (m && m.type === 'result') sendResult(m.id, m.result || { success: true });
-  });
+  p.onMessage.addListener((m) => { if (m && m.type === 'result') postResult(m.id, m.result || { success: true }); });
   p.onDisconnect.addListener(() => { if (port === p) port = null; });
 });
 
-// Khởi động: nạp token đã lưu
-chrome.storage.local.get(['rexi_token'], (r) => {
-  if (r && r.rexi_token) { token = r.rexi_token; connect(); }
-});
+chrome.storage.local.get(['rexi_token'], (r) => { if (r && r.rexi_token) { token = r.rexi_token; loop(); } });

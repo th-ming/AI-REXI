@@ -1,54 +1,63 @@
 /**
- * opencutBridge.js — cầu nối Rexi agent ↔ extension trình duyệt người dùng.
+ * opencutBridge.js — cầu nối Rexi agent ↔ extension trình duyệt (HTTP polling).
  *
- * Luồng: Extension (chạy trên opencut.app) mở WebSocket tới server → giữ 1 kết nối.
- * Agent gọi tool opencut_act → sendCommand() → đẩy lệnh xuống extension → extension
- * thao tác DOM trong tab OpenCut → trả kết quả ngược lại.
+ * Lý do dùng polling thay WebSocket: nhiều WebSocketServer có `path` trên cùng 1 HTTP
+ * server đè nhau (ws abort 400 khi path không khớp) → tránh hẳn bằng HTTP thường.
+ *
+ * Luồng:
+ *  - Agent gọi tool opencut_act → enqueue(action, args) → chờ kết quả (timeout).
+ *  - Extension (background) poll /api/opencut-bridge/poll mỗi ~1.5s → nhận lệnh.
+ *  - Extension thao tác tab OpenCut → POST /api/opencut-bridge/result {id, result}.
  */
-const clients = new Set();
+
+const queue = [];          // lệnh chờ extension lấy
+const pending = new Map(); // id -> { resolve, timer }
 let seq = 0;
-const pending = new Map();
+let lastPollTs = 0;        // lần cuối extension poll
+let lastPollHasTab = false; // extension báo có tab OpenCut
 
-function setWSS(wss, opts = {}) {
-  wss.on('connection', (ws, req) => {
-    if (typeof opts.verify === 'function') {
-      try { if (!opts.verify(ws, req)) { try { ws.close(4001, 'Unauthorized'); } catch (e) {} return; } }
-      catch (e) { try { ws.close(4001, 'Unauthorized'); } catch (e2) {} return; }
-    }
-    clients.add(ws);
-    try { ws.send(JSON.stringify({ type: 'hello', ok: true, clients: clients.size })); } catch (e) {}
-
-    ws.on('message', (raw) => {
-      let msg; try { msg = JSON.parse(raw.toString()); } catch (e) { return; }
-      if (msg && msg.type === 'result' && msg.id != null) {
-        const p = pending.get(msg.id);
-        if (p) { clearTimeout(p.timer); pending.delete(msg.id); p.resolve(msg); }
-      } else if (msg && msg.type === 'ping') {
-        try { ws.send(JSON.stringify({ type: 'pong' })); } catch (e) {}
-      }
-    });
-    const drop = () => clients.delete(ws);
-    ws.on('close', drop);
-    ws.on('error', drop);
-  });
-}
-
-function connectedCount() { return clients.size; }
-
-function firstClient() { for (const c of clients) return c; return null; }
-
-function sendCommand(action, args = {}, timeoutMs = 30000) {
+function enqueue(action, args = {}, timeoutMs = 30000) {
   return new Promise((resolve) => {
-    const ws = firstClient();
-    if (!ws) {
-      return resolve({ success: false, error: 'Chưa có extension kết nối. Mở https://opencut.app và bật extension Rexi OpenCut Bridge (đã đăng nhập rexiai.bot.cd).' });
-    }
     const id = ++seq;
-    const timer = setTimeout(() => { pending.delete(id); resolve({ success: false, error: 'Timeout: extension không phản hồi cho "' + action + '"' }); }, timeoutMs);
+    queue.push({ id, action, args, ts: Date.now() });
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      // xoá khỏi queue nếu chưa ai lấy
+      const i = queue.findIndex(c => c.id === id);
+      if (i >= 0) queue.splice(i, 1);
+      resolve({ success: false, error: 'Timeout: extension không phản hồi cho "' + action + '". Kiểm tra đã cài/mở extension + tab opencut.app chưa.' });
+    }, timeoutMs);
     pending.set(id, { resolve, timer });
-    try { ws.send(JSON.stringify({ type: 'cmd', id, action, args })); }
-    catch (e) { clearTimeout(timer); pending.delete(id); resolve({ success: false, error: 'Gửi lệnh lỗi: ' + e.message }); }
   });
 }
 
-module.exports = { setWSS, sendCommand, connectedCount };
+// Extension gọi để lấy lệnh (và báo còn sống / có tab)
+function poll(hasTab) {
+  lastPollTs = Date.now();
+  lastPollHasTab = !!hasTab;
+  const cmds = queue.splice(0, queue.length);
+  return cmds;
+}
+
+function submitResult(msg) {
+  if (!msg || msg.id == null) return { ok: false };
+  lastPollTs = Date.now();
+  const p = pending.get(msg.id);
+  if (!p) return { ok: false, note: 'id không còn chờ (đã timeout?)' };
+  clearTimeout(p.timer);
+  pending.delete(msg.id);
+  p.resolve(msg.result && typeof msg.result === 'object' ? msg.result : { success: false, error: 'result rỗng' });
+  return { ok: true };
+}
+
+function status() {
+  return {
+    connected: (Date.now() - lastPollTs) < 8000,
+    lastPollAgoSec: lastPollTs ? Math.round((Date.now() - lastPollTs) / 1000) : null,
+    hasTab: lastPollHasTab,
+    queued: queue.length,
+    inFlight: pending.size,
+  };
+}
+
+module.exports = { enqueue, poll, submitResult, status };

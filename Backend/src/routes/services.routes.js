@@ -3810,4 +3810,20 @@ router.get('/video/file/:name', tokenFromQuery, authMiddleware, (req, res) => {
   res.sendFile(fp);
 });
 
+// ═══════════ OPENCUT BRIDGE (extension polling) ═══════════
+const opencutBridge = require('../services/opencutBridge');
+
+// Extension poll lấy lệnh (và báo còn sống + có tab OpenCut)
+router.post('/opencut-bridge/poll', tokenFromQuery, authMiddleware, (req, res) => {
+  res.json({ commands: opencutBridge.poll(req.body && req.body.hasTab) });
+});
+// Extension trả kết quả
+router.post('/opencut-bridge/result', tokenFromQuery, authMiddleware, (req, res) => {
+  res.json(opencutBridge.submitResult(req.body || {}));
+});
+// Trạng thái cầu nối
+router.get('/opencut-bridge/status', tokenFromQuery, authMiddleware, (req, res) => {
+  res.json(opencutBridge.status());
+});
+
 module.exports = router;
