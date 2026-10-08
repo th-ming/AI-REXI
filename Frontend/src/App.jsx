@@ -1936,6 +1936,7 @@ useEffect(() => {
           {/* TAB 5c: OPENCUT EDITOR */}
           {activeTab === 'opencut' && (
             <OpenCutTab
+              authToken={authToken}
               showToast={showToast}
             />
           )}
