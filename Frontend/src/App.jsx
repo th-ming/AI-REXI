@@ -2320,8 +2320,7 @@ useEffect(() => {
           {/* Panel công cụ — smoked glass, tuot ra tu mep, dau thi stagger */}
           <div ref={fabMenuRef} className={`
             fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform
-            bg-[#0e101a]/80 backdrop-blur-2xl border border-white/[0.08]
-            shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_28px_70px_-28px_rgba(0,0,0,0.95)]
+            rexi-fab-panel border
             transition-all duration-[600ms] ease-[cubic-bezier(0.32,0.72,0,1)]
             max-h-[calc(100dvh-160px)] overflow-y-auto pr-1.5 scrollbar-thin
             ${fabOpen
@@ -2416,21 +2415,20 @@ useEffect(() => {
               onClick={() => setFabOpen(!fabOpen)}
               className={`
                 group fixed bottom-6 right-0 z-50 h-14 pl-3 pr-2.5 flex items-center rounded-l-full
-                bg-[#0e101a]/85 backdrop-blur-xl border border-white/[0.10] border-r-0
-                shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_1px_0_0_rgba(255,255,255,0.05),0_14px_36px_-18px_rgba(0,0,0,0.9)]
+                rexi-fab-tab border border-r-0
                 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform
                 ${fabOpen
-                  ? '-translate-x-1 bg-[#12141f]/90'
-                  : 'hover:-translate-x-3 hover:bg-[#151827]/95 hover:border-white/[0.18] active:scale-[0.98]'
+                  ? '-translate-x-1 rexi-fab-tab-open'
+                  : 'hover:-translate-x-3 active:scale-[0.98]'
                 }
               `}
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
               {/* LED light — nguon sang xanh nhe, khong to mau */}
-              <span className={`absolute left-[7px] top-3 bottom-3 w-px bg-gradient-to-b from-[#8fb2ff] via-[#8fb2ff]/30 to-transparent transition-opacity duration-500 ${fabOpen ? 'opacity-100' : 'opacity-55 group-hover:opacity-100'}`} />
+              <span className={`rexi-fab-led absolute left-[7px] top-3 bottom-3 w-px transition-opacity duration-500 ${fabOpen ? 'opacity-100' : 'opacity-55 group-hover:opacity-100'}`} />
               {/* island: chevron trong vong kinh */}
-              <span className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] transition-all duration-500 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] group-hover:bg-white/[0.12] group-hover:-translate-x-px">
-                <ChevronLeft size={16} strokeWidth={1.5} className={`text-[#9db9ff] transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)] ${fabOpen ? 'rotate-180' : ''}`} />
+              <span className="rexi-fab-island w-8 h-8 flex items-center justify-center rounded-full transition-all duration-500 group-hover:-translate-x-px">
+                <ChevronLeft size={16} strokeWidth={1.5} className={`rexi-fab-chevron transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)] ${fabOpen ? 'rotate-180' : ''}`} />
               </span>
             </button>
         </>
