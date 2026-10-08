@@ -250,14 +250,14 @@ router.get('/conversations', (req, res, next) => {
   // (Trước đây: guest luôn nhận [] — mất sidebar; nhưng biết ID conv người khác vẫn đọc được.)
   if (!req.user) {
     if (!req.sessionID) return res.json([]);
-    db.all("SELECT * FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ? AND ma_phien = ? AND ngay_xoa IS NULL ORDER BY ngay_cap_nhat DESC", [GUEST_USER_ID, req.sessionID], (err, rows) => {
+    db.all("SELECT * FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ? AND ma_phien = ? AND ngay_xoa IS NULL ORDER BY da_ghim DESC, ngay_cap_nhat DESC", [GUEST_USER_ID, req.sessionID], (err, rows) => {
       if (err) return res.status(500).json({ error: err.message });
       res.json(rows || []);
     });
     return;
   }
   const userId = req.user.id;
-  db.all("SELECT * FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ? AND ngay_xoa IS NULL ORDER BY ngay_cap_nhat DESC", [userId], (err, rows) => {
+  db.all("SELECT * FROM cuoc_hoi_thoai WHERE ma_nguoi_dung = ? AND ngay_xoa IS NULL ORDER BY da_ghim DESC, ngay_cap_nhat DESC", [userId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(rows || []);
   });
@@ -323,6 +323,33 @@ router.post('/conversations', (req, res, next) => {
     if (typeof req.session.save === 'function') return req.session.save(() => doInsert());
   }
   doInsert();
+});
+
+// Ghim/bỏ ghim cuộc hội thoại (owner-only: user = chính nó, guest = đúng session)
+router.post('/conversations/:id/pin', (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return guestMiddleware(req, res, next);
+  }
+  return authMiddleware(req, res, next);
+}, (req, res) => {
+  const { id } = req.params;
+  const daGhim = (req.body && (req.body.da_ghim === 1 || req.body.da_ghim === true || req.body.da_ghim === '1')) ? 1 : 0;
+  let sql = 'UPDATE cuoc_hoi_thoai SET da_ghim = ? WHERE ma_hoi_thoai = ? AND ngay_xoa IS NULL';
+  const params = [daGhim, id];
+  if (req.user) {
+    sql += ' AND ma_nguoi_dung = ?';
+    params.push(req.user.id);
+  } else {
+    if (!req.sessionID) return res.status(403).json({ error: 'Không có quyền ghim cuộc hội thoại này.' });
+    sql += ' AND ma_nguoi_dung = ? AND ma_phien = ?';
+    params.push(GUEST_USER_ID, req.sessionID);
+  }
+  db.run(sql, params, function (err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(403).json({ error: 'Không có quyền ghim cuộc hội thoại này.' });
+    res.json({ success: true, id, da_ghim: daGhim });
+  });
 });
 
 // GUEST: Lấy thông tin giới hạn

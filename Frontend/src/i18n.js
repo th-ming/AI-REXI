@@ -19,6 +19,8 @@ const translations = {
     send: 'Gửi',
     // Sidebar
     newConversation: 'Cuộc Trò Chuyện Mới',
+    pinConv: 'Ghim hội thoại lên đầu',
+    unpinConv: 'Bỏ ghim',
     searchConvs: 'Tìm hội thoại...',
     projectFiles: 'Files Dự Án',
     messageAdmin: 'Nhắn Admin',
@@ -125,6 +127,8 @@ const translations = {
     send: 'Send',
     // Sidebar
     newConversation: 'New Conversation',
+    pinConv: 'Pin conversation to top',
+    unpinConv: 'Unpin',
     searchConvs: 'Search conversations...',
     projectFiles: 'Project Files',
     messageAdmin: 'Message Admin',

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
    PanelLeftClose, Plus, MessageSquare,
    Layers, Zap, Search, Trash2, ChevronDown, FolderOpen,
-   User, Settings, LogOut, Headphones, Shield
+   User, Settings, LogOut, Headphones, Shield, Pin
   } from 'lucide-react';
 import { API_BASE } from '../config';
 import { t } from '../i18n';
@@ -16,7 +16,7 @@ export default function Sidebar({
   setActiveTab,
   filteredConvs, searchQuery, setSearchQuery,
   activeConvId, setActiveConvId,
-  handleNewConversation, handleDeleteConversation,
+  handleNewConversation, handleDeleteConversation, handleTogglePin,
   filesDrawerOpen, setFilesDrawerOpen, renderTree, fileTree,
    setSkillsOpen, setSuperToolsOpen,
   currentUser, setCurrentUser, setAuthToken, setAuthModalOpen, setSettingsOpen,
@@ -172,12 +172,25 @@ export default function Sidebar({
               <MessageSquare size={14} className={activeConvId === conv.ma_hoi_thoai ? "text-cyan-400" : "text-slate-500"} />
               <span className="text-xs truncate font-medium">{conv.tieu_de || t(lang, 'newChat')}</span>
             </div>
-            <button
-              onClick={(e) => handleDeleteConversation(conv.ma_hoi_thoai, e)}
-              className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-white/10 text-slate-500 hover:text-rose-400 transition-all"
-            >
-              <Trash2 size={13} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={(e) => handleTogglePin && handleTogglePin(conv, e)}
+                className={`p-1 rounded-md transition-all ${
+                  conv.da_ghim
+                    ? 'opacity-100 text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
+                    : 'opacity-0 group-hover:opacity-100 text-slate-500 hover:text-amber-400 hover:bg-white/10'
+                }`}
+                title={conv.da_ghim ? t(lang, 'unpinConv') : t(lang, 'pinConv')}
+              >
+                <Pin size={13} className={conv.da_ghim ? 'fill-amber-400/30' : ''} />
+              </button>
+              <button
+                onClick={(e) => handleDeleteConversation(conv.ma_hoi_thoai, e)}
+                className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-white/10 text-slate-500 hover:text-rose-400 transition-all"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
