@@ -147,7 +147,9 @@ async function opAddText(a) {
   const color = a.color || 'white';
   const posMap = { top: 'x=(w-text_w)/2:y=40', bottom: 'x=(w-text_w)/2:y=h-th-60', center: 'x=(w-text_w)/2:y=(h-th)/2' };
   const pos = posMap[a.position] || posMap.bottom;
-  let draw = `drawtext=text='${escapeDrawtext(a.text || '')}':fontsize=${fontsize}:fontcolor=${color}:${pos}:box=1:boxcolor=black@0.4:boxborderw=12`;
+  const FONT_FILE = path.join(__dirname, '..', '..', 'assets', 'NotoSans-Regular.ttf');
+  const fontArg = fs.existsSync(FONT_FILE) ? `fontfile='${FONT_FILE.replace(/\\/g, '/').replace(/:/g, '\\:')}':` : '';
+  let draw = `drawtext=${fontArg}text='${escapeDrawtext(a.text || '')}':fontsize=${fontsize}:fontcolor=${color}:${pos}:box=1:boxcolor=black@0.4:boxborderw=12`;
   if (a.start != null || a.duration != null) {
     const s = a.start != null ? parseTime(a.start) : 0;
     const e = a.duration != null ? s + parseTime(a.duration) : 1e6;
