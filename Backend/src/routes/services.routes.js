@@ -3830,5 +3830,20 @@ router.post('/opencut-bridge/shot', tokenFromQuery, authMiddleware, async (req, 
   const r = await opencutBridge.enqueue('screenshot', {}, 20000);
   res.json(r);
 });
+// Agent AN TOÀN cho OpenCut — CHỈ mở tool opencut_act, cho MỌI user đã đăng nhập (không cần admin)
+router.post('/opencut-bridge/ask', authMiddleware, async (req, res) => {
+  try {
+    const { message } = req.body || {};
+    if (!message || !String(message).trim()) return res.status(400).json({ error: 'Thiếu message' });
+    const { runInternalAgent } = require('../services/internalAgent');
+    const result = await runInternalAgent(
+      `Bạn hỗ trợ người dùng điều khiển tab OpenCut của CHÍNH HỌ qua tool opencut_act (extension của họ đã kết nối với server). Thực hiện yêu cầu sau: ${String(message).trim()}`,
+      { allowedTools: ['opencut_act'] }
+    );
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 module.exports = router;

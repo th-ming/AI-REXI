@@ -72,12 +72,10 @@ function AgentBridgePanel({ token, showToast }) {
     if (!token) { showToast && showToast('Cần đăng nhập để dùng agent', 'error'); return; }
     setBusy(true); setLog('Đang gửi tới agent...');
     try {
-      const r = await fetch('/api/agent/chat', {
+      const r = await fetch('/api/services/opencut-bridge/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({
-          message: `Bạn đang hỗ trợ thao tác trên tab OpenCut của người dùng (phía trình duyệt người dùng). Hãy dùng tool opencut_act để thực hiện yêu cầu sau trên OpenCut: ${msg}`
-        })
+        body: JSON.stringify({ message: msg })
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) { setLog('Lỗi: ' + (data.error || r.status)); }

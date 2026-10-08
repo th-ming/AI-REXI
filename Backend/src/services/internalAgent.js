@@ -35,8 +35,11 @@ function chatUrl(provider) {
   throw new Error(`Không biết chat endpoint cho provider ${provider}`);
 }
 
-function buildSystemPrompt() {
-  const tools = TOOL_REGISTRY.map(t => {
+function buildSystemPrompt(allowedTools) {
+  const list = (allowedTools && allowedTools.length)
+    ? TOOL_REGISTRY.filter(t => allowedTools.includes(t.name))
+    : TOOL_REGISTRY;
+  const tools = list.map(t => {
     const params = (t.parameters && t.parameters.properties)
       ? Object.entries(t.parameters.properties).map(([k, v]) => `"${k}": (${v.type || 'string'}) ${String(v.description || '').slice(0, 90)}`).join('; ')
       : '';
@@ -91,14 +94,14 @@ async function callModel(baseUrl, key, model, messages) {
   return String(content);
 }
 
-async function runInternalAgent(prompt, { provider = AGENT_PROVIDER, model = AGENT_MODEL, onEvent } = {}) {
+async function runInternalAgent(prompt, { provider = AGENT_PROVIDER, model = AGENT_MODEL, onEvent, allowedTools } = {}) {
   // Chain: provider được chỉ định trước, sau đó fallback các provider còn lại có key
   const chain = [{ provider, model }]
     .concat(FALLBACK_PROVIDERS.filter(f => f.provider !== provider));
   let lastErr = null;
   for (const cand of chain) {
     try {
-      return await runAgentLoop(prompt, cand.provider, cand.model, onEvent);
+      return await runAgentLoop(prompt, cand.provider, cand.model, onEvent, allowedTools);
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
@@ -110,11 +113,11 @@ async function runInternalAgent(prompt, { provider = AGENT_PROVIDER, model = AGE
   throw lastErr || new Error('Không có provider AI khả dụng');
 }
 
-async function runAgentLoop(prompt, provider, model, onEvent) {
+async function runAgentLoop(prompt, provider, model, onEvent, allowedTools) {
   const key = await getKey(provider);
   if (!key) throw new Error(`Provider ${provider} chưa có API key trong khoa_api (env AGENT_PROVIDER/AGENT_MODEL để đổi)`);
   const baseUrl = chatUrl(provider);
-  const messages = [{ role: 'system', content: buildSystemPrompt() }, { role: 'user', content: String(prompt) }];
+  const messages = [{ role: 'system', content: buildSystemPrompt(allowedTools) }, { role: 'user', content: String(prompt) }];
   const steps = [];
   const deadline = Date.now() + TOTAL_DEADLINE_MS;
   for (let step = 0; step < MAX_STEPS; step++) {
@@ -133,12 +136,16 @@ async function runAgentLoop(prompt, provider, model, onEvent) {
     }
     if (act.tool) {
       let toolResult;
-      try {
-        toolResult = await Promise.race([
-          executeTool(act.tool, act.args || {}),
-          new Promise((_, rej) => setTimeout(() => rej(new Error(`tool ${act.tool} timeout`)), 90000)),
-        ]);
-      } catch (e) { toolResult = { error: String(e && e.message || e) }; }
+      if (allowedTools && allowedTools.length && !allowedTools.includes(act.tool)) {
+        toolResult = { error: 'Tool "' + act.tool + '" không được phép trong ngữ cảnh này. Chỉ dùng: ' + allowedTools.join(', ') };
+      } else {
+        try {
+          toolResult = await Promise.race([
+            executeTool(act.tool, act.args || {}),
+            new Promise((_, rej) => setTimeout(() => rej(new Error(`tool ${act.tool} timeout`)), 90000)),
+          ]);
+        } catch (e) { toolResult = { error: String(e && e.message || e) }; }
+      }
       const slim = JSON.stringify(toolResult).slice(0, 6000);
       steps.push({ step: step + 1, thought: act.thought || '', tool: act.tool, args: act.args, result: slim.slice(0, 500) });
       messages.push({ role: 'assistant', content: JSON.stringify({ thought: act.thought || '', tool: act.tool, args: act.args }) });
