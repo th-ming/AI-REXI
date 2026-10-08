@@ -91,16 +91,7 @@ export default function Sidebar({
       md:relative md:shrink-0
     `}>
       {/* Header Branding */}
-      <div className="flex items-center justify-between h-14 px-4 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <RexiLogo className="w-8 h-8" />
-          <div>
-            <h1 className="font-bold text-base bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-              Rexi AI OS
-            </h1>
-            <span className="text-[10px] text-cyan-400/80 tracking-widest uppercase font-medium">Master Suite v2.0</span>
-          </div>
-        </div>
+      <div className="flex items-center gap-2 h-14 px-3 border-b border-white/5">
         <button
           onClick={() => setSidebarOpen(false)}
           className="group inline-flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-cyan-500/15 hover:border-cyan-400/40 hover:text-cyan-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 transition-all duration-200 shrink-0"
@@ -109,6 +100,15 @@ export default function Sidebar({
         >
           <PanelLeftClose size={18} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
         </button>
+        <div className="flex items-center gap-3 min-w-0">
+          <RexiLogo className="w-8 h-8" />
+          <div className="min-w-0">
+            <h1 className="font-bold text-base bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent truncate">
+              Rexi AI OS
+            </h1>
+            <span className="text-[10px] text-cyan-400/80 tracking-widest uppercase font-medium truncate block">Master Suite v2.0</span>
+          </div>
+        </div>
       </div>
 
       {/* New Conversation Button */}
