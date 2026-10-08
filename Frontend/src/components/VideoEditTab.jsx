@@ -51,7 +51,7 @@ export default function VideoEditTab({ authToken, showToast }) {
     } else {
       base.input = inputSrc;
     }
-    if (op === 'trim') { base.start = p.start; base.duration = p.duration; }
+    if (op === 'trim') { base.start = p.start; base.duration = p.duration; if (p.loop) base.loop = true; }
     if (op === 'add_text') { base.text = p.text; base.position = p.position || 'bottom'; base.color = p.color || 'white'; base.fontSize = Number(p.fontSize) || undefined; }
     if (op === 'add_audio') { base.audio = p.audio; base.mix = p.mix != null && p.mix !== '' ? Number(p.mix) : undefined; }
     if (op === 'resize') { base.width = Number(p.width) || 1080; base.height = Number(p.height) || 1920; }
@@ -115,6 +115,9 @@ export default function VideoEditTab({ authToken, showToast }) {
             {op === 'trim' && (<>
               <div><span className={label}>Bắt đầu (ss hoặc mm:ss)</span><input className={field} placeholder="0:05" value={p.start || ''} onChange={e => set('start', e.target.value)} /></div>
               <div><span className={label}>Độ dài</span><input className={field} placeholder="0:30" value={p.duration || ''} onChange={e => set('duration', e.target.value)} /></div>
+              <label className="col-span-2 flex items-center gap-2 text-[11.5px] text-slate-300 cursor-pointer">
+                <input type="checkbox" checked={!!p.loop} onChange={e => set('loop', e.target.checked)} /> Lặp nguồn cho đủ độ dài (video ngắn muốn kéo dài)
+              </label>
             </>)}
             {op === 'concat' && (<>
               <div className="col-span-2"><span className={label}>Thêm clip (mỗi dòng 1 URL)</span><textarea rows={3} className={field} placeholder="https://...mp4&#10;https://...mp4" value={p.extra || ''} onChange={e => set('extra', e.target.value)} /></div>

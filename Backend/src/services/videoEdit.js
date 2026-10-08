@@ -80,6 +80,7 @@ async function opTrim(a) {
   // Ưu tiên stream-copy (KHÔNG re-encode): nhanh + gần như không tốn RAM/CPU
   const copyArgs = ['-y'];
   if (ss) copyArgs.push('-ss', ss);
+  if (a.loop) copyArgs.push('-stream_loop', '-1');
   copyArgs.push('-i', input);
   if (dur) copyArgs.push('-t', dur); else if (to) copyArgs.push('-to', to);
   copyArgs.push('-c', 'copy', '-movflags', '+faststart', out);
@@ -90,6 +91,7 @@ async function opTrim(a) {
     // Fallback: re-encode nhẹ
     const re = ['-y'];
     if (ss) re.push('-ss', ss);
+    if (a.loop) re.push('-stream_loop', '-1');
     re.push('-i', input);
     if (dur) re.push('-t', dur); else if (to) re.push('-to', to);
     re.push('-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', out);

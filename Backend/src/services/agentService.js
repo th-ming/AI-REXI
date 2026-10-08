@@ -103,7 +103,8 @@ const TOOL_REGISTRY = [
         width: { type: 'number', description: 'Rộng đích (resize)' },
         height: { type: 'number', description: 'Cao đích (resize)' },
         speed: { type: 'number', description: 'Hệ số tốc độ (speed, vd 1.5)' },
-        at: { type: 'string', description: 'Mốc lấy ảnh bìa (thumbnail)' }
+        at: { type: 'string', description: 'Mốc lấy ảnh bìa (thumbnail)' },
+        loop: { type: 'boolean', description: 'trim: lặp nguồn cho đủ độ dài (video ngắn muốn kéo dài)' }
       },
       required: ['operation']
     }
