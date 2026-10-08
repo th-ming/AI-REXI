@@ -1839,7 +1839,7 @@ router.use('/classroom', rateLimit({ windowMs: 60000, max: 300 }), async (req, r
     // QUAN TRỌNG: helmet của chính backend mình gắn X-Frame-Options: SAMEORIGIN lên
     // MỌI response → phải gỡ ở đây, nếu không iframe vẫn bị chặn.
     res.removeHeader('x-frame-options');
-    res.setHeader('content-security-policy', "frame-ancestors 'self' https://rexiai.bot.cd https://www.rexiai.bot.cd https://ai-rexi-app.vercel.app https://rexiai.de5.net https://*.vercel.app http://localhost:*");
+    res.setHeader('content-security-policy', "frame-ancestors 'self' https://rexiai.bot.cd https://www.rexiai.bot.cd https://rexiai.de5.net https://*.vercel.app http://localhost:*");
 
     const rct = (upstream.headers.get('content-type') || '').toLowerCase();
     if (rct.includes('text/html')) {
@@ -3780,6 +3780,34 @@ router.get('/openshorts/quota', authMiddleware, async (req, res) => {
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
   }
+});
+
+// ═══════════ VIDEO EDIT (FFmpeg) — dựng/sửa video (tab + agent) ═══════════
+const { videoEdit, TEMP_DIR: VIDEO_TEMP_DIR } = require('../services/videoEdit');
+
+function tokenFromQuery(req, res, next) {
+  if (!req.headers.authorization && req.query.token) req.headers.authorization = 'Bearer ' + req.query.token;
+  next();
+}
+
+// POST /services/video/edit  { operation, input|inputs, ...params }
+router.post('/video/edit', authMiddleware, async (req, res) => {
+  try {
+    const r = await videoEdit(req.body || {});
+    if (!r.success) return res.status(400).json(r);
+    const base = (process.env.FRONTEND_URL || 'https://rexiai.bot.cd').replace(/\/$/, '');
+    res.json({ ...r, url: `${base}/api/services/video/file/${r.fileName}` });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+// GET /services/video/file/:name — tải file đã edit (Bearer header hoặc ?token=)
+router.get('/video/file/:name', tokenFromQuery, authMiddleware, (req, res) => {
+  const name = path.basename(req.params.name);
+  const fp = path.join(VIDEO_TEMP_DIR, name);
+  if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Không thấy file' });
+  res.sendFile(fp);
 });
 
 module.exports = router;

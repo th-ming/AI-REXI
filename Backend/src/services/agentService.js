@@ -5,6 +5,7 @@ const { stripAnsi } = require('../utils/stripAnsi');
 const { generateEdgeTTSNode, listEdgeVoices, localeFromVoice } = require('./edgeTTS');
 const { assertPublicUrlAsync } = require('../utils/urlSafety');
 const { safeExec } = require('../utils/safeExec');
+const { videoEdit } = require('./videoEdit');
 
 // ========== TOOL REGISTRY ==========
 // Thêm tool mới chỉ cần thêm 1 object vào đây, AI tự hiểu và dùng!
@@ -80,6 +81,32 @@ const TOOL_REGISTRY = [
       rate: { type: 'string', description: 'Tốc độ: +20% hoặc -10%', default: '+0%' },
       pitch: { type: 'string', description: 'Cao độ giọng: +10% hoặc -5%', default: '+0%' }
     }, required: ['text'] }
+  },
+  {
+    name: 'video_edit',
+    description: 'Dựng/sửa video bằng FFmpeg (không cần GUI): cắt (trim), ghép nhiều clip (concat), chèn chữ (add_text), chèn nhạc (add_audio), đổi tỉ lệ (resize), đổi tốc độ (speed), tách âm thanh (extract_audio), tạo ảnh bìa (thumbnail). Input là file/URL. Trả về file video đã xử lý + link tải.',
+    parameters: {
+      type: 'object',
+      properties: {
+        operation: { type: 'string', enum: ['trim', 'concat', 'add_audio', 'add_text', 'resize', 'speed', 'extract_audio', 'thumbnail'], description: 'Phép xử lý' },
+        input: { type: 'string', description: 'File/URL video nguồn (đa số op)' },
+        inputs: { type: 'array', items: { type: 'string' }, description: 'Danh sách input (cho concat, >=2)' },
+        start: { type: 'string', description: 'Mốc bắt đầu (giây hoặc mm:ss)' },
+        duration: { type: 'string', description: 'Độ dài' },
+        end: { type: 'string', description: 'Mốc kết thúc (thay cho duration)' },
+        audio: { type: 'string', description: 'File/URL nhạc (add_audio)' },
+        mix: { type: 'number', description: 'Âm lượng nhạc 0..1 (add_audio)' },
+        text: { type: 'string', description: 'Chữ cần chèn (add_text)' },
+        position: { type: 'string', enum: ['top', 'center', 'bottom'], description: 'Vị trí chữ' },
+        color: { type: 'string', description: 'Màu chữ (vd white, yellow, #ff0000)' },
+        fontSize: { type: 'number', description: 'Cỡ chữ' },
+        width: { type: 'number', description: 'Rộng đích (resize)' },
+        height: { type: 'number', description: 'Cao đích (resize)' },
+        speed: { type: 'number', description: 'Hệ số tốc độ (speed, vd 1.5)' },
+        at: { type: 'string', description: 'Mốc lấy ảnh bìa (thumbnail)' }
+      },
+      required: ['operation']
+    }
   }
 ];
 
@@ -199,11 +226,18 @@ async function executeTool(toolName, args) {
         return { error: 'TTS lỗi: ' + (err.message || err) };
       }
     }
+    case 'video_edit': {
+      const r = await videoEdit(args);
+      if (r && r.success && r.fileName) {
+        const base = (process.env.FRONTEND_URL || 'https://rexiai.bot.cd').replace(/\/$/, '');
+        r.url = `${base}/api/services/video/file/${r.fileName}`;
+      }
+      return r;
+    }
     default:
       return { error: "Tool '" + toolName + "' chưa được implement" };
   }
 }
-
 // ========== SEARCH WEB TOOL ==========
 // Tìm kiếm web không cần API key:
 //  1. DuckDuckGo Instant Answer API (api.duckduckgo.com — JSON, free, no key)
