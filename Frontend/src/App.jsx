@@ -2298,22 +2298,21 @@ useEffect(() => {
       />
 
       {/* ═══════════════════ FLOATING SPEED DIAL MENU (Hiển thị ở mọi tab, kể cả Admin) ═══════════════════ */}
-      {(
-        <>
-          {fabOpen && (
-            <div
-              className="fixed inset-0 z-40 bg-black/40 transition-opacity duration-300"
-              onClick={() => setFabOpen(false)}
-            />
-          )}
+          {(
+            <>
+              <div
+                className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-500 ease-out ${fabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setFabOpen(false)}
+              />
 
           {/* Panel công cụ — trượt ra từ mép phải, dài quá thì cuộn */}
           <div ref={fabMenuRef} className={`
-            fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl transition-all duration-300 origin-right
+            fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl origin-right will-change-transform
+            transition-all duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]
             max-h-[calc(100dvh-160px)] overflow-y-auto pr-1.5 scrollbar-thin
             ${fabOpen
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto'
-              : 'opacity-0 translate-x-8 scale-95 pointer-events-none'
+              : 'opacity-0 translate-x-10 scale-[0.96] blur-[2px] pointer-events-none'
             }
           `}>
               {/* Nhóm AI */}
@@ -2402,15 +2401,17 @@ useEffect(() => {
             <button
               onClick={() => setFabOpen(!fabOpen)}
               className={`
-                fixed bottom-6 right-0 z-50 h-14 pl-3.5 pr-2.5 flex items-center rounded-l-full text-white shadow-md transition-all duration-200
+                fixed bottom-6 right-0 z-50 h-14 pl-4 pr-3 flex items-center rounded-l-full text-white border border-white/15 border-r-0
+                shadow-[0_6px_20px_-4px_rgba(74,125,255,0.5)] will-change-transform
+                transition-all duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]
                 ${fabOpen
-                  ? 'bg-[#2c52b2] shadow-[#4a7dff]/40'
-                  : 'bg-[#4a7dff] hover:bg-[#3d6ae6] hover:-translate-x-2 hover:shadow-lg hover:shadow-[#4a7dff]/40'
+                  ? 'bg-gradient-to-b from-[#3f6ee8] to-[#274bbd] -translate-x-1 shadow-[0_6px_22px_-4px_rgba(74,125,255,0.6)]'
+                  : 'bg-gradient-to-b from-[#7ba5ff] via-[#4a7dff] to-[#3159d6] hover:from-[#93b5ff] hover:via-[#5f8fff] hover:to-[#3f68e6] hover:-translate-x-3.5 hover:shadow-[0_10px_30px_-4px_rgba(110,150,255,0.8)]'
                 }
               `}
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
-              <ChevronLeft size={20} className={`transition-transform duration-200 ${fabOpen ? 'rotate-180' : ''}`} />
+              <ChevronLeft size={20} className={`transition-transform duration-[380ms] ease-[cubic-bezier(0.34,1.45,0.64,1)] ${fabOpen ? 'rotate-180' : ''}`} />
             </button>
         </>
       )}
