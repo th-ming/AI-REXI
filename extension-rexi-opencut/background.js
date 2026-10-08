@@ -15,9 +15,26 @@ async function postResult(id, result) {
 }
 
 function handleCmd(c) {
+  if (c.action === 'screenshot') { captureShot(c.id); return; }
   if (!port) { postResult(c.id, { success: false, error: 'Chưa có tab OpenCut mở. Hãy mở https://opencut.app.' }); return; }
   try { port.postMessage({ type: 'cmd', id: c.id, action: c.action, args: c.args || {} }); }
   catch (e) { postResult(c.id, { success: false, error: 'port gửi lỗi: ' + e.message }); }
+}
+
+function captureShot(id) {
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs && tabs[0];
+      if (!tab) { postResult(id, { success: false, error: 'Không tìm thấy tab đang mở' }); return; }
+      chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, (dataUrl) => {
+        if (chrome.runtime.lastError || !dataUrl) {
+          postResult(id, { success: false, error: (chrome.runtime.lastError && chrome.runtime.lastError.message) || 'capture lỗi' });
+        } else {
+          postResult(id, { success: true, screenshot: dataUrl });
+        }
+      });
+    });
+  } catch (e) { postResult(id, { success: false, error: String(e && e.message || e) }); }
 }
 
 async function pollOnce() {

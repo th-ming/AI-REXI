@@ -3825,5 +3825,10 @@ router.post('/opencut-bridge/result', tokenFromQuery, authMiddleware, (req, res)
 router.get('/opencut-bridge/status', tokenFromQuery, authMiddleware, (req, res) => {
   res.json(opencutBridge.status());
 });
+// Chụp màn hình OpenCut (qua extension) — trả dataURL PNG
+router.post('/opencut-bridge/shot', tokenFromQuery, authMiddleware, async (req, res) => {
+  const r = await opencutBridge.enqueue('screenshot', {}, 20000);
+  res.json(r);
+});
 
 module.exports = router;

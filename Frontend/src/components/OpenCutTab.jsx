@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, RefreshCw, Bot, Wifi, WifiOff, Send, ChevronDown } from 'lucide-react';
+import { Loader2, RefreshCw, Bot, Wifi, WifiOff, Send, ChevronDown, Camera } from 'lucide-react';
 import { OPENCUT_URL } from '../config';
 
 export default function OpenCutTab({ authToken, showToast }) {
@@ -48,6 +48,8 @@ function AgentBridgePanel({ token, showToast }) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState('');
+  const [shot, setShot] = useState('');
+  const [shotBusy, setShotBusy] = useState(false);
   const taRef = useRef(null);
 
   useEffect(() => {
@@ -87,6 +89,18 @@ function AgentBridgePanel({ token, showToast }) {
       setLog('Lỗi mạng: ' + e.message);
     }
     setBusy(false);
+  };
+
+  const takeShot = async () => {
+    if (!token || shotBusy) return;
+    setShotBusy(true);
+    try {
+      const r = await fetch('/api/services/opencut-bridge/shot', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+      const d = await r.json().catch(() => ({}));
+      if (d && d.screenshot) setShot(d.screenshot);
+      else setLog('Chụp lỗi: ' + (d.error || r.status));
+    } catch (e) { setLog('Chụp lỗi mạng: ' + e.message); }
+    setShotBusy(false);
   };
 
   const connected = status && status.connected;
@@ -133,9 +147,19 @@ function AgentBridgePanel({ token, showToast }) {
               >
                 {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Giao agent
               </button>
+              <button
+                onClick={takeShot}
+                disabled={shotBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 text-slate-200 text-[11.5px] font-semibold hover:bg-white/10 disabled:opacity-40 transition-all"
+              >
+                {shotBusy ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />} Chụp
+              </button>
             </div>
             {log && (
               <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-black/40 border border-white/10 p-2 text-[10.5px] text-slate-300">{log}</pre>
+            )}
+            {shot && (
+              <img src={shot} alt="OpenCut" className="mt-2 w-full rounded-lg border border-white/10" />
             )}
           </div>
         )}

@@ -3,7 +3,7 @@
   "name": "Rexi OpenCut Bridge",
   "version": "1.0.0",
   "description": "Cho agent Rexi AI điều khiển OpenCut (opencut.app) thay bạn.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "activeTab", "tabs"],
   "host_permissions": [
     "https://opencut.app/*",
     "https://rexiai.bot.cd/*"
