@@ -110,8 +110,6 @@ export default function Sidebar({
           <PanelLeftClose size={18} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
         </button>
       </div>
-        </div>
-      </div>
 
       {/* New Conversation Button */}
       <div className="p-3">
