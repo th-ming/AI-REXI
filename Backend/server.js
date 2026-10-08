@@ -215,6 +215,21 @@ const sessionSecret = resolveSessionSecret();
 
   // (TÃ¹y chá»n) Phá»¥c vá»¥ á»©ng dá»¥ng React Ä‘Ã£ build cho mÃ´i trÆ°á»ng production
   const frontendBuildPath = path.join(__dirname, '..', 'Frontend', 'dist');
+  const frontendPublicPath = path.join(__dirname, '..', 'Frontend', 'public');
+  // Trang phÃ¡p lÃ½ Google OAuth cáº§n URL cÃ´ng khai: /privacy vÃ /terms
+  // (báº¯t buá»™c cho consent screen + giÃºp pass verify). Æ¯u tiÃªn báº£n trong dist
+  // (do vite build copy tá»« public/), fallback báº£n nguá»“n public/ khi chÆ°a build.
+  const legalPage = (name) => (req, res, next) => {
+      const candidates = [
+          path.join(frontendBuildPath, `${name}.html`),
+          path.join(frontendPublicPath, `${name}.html`),
+      ];
+      const found = candidates.find((p) => fs.existsSync(p));
+      if (!found) return next();
+      res.type('html').sendFile(found);
+  };
+  app.get('/privacy', legalPage('privacy'));
+  app.get('/terms', legalPage('terms'));
   if (fs.existsSync(frontendBuildPath)) {
       app.use(express.static(frontendBuildPath));
       app.get('/{*path}', (req, res, next) => {
