@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles } from 'lucide-react';
+import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { sanitizeMarkdown } from '../utils/sanitize';
 import { t } from '../i18n';
 
@@ -31,6 +31,8 @@ export default function ChatTab({
   const dropdownRef = useRef(null);
   const pdfInputRef = useRef(null);
   const taRef = useRef(null);
+  const carouselRef = useRef(null);
+  const scrollRail = (dir) => carouselRef.current?.scrollBy({ left: dir * 250, behavior: 'smooth' });
   const [pdfLoading, setPdfLoading] = React.useState(false);
   const [sharePop, setSharePop] = React.useState({ open: false, loading: false, url: '', err: '' });
 
@@ -128,44 +130,51 @@ export default function ChatTab({
       <div className="relative flex-1 min-h-0">
         <div ref={chatScrollRef} onScroll={handleChatScroll} className="h-full overflow-y-auto space-y-4 pr-1 mt-2">
           {messages.length === 0 ? (
-            <div className="relative h-full flex flex-col items-center justify-center text-center p-6 overflow-hidden">
+            <div className="relative h-full flex flex-col items-center justify-center px-4 py-6 overflow-hidden">
               <div className="rexi-aura" aria-hidden="true">
                 <span className="rexi-blob rexi-blob-1" />
                 <span className="rexi-blob rexi-blob-2" />
-                <span className="rexi-blob rexi-blob-3" />
               </div>
 
-              <div className="relative z-10 w-full max-w-4xl flex flex-col items-center">
-                <div className="rexi-rise flex items-center justify-center w-16 h-16 rounded-2xl bg-white/5 border border-white/10 mb-4">
-                  <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-hero-logo w-11 h-11 object-contain" />
-                </div>
-                <h2 className="rexi-rise text-2xl sm:text-3xl font-bold rexi-grad-text" style={{ animationDelay: '60ms' }}>
-                  Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
-                </h2>
-                <p className="rexi-rise text-xs sm:text-sm text-slate-400 mt-2 mb-7 max-w-xl" style={{ animationDelay: '110ms' }}>
-                  Bạn muốn làm gì hôm nay? Chọn một năng lực bên dưới, hoặc gõ câu hỏi để bắt đầu.
-                </p>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">
-                  {QUICK_ACTIONS.map((a) => (
-                    <button
-                      key={a.tab}
-                      onClick={() => onOpenFeature?.(a.tab)}
-                      className={`rexi-card rexi-rise group text-left rounded-2xl p-4 bg-[#1e1f20] border border-white/5 ${a.borderHover} ${a.span || ''}`}
-                      style={{ animationDelay: `${a.delay}ms` }}
-                    >
-                      <span className="rexi-card-glow" style={{ background: `radial-gradient(150px 90px at 50% -15%, ${a.glow}, transparent 72%)` }} />
-                      <span className={`rexi-card-icon inline-flex items-center justify-center w-10 h-10 rounded-xl border ${a.chip} mb-3`}>
-                        {a.icon}
-                      </span>
-                      <div className={`text-[13px] font-bold text-slate-100 ${a.titleHover}`}>{a.label}</div>
-                      <div className="text-[10.5px] text-slate-500 mt-1 leading-relaxed">{a.desc}</div>
-                    </button>
-                  ))}
+              <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
+                <div className="rexi-rise flex items-center gap-3 mb-5">
+                  <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-hero-logo w-12 h-12 object-contain shrink-0" />
+                  <div className="text-left">
+                    <h2 className="text-lg sm:text-2xl font-bold rexi-grad-text leading-tight">
+                      Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-slate-400 mt-1">Chọn một năng lực để bắt đầu, hoặc gõ câu hỏi bên dưới.</p>
+                  </div>
                 </div>
 
-                <p className="rexi-rise text-[11px] text-slate-500 max-w-md leading-relaxed mt-6" style={{ animationDelay: '760ms' }}>
-                  👇 Hoặc <b className="text-slate-400">gõ câu hỏi vào ô chat bên dưới</b> — ví dụ: "Soạn giúp tôi một bài văn" — rồi bấm Enter.
+                <div className="rexi-rail w-full relative">
+                  <button type="button" onClick={() => scrollRail(-1)} aria-label="Trước" className="rexi-nav rexi-nav-left">
+                    <ChevronLeft size={18} />
+                  </button>
+                  <div ref={carouselRef} className="rexi-scroll flex gap-3 overflow-x-auto snap-x snap-mandatory px-1 pb-2">
+                    {QUICK_ACTIONS.map((a, i) => (
+                      <button
+                        key={a.tab}
+                        onClick={() => onOpenFeature?.(a.tab)}
+                        style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}
+                        className={`rexi-card rexi-slide group snap-start shrink-0 w-44 sm:w-48 text-left rounded-2xl p-4 bg-[#1e1f20] border border-white/5 ${a.borderHover}`}
+                      >
+                        <span className="rexi-card-glow" style={{ background: `radial-gradient(150px 90px at 50% -15%, ${a.glow}, transparent 72%)` }} />
+                        <span className={`rexi-card-icon inline-flex items-center justify-center w-10 h-10 rounded-xl border ${a.chip} mb-3`}>
+                          {a.icon}
+                        </span>
+                        <div className={`text-[13px] font-bold text-slate-100 ${a.titleHover}`}>{a.label}</div>
+                        <div className="text-[10.5px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{a.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => scrollRail(1)} aria-label="Sau" className="rexi-nav rexi-nav-right">
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+
+                <p className="rexi-rise text-[11px] text-slate-500 mt-4" style={{ animationDelay: '400ms' }}>
+                  👇 Hoặc <b className="text-slate-400">gõ câu hỏi vào ô chat bên dưới</b> rồi bấm Enter.
                 </p>
               </div>
             </div>
