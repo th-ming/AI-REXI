@@ -290,4 +290,4 @@ async function probeBrowser() {
   return { label: launched.label };
 }
 
-module.exports = { renderComposition, isAvailable, buildCompositionHtml, probeBrowser };
+module.exports = { renderComposition, isAvailable, buildCompositionHtml, probeBrowser, launchBrowser };

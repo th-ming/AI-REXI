@@ -14,6 +14,12 @@ const { Readable } = require('stream');
 let ffmpegPath = null;
 try { ffmpegPath = require('ffmpeg-static'); } catch (e) { ffmpegPath = null; }
 
+let ffprobePath = null;
+try { ffprobePath = require('ffprobe-static').path; } catch (e) { ffprobePath = null; }
+
+let _chromium = null;
+try { _chromium = require('playwright').chromium; } catch (e) { _chromium = null; }
+
 const TEMP_DIR = path.join(__dirname, '..', '..', 'temp');
 
 function ensureTemp() {
@@ -136,26 +142,46 @@ async function opAddAudio(a) {
   return out;
 }
 
-function escapeDrawtext(t) {
-  return String(t).replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'").replace(/%/g, '\\%');
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function probeDims(file) {
+  return new Promise((resolve) => {
+    if (!ffprobePath || !fs.existsSync(ffprobePath)) return resolve({ width: 1280, height: 720 });
+    const p = spawn(ffprobePath, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x', file]);
+    let o = '';
+    p.stdout.on('data', d => { o += d.toString(); });
+    p.on('close', () => { const m = o.trim().split('x'); resolve({ width: parseInt(m[0], 10) || 1280, height: parseInt(m[1], 10) || 720 }); });
+    p.on('error', () => resolve({ width: 1280, height: 720 }));
+  });
+}
+
+async function renderTextPng({ width, height, text, position, color, fontSize }) {
+  if (!_chromium) throw new Error('Server chua co Playwright (chromium) de ve chu');
+  const { launchBrowser } = require('./videoRenderer');
+  const launched = await launchBrowser(_chromium);
+  const browser = launched.browser;
+  try {
+    const page = await browser.newPage({ viewport: { width, height } });
+    const align = position === 'top' ? 'flex-start' : (position === 'center' ? 'center' : 'flex-end');
+    const pad = position === 'top' ? 'padding-top:40px' : (position === 'center' ? '' : 'padding-bottom:60px');
+    const html = `<html><body style="margin:0;width:${width}px;height:${height}px;display:flex;justify-content:center;align-items:${align};box-sizing:border-box;${pad};background:transparent;overflow:hidden;font-family:Arial,Helvetica,sans-serif">
+      <span style="font-size:${fontSize}px;font-weight:700;color:${color};background:rgba(0,0,0,.42);padding:6px 16px;border-radius:10px;white-space:nowrap;max-width:94%;overflow:hidden;text-overflow:ellipsis">${escHtml(text)}</span>
+    </body></html>`;
+    await page.setContent(html, { waitUntil: 'load' });
+    return await page.screenshot({ omitBackground: true, type: 'png' });
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 async function opAddText(a) {
   const input = await ensureLocal(a.input);
+  const { width, height } = await probeDims(input);
+  const png = await renderTextPng({ width, height, text: a.text || '', position: a.position || 'bottom', color: a.color || 'white', fontSize: a.fontSize || 48 });
+  const pngPath = outPath('png');
+  fs.writeFileSync(pngPath, png);
   const out = outPath('mp4');
-  const fontsize = a.fontSize || 48;
-  const color = a.color || 'white';
-  const posMap = { top: 'x=(w-text_w)/2:y=40', bottom: 'x=(w-text_w)/2:y=h-th-60', center: 'x=(w-text_w)/2:y=(h-th)/2' };
-  const pos = posMap[a.position] || posMap.bottom;
-  const FONT_FILE = path.join(__dirname, '..', '..', 'assets', 'NotoSans-Regular.ttf');
-  const fontArg = fs.existsSync(FONT_FILE) ? `fontfile='${FONT_FILE.replace(/\\/g, '/').replace(/:/g, '\\:')}':` : '';
-  let draw = `drawtext=${fontArg}text='${escapeDrawtext(a.text || '')}':fontsize=${fontsize}:fontcolor=${color}:${pos}:box=1:boxcolor=black@0.4:boxborderw=12`;
-  if (a.start != null || a.duration != null) {
-    const s = a.start != null ? parseTime(a.start) : 0;
-    const e = a.duration != null ? s + parseTime(a.duration) : 1e6;
-    draw += `:enable='between(t,${s},${e})'`;
-  }
-  await runFfmpeg(['-y', '-i', input, '-vf', draw, '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', out]);
+  await runFfmpeg(['-y', '-i', input, '-i', pngPath, '-filter_complex', '[0:v][1:v]overlay=0:0[v]', '-map', '[v]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', out]);
   return out;
 }
 
