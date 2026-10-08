@@ -83,11 +83,16 @@ export default function ChatTab({
         setChatModeOpen?.(false);
       }
     }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setChatModeOpen?.(false);
+    }
     if (chatModeOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [chatModeOpen, setChatModeOpen]);
 
@@ -377,97 +382,120 @@ export default function ChatTab({
         <input type="file" ref={fileInputRef} onChange={handleFileSelect} multiple className="hidden" />
         <div className="flex items-center bg-[#181920] border border-white/10 focus-within:border-cyan-500/50 rounded-2xl px-4 py-2.5 shadow-xl transition-colors">
           
-          {/* Mode Selector - Fixed width, dropdown positioned absolutely */}
-          <div className="relative mr-1.5 shrink-0" ref={dropdownRef}>
+          {/* Mode Selector — pill tự giãn chữ, màu theo mode (cyan=Chat / purple=Agent) */}
+          <div className="relative mr-2 shrink-0" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setChatModeOpen(!chatModeOpen)}
-              className="flex items-center gap-1 bg-[#13141c] border border-white/20 hover:border-cyan-500/40 rounded-lg px-2.5 py-2 cursor-pointer text-[11px] font-semibold justify-between text-cyan-300 shadow-sm w-[110px] shrink-0 select-none transition-colors"
+              aria-haspopup="menu"
+              aria-expanded={chatModeOpen}
+              className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-[11px] font-bold cursor-pointer select-none transition-all shadow-sm ${
+                executionMode === 'agent'
+                  ? 'bg-purple-500/10 border-purple-500/30 text-purple-200 hover:border-purple-400/60 hover:bg-purple-500/15'
+                  : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-200 hover:border-cyan-400/60 hover:bg-cyan-500/15'
+              }`}
             >
-              <span className="flex items-center gap-1 overflow-hidden">
-                <span className="text-cyan-400 text-xs shrink-0">{executionMode === 'agent' ? <Zap size={12} /> : <MessageSquare size={12} />}</span>
-                <span className="truncate">{executionMode === 'agent' ? 'Agent Mode' : 'Chat AI'}</span>
-              </span>
-              <ChevronDown size={12} className="text-slate-400 ml-1 shrink-0" />
+              {executionMode === 'agent'
+                ? <Zap size={13} className="shrink-0" />
+                : <MessageSquare size={13} className="shrink-0" />}
+              <span className="whitespace-nowrap">{executionMode === 'agent' ? 'Agent Mode' : 'Chat AI'}</span>
+              <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${chatModeOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Dropdown - absolute, không đẩy elements khác */}
             {chatModeOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setChatModeOpen(false)} />
-                <div className="absolute bottom-full left-0 mb-1 w-52 bg-[#141522] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
+                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#141522] border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50">
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 px-2.5 pt-1 pb-1.5">Chế độ trò chuyện</div>
+
                   <button
                     type="button"
                     onClick={() => { setExecutionMode('chat'); setChatModeOpen(false); }}
-                    className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left cursor-pointer transition-colors ${
-                      executionMode !== 'agent' ? 'bg-[#1b1c2e] border border-white/10' : 'hover:bg-white/5 border border-transparent'
+                    className={`w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-left cursor-pointer transition-all border ${
+                      executionMode !== 'agent' ? 'bg-cyan-500/10 border-cyan-500/30' : 'border-transparent hover:bg-white/5'
                     }`}
                   >
-                    <span className="text-xs shrink-0 mt-0.5"><MessageSquare size={12} /></span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-bold text-slate-100">Chat AI</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Trò chuyện AI thông thường</div>
-                    </div>
+                    <span className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 shrink-0">
+                      <MessageSquare size={13} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-bold text-slate-100">Chat AI</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">Trò chuyện AI thông thường</span>
+                    </span>
+                    {executionMode !== 'agent' && <Check size={14} className="text-cyan-300 shrink-0" />}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => { setExecutionMode('agent'); setChatModeOpen(false); }}
-                    className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left mt-1 cursor-pointer transition-colors ${
-                      executionMode === 'agent' ? 'bg-[#2b1845] border border-purple-500/40 shadow-sm' : 'hover:bg-white/5 border border-transparent'
+                    className={`w-full flex items-center gap-2.5 px-2 py-2 mt-1 rounded-xl text-left cursor-pointer transition-all border ${
+                      executionMode === 'agent' ? 'bg-purple-500/10 border-purple-500/30' : 'border-transparent hover:bg-white/5'
                     }`}
                   >
-                    <span className="text-xs shrink-0 mt-0.5 text-purple-300"><Zap size={12} /></span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[11px] font-bold text-purple-200">Agent Mode</div>
-                      <div className="text-[10px] text-purple-300/80 mt-0.5 leading-tight">Tự động thực thi code & tác vụ</div>
-                    </div>
+                    <span className="p-1.5 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-300 shrink-0">
+                      <Zap size={13} />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-bold text-slate-100">Agent Mode</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">Tự động thực thi code &amp; tác vụ</span>
+                    </span>
+                    {executionMode === 'agent' && <Check size={14} className="text-purple-300 shrink-0" />}
                   </button>
 
                   {executionMode === 'agent' && (
-                    <div className="mt-1 pt-1 border-t border-white/10">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 px-2 py-1">Engine xử lý</div>
+                    <div className="mt-2 pt-1.5 border-t border-white/10">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 px-2.5 pb-1">Engine xử lý</div>
+
                       <button
                         type="button"
                         onClick={() => { setAgentEngine('auto'); setChatModeOpen(false); }}
-                        className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left cursor-pointer transition-colors ${
-                          agentEngine === 'auto' ? 'bg-[#1b1c2e] border border-emerald-500/40' : 'hover:bg-white/5 border border-transparent'
+                        className={`w-full flex items-center gap-2.5 px-2 py-1.5 rounded-xl text-left cursor-pointer transition-all border ${
+                          agentEngine === 'auto' ? 'bg-white/5 border-white/10' : 'border-transparent hover:bg-white/5'
                         }`}
                       >
-                        <span className="shrink-0 mt-0.5 text-emerald-300"><Bot size={12} /></span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-bold text-emerald-200">Auto (tự chọn engine)</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Task ngắn → DSH nhanh, task dài → OpenCode</div>
-                        </div>
-                        {agentEngine === 'auto' && <Check size={12} className="text-emerald-400 mt-0.5" />}
+                        <span className="p-1 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 shrink-0">
+                          <Bot size={12} />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[11px] font-bold text-slate-200">Auto (tự chọn engine)</span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">Task ngắn → DSH nhanh, task dài → OpenCode</span>
+                        </span>
+                        {agentEngine === 'auto' && <Check size={13} className="text-emerald-400 shrink-0" />}
                       </button>
+
                       <button
                         type="button"
                         onClick={() => { setAgentEngine('opencode'); setChatModeOpen(false); }}
-                        className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left cursor-pointer transition-colors ${
-                          agentEngine === 'opencode' ? 'bg-[#1b1c2e] border border-cyan-500/30' : 'hover:bg-white/5 border border-transparent'
+                        className={`w-full flex items-center gap-2.5 px-2 py-1.5 mt-0.5 rounded-xl text-left cursor-pointer transition-all border ${
+                          agentEngine === 'opencode' ? 'bg-white/5 border-white/10' : 'border-transparent hover:bg-white/5'
                         }`}
                       >
-                        <span className="shrink-0 mt-0.5 text-cyan-300"><Rocket size={12} /></span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-bold text-cyan-200">OpenCode</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhiều model, ổn định (mặc định)</div>
-                        </div>
-                        {agentEngine === 'opencode' && <Check size={12} className="text-cyan-400 mt-0.5" />}
+                        <span className="p-1 rounded-lg bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 shrink-0">
+                          <Rocket size={12} />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[11px] font-bold text-slate-200">OpenCode</span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">Nhiều model, ổn định (mặc định)</span>
+                        </span>
+                        {agentEngine === 'opencode' && <Check size={13} className="text-cyan-400 shrink-0" />}
                       </button>
+
                       <button
                         type="button"
                         onClick={() => { setAgentEngine('dsh'); setChatModeOpen(false); }}
-                        className={`w-full flex items-start gap-2 px-2 py-1.5 rounded-lg text-left mt-1 cursor-pointer transition-colors ${
-                          agentEngine === 'dsh' ? 'bg-[#1b1c2e] border border-purple-500/40' : 'hover:bg-white/5 border border-transparent'
+                        className={`w-full flex items-center gap-2.5 px-2 py-1.5 mt-0.5 rounded-xl text-left cursor-pointer transition-all border ${
+                          agentEngine === 'dsh' ? 'bg-white/5 border-white/10' : 'border-transparent hover:bg-white/5'
                         }`}
                       >
-                        <span className="text-xs shrink-0 mt-0.5"><Zap size={12} /></span>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] font-bold text-purple-200">DeepSeek Harness</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm — server cloud tự chạy Agent nội bộ)</div>
-                        </div>
-                        {agentEngine === 'dsh' && <Check size={12} className="text-purple-400 mt-0.5" />}
+                        <span className="p-1 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-300 shrink-0">
+                          <Zap size={12} />
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[11px] font-bold text-slate-200">DeepSeek Harness</span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm — server cloud tự chạy Agent nội bộ)</span>
+                        </span>
+                        {agentEngine === 'dsh' && <Check size={13} className="text-purple-400 shrink-0" />}
                       </button>
                     </div>
                   )}
