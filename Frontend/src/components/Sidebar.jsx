@@ -94,7 +94,7 @@ export default function Sidebar({
       <div className="flex items-center gap-2 h-14 px-3 border-b border-white/5">
         <button
           onClick={() => setSidebarOpen(false)}
-          className="group inline-flex items-center justify-center w-9 h-9 rounded-xl border border-white/10 bg-white/5 text-slate-300 hover:bg-cyan-500/15 hover:border-cyan-400/40 hover:text-cyan-200 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 transition-all duration-200 shrink-0"
+          className="group inline-flex items-center justify-center w-9 h-9 text-slate-300 hover:text-cyan-300 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 rounded-lg transition-all duration-200 shrink-0"
           title={t(lang, 'collapseSidebar') || 'Thu gọn'}
           aria-label="Thu gọn menu"
         >
