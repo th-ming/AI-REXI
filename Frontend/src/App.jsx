@@ -1558,9 +1558,7 @@ useEffect(() => {
 
   // Open Google OAuth popup → backend callback redirects popup to localhost:5173?google_token=...
   // Parent window detects token via storage event listener (useEffect above)
-  const [youtubeScopeOn, setYoutubeScopeOn] = useState(() => {
-    try { return localStorage.getItem('rexi_youtube_scope') === '1'; } catch (e) { return false; }
-  });
+  const [youtubeScopeOn, setYoutubeScopeOn] = useState(false);
   const openGoogleOAuth = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -1568,9 +1566,11 @@ useEffect(() => {
       return;
     }
     const redirectUri = `${window.location.origin}/api/auth/google/callback`;
-    // Mở rộng scope để gửi bình luận lên YouTube thật (user đã ok). Lần login
-    // sau Google hỏi thêm 1 màn; comment chỉ gửi khi có youtubeTokenSaved.
-    const wantYouTube = localStorage.getItem('rexi_youtube_scope') === '1';
+    // QUAN TRONG: login mac dinh CHI xin scope khong nhay cam (email profile) de
+    // Google KHONG hien canh bao "chua xac minh". Scope YouTube (nhay cam) chi
+    // duoc xin khi nguoi dung TU tick o "Cho phep gui binh luan len YouTube"
+    // trong phien hien tai (khong doc co cu trong localStorage -> tranh dinh canh bao).
+    const wantYouTube = youtubeScopeOn;
     const scope = wantYouTube
       ? 'email profile https://www.googleapis.com/auth/youtube.force-ssl'
       : 'email profile';
