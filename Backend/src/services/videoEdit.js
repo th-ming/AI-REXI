@@ -107,21 +107,28 @@ async function opTrim(a) {
 }
 
 async function opConcat(a) {
-  const list = Array.isArray(a.inputs) ? a.inputs : [];
-  if (list.length < 2) throw new Error('concat cần >= 2 input');
+  const list = Array.isArray(a.inputs) ? a.inputs.filter(Boolean) : [];
+  if (list.length < 2) throw new Error('concat c\u1ea7n >= 2 input');
   const locals = [];
   for (const it of list) locals.push(await ensureLocal(it));
-  // Chuẩn hoá từng clip về cùng codec/res rồi ghép (an toàn cho mọi nguồn)
+  const out = outPath('mp4');
+  const lf1 = path.join(ensureTemp(), 'concat_' + Date.now() + '.txt');
+  fs.writeFileSync(lf1, locals.map(p => "file '" + p.replace(/'/g, "'\\''") + "'").join('\n'));
+  // 1) Copy truc tiep neu cung codec/res (nhanh, gan nhu 0 RAM)
+  try {
+    await runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', lf1, '-c', 'copy', '-movflags', '+faststart', out]);
+    return out;
+  } catch (e) { /* fallback */ }
+  // 2) Fallback: chuan hoa nhe 640x360, threads 1 (tranh OOM 512MB)
   const norm = [];
   for (let i = 0; i < locals.length; i++) {
     const o = outPath('mp4');
-    await runFfmpeg(['-y', '-i', locals[i], '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,setsar=1', '-r', '24', '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '44100', '-ac', '2', o]);
+    await runFfmpeg(['-y', '-i', locals[i], '-vf', 'scale=640:360:force_original_aspect_ratio=decrease,pad=640:360:(ow-iw)/2:(oh-ih)/2,setsar=1', '-r', '24', '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-ar', '44100', '-ac', '2', o]);
     norm.push(o);
   }
-  const listFile = path.join(ensureTemp(), 'concat_' + Date.now() + '.txt');
-  fs.writeFileSync(listFile, norm.map(p => "file '" + p.replace(/'/g, "'\\''") + "'").join('\n'));
-  const out = outPath('mp4');
-  await runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', out]);
+  const lf2 = path.join(ensureTemp(), 'concat2_' + Date.now() + '.txt');
+  fs.writeFileSync(lf2, norm.map(p => "file '" + p.replace(/'/g, "'\\''") + "'").join('\n'));
+  await runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', lf2, '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-movflags', '+faststart', out]);
   return out;
 }
 
@@ -226,13 +233,16 @@ const OPS = {
   resize: opResize, speed: opSpeed, extract_audio: opExtractAudio, thumbnail: opThumbnail,
 };
 
+let _chain = Promise.resolve();
+function withLock(fn) { const run = _chain.then(fn, fn); _chain = run.then(() => {}, () => {}); return run; }
+
 async function videoEdit(args = {}) {
   const op = String(args.operation || '').toLowerCase();
   const fn = OPS[op];
   if (!fn) return { success: false, error: 'operation không hỗ trợ: ' + op + ' (dùng: ' + Object.keys(OPS).join(', ') + ')' };
   if (!haveFfmpeg()) return { success: false, error: 'FFmpeg chưa có trên server (ffmpeg-static thiếu)' };
   try {
-    const out = await fn(args);
+    const out = await withLock(() => fn(args));
     const size = fs.existsSync(out) ? fs.statSync(out).size : 0;
     return { success: true, operation: op, outputFile: out, fileName: path.basename(out), sizeBytes: size };
   } catch (e) {
