@@ -176,6 +176,7 @@ const sessionSecret = resolveSessionSecret();
   const { promptNormalizerMiddleware } = require('./src/middleware/promptNormalizer.middleware');
   const adminRoutes = require('./src/routes/admin.routes');
   const githubRoutes = require('./src/routes/github.routes');
+  const scrapeRoutes = require('./src/routes/scrape.routes');
 
   // Apply Teencode Normalization
   app.use(promptNormalizerMiddleware);
@@ -184,6 +185,7 @@ const sessionSecret = resolveSessionSecret();
   app.use('/api/auth', authRoutes);
   app.use('/api/chat', chatRoutes);
   app.use('/api/services', servicesRoutes);
+  app.use('/api/scrape', scrapeRoutes);
   app.use('/api/models', modelsRoutes);
   app.use('/api/media', mediaRoutes);
   app.use('/api/workspace', workspaceRoutes);

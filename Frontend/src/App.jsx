@@ -78,6 +78,7 @@ import GameTab from './components/GameTab';
 import ClassroomTab from './components/ClassroomTab';
 import BrowserView from './components/BrowserView';
 import HelpModal from './components/HelpModal';
+import ScrapePanel from './components/ScrapePanel';
 
 
 // (marked/highlight render markdown nằm trong Frontend/src/utils/sanitize.js — ChatTab dùng sanitizeMarkdown)
@@ -328,6 +329,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [superToolsOpen, setSuperToolsOpen] = useState(false);
+  const [scrapeOpen, setScrapeOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
@@ -2096,6 +2098,9 @@ useEffect(() => {
       {/* ═══════════════════ SKILLS MODAL (DATABASE SKILLS) ═══════════════════ */}
       <SkillsModal skillsOpen={skillsOpen} setSkillsOpen={setSkillsOpen} dbSkills={dbSkills} />
 
+      {/* ═══════════════════ SCRAPE PANEL (DATA SCRAPER KIT) ═══════════════════ */}
+      <ScrapePanel open={scrapeOpen} onClose={() => setScrapeOpen(false)} token={authToken} />
+
       {/* Super Tools Modal (Exec, Git, Memory) */}
       {superToolsOpen && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setSuperToolsOpen(false)}>
@@ -2105,9 +2110,18 @@ useEffect(() => {
                 <Zap className="text-amber-400" size={20} />
                 <h3 className="text-sm font-bold text-white">Super Tools (Terminal Exec, Git & Memory)</h3>
               </div>
-              <button onClick={() => setSuperToolsOpen(false)} className="text-slate-400 hover:text-white">
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setSuperToolsOpen(false); setScrapeOpen(true); }}
+                  title="Cào dữ liệu — trích xuất từ link (YouTube/TikTok/Instagram/X/Facebook/web)"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-cyan-300 hover:text-white bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all"
+                >
+                  <Download size={14} /> Cào dữ liệu
+                </button>
+                <button onClick={() => setSuperToolsOpen(false)} className="text-slate-400 hover:text-white">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 text-xs">
@@ -2459,6 +2473,15 @@ useEffect(() => {
               >
                 <Zap size={17} className="text-amber-400" />
                 <span className="whitespace-nowrap">{t(lang, 'fabSuper')}</span>
+              </button>
+
+              <button
+                onClick={() => { setScrapeOpen(true); setFabOpen(false); }}
+                title="Cào dữ liệu — trích xuất từ link (YouTube/TikTok/Instagram/X/Facebook/web)"
+                className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-cyan-300 hover:text-white hover:bg-cyan-500/20 transition-all"
+              >
+                <Download size={17} className="text-cyan-400" />
+                <span className="whitespace-nowrap">Cào dữ liệu</span>
               </button>
 
               <button
