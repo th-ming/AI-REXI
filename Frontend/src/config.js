@@ -9,10 +9,10 @@
 export const API_BASE = '/api';
 
 /**
- * OpenCut editor URL (Next.js dev server default port 3000).
- * Override with env var VITE_OPENCUT_URL at build time.
+ * OpenCut editor URL — mặc định dùng bản cloud chính thức (opencut.app).
+ * Override bằng env VITE_OPENCUT_URL (vd trỏ về instance self-host hoặc localhost:3000).
  */
-export const OPENCUT_URL = import.meta.env.VITE_OPENCUT_URL || 'http://localhost:3000';
+export const OPENCUT_URL = import.meta.env.VITE_OPENCUT_URL || 'https://opencut.app/projects';
 
 /**
  * Centralized fetch wrapper with auth token support.
