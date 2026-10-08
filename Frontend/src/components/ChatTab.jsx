@@ -123,11 +123,11 @@ export default function ChatTab({
                 <p className="text-xs text-slate-400 mt-2">Bạn muốn làm gì hôm nay?</p>
               </div>
 
-              {/* ═══ BẮT ĐẦU TỪ ĐÂU — 3 việc phổ biến nhất ═══ */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 w-full max-w-2xl">
+              {/* ═══ BẮT ĐẦU TỪ ĐÂU — 5 việc phổ biến (3 trên + 2 dưới, căn giữa) ═══ */}
+              <div className="grid grid-cols-1 sm:grid-cols-6 gap-2.5 w-full max-w-3xl">
                 <button
                   onClick={() => onOpenFeature?.('video')}
-                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all text-left"
+                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all text-left flex flex-col"
                 >
                   <div className="mb-2 text-purple-300"><Clapperboard size={22} /></div>
                   <div className="text-xs font-bold text-slate-100 group-hover:text-purple-300">Tạo Video</div>
@@ -135,7 +135,7 @@ export default function ChatTab({
                 </button>
                 <button
                   onClick={() => onOpenFeature?.('tts')}
-                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-left"
+                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-left flex flex-col"
                 >
                   <div className="mb-2 text-cyan-300"><Mic size={22} /></div>
                   <div className="text-xs font-bold text-slate-100 group-hover:text-cyan-300">Tạo Giọng Đọc</div>
@@ -143,7 +143,7 @@ export default function ChatTab({
                 </button>
                 <button
                   onClick={() => onOpenFeature?.('iptv')}
-                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-rose-500/40 hover:bg-rose-500/5 transition-all text-left"
+                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-rose-500/40 hover:bg-rose-500/5 transition-all text-left flex flex-col"
                 >
                   <div className="mb-2 text-rose-300"><Tv size={22} /></div>
                   <div className="text-xs font-bold text-slate-100 group-hover:text-rose-300">Xem TV</div>
@@ -151,7 +151,7 @@ export default function ChatTab({
                 </button>
                 <button
                   onClick={() => onOpenFeature?.('image')}
-                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all text-left"
+                  className="group sm:col-span-2 sm:col-start-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all text-left flex flex-col"
                 >
                   <div className="mb-2 text-indigo-300"><ImageIcon size={22} /></div>
                   <div className="text-xs font-bold text-slate-100 group-hover:text-indigo-300">Tạo Ảnh AI</div>
@@ -159,7 +159,7 @@ export default function ChatTab({
                 </button>
                 <button
                   onClick={() => onOpenFeature?.('documents')}
-                  className="group p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left"
+                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left flex flex-col"
                 >
                   <div className="mb-2 text-emerald-300"><FileText size={22} /></div>
                   <div className="text-xs font-bold text-slate-100 group-hover:text-emerald-300">Đọc & Hiểu File</div>
@@ -484,6 +484,18 @@ export default function ChatTab({
             ref={taRef}
             value={inputText}
             onChange={e => { setInputText(e.target.value); autoGrow(); }}
+            onPaste={e => {
+              const dt = e.clipboardData;
+              if (!dt) return;
+              const raw = [];
+              if (dt.files && dt.files.length) { for (const f of dt.files) raw.push(f); }
+              else if (dt.items) { for (const it of dt.items) { if (it.kind === 'file') { const f = it.getAsFile(); if (f) raw.push(f); } } }
+              if (!raw.length) return;
+              e.preventDefault();
+              const stamp = Date.now();
+              const named = raw.map((f, i) => f.name ? f : new File([f], 'pasted-' + stamp + (i ? '-' + i : '') + '.' + ((f.type || 'image/png').split('/')[1] || 'png').replace(/[^a-z0-9]/gi, ''), { type: f.type || 'image/png' }));
+              handleFileSelect && handleFileSelect({ target: { files: named } });
+            }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); setTimeout(autoGrow, 0); } }}
             placeholder={lang === 'en' ? "Type your question here and press Enter — e.g. 'Write me a video script...'" : "Gõ câu hỏi ở đây rồi bấm Enter — VD: 'Soạn giúp tôi kịch bản video...'"}
             rows={1}

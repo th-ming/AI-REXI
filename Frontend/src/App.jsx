@@ -1649,33 +1649,6 @@ useEffect(() => {
       {/* ═══════════════════ MAIN WORKSPACE AREA ═══════════════════ */}
       <main className="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-main)]">
         
-        {/* Guest Mode Banner */}
-        {!currentUser && (
-          <div className="bg-blue-500/10 border-b border-blue-500/25 px-4 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1.5 text-xs text-blue-200/90">
-                <span className="text-blue-400 flex items-center"><User size={14} /></span>
-                <span className="font-semibold text-blue-300">Chế độ Khách</span>
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.messages.remaining}</span>
-                <span className="text-blue-200/60">/ {guestLimits.messages.limit} tin nhắn</span>
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px]">
-                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.agentTasks.remaining}</span>
-                <span className="text-blue-200/60">/ {guestLimits.agentTasks.limit} Agent tasks</span>
-              </span>
-            </div>
-            <button 
-              onClick={() => setAuthModalOpen(true)}
-              className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-all"
-            >
-              Đăng nhập →
-
-            </button>
-          </div>
-        )}
-
         {/* Top Header Bar (Hiển thị ở mọi tab, trừ Browser) */}
         {activeTab !== 'browser' && (
         <header className="relative z-50 min-h-14 py-2 px-3 border-b border-white/5 flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-sidebar)] backdrop-blur-md">
@@ -1837,6 +1810,32 @@ useEffect(() => {
             </div>
           </div>
         </header>
+        )}
+
+        {/* Guest Mode Banner — đặt DƯỚI header để header luôn ở đỉnh (nút thu/mở menu hết bị lệch lên xuống) */}
+        {!currentUser && (
+          <div className="bg-blue-500/10 border-b border-blue-500/25 px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-1.5 text-xs text-blue-200/90">
+                <span className="text-blue-400 flex items-center"><User size={14} /></span>
+                <span className="font-semibold text-blue-300">Chế độ Khách</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.messages.remaining}</span>
+                <span className="text-blue-200/60">/ {guestLimits.messages.limit} tin nhắn</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.agentTasks.remaining}</span>
+                <span className="text-blue-200/60">/ {guestLimits.agentTasks.limit} Agent tasks</span>
+              </span>
+            </div>
+            <button 
+              onClick={() => setAuthModalOpen(true)}
+              className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-all"
+            >
+              Đăng nhập →
+            </button>
+          </div>
         )}
 
         {/* Tab Router Content */}
