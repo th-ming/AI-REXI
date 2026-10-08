@@ -357,6 +357,18 @@ export default function App() {
     if (fabOpen && fabMenuRef.current) fabMenuRef.current.scrollTop = 0;
   }, [fabOpen]);
   useEffect(() => {
+    const els = fabMenuRef.current ? [...fabMenuRef.current.children] : [];
+    els.forEach((el, i) => {
+      if (fabOpen) {
+        el.style.animation = 'rexi-fab-item-in .45s cubic-bezier(0.32,0.72,0,1) both';
+        el.style.animationDelay = `${Math.min(60 + i * 26, 640)}ms`;
+      } else {
+        el.style.animation = '';
+        el.style.animationDelay = '';
+      }
+    });
+  }, [fabOpen]);
+  useEffect(() => {
     if (!fabOpen) return;
     const onKey = (e) => { if (e.key === 'Escape') setFabOpen(false); };
     window.addEventListener('keydown', onKey);
@@ -2305,14 +2317,16 @@ useEffect(() => {
                 onClick={() => setFabOpen(false)}
               />
 
-          {/* Panel công cụ — trượt ra từ mép phải, dài quá thì cuộn */}
+          {/* Panel công cụ — smoked glass, tuot ra tu mep, dau thi stagger */}
           <div ref={fabMenuRef} className={`
-            fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl origin-right will-change-transform
-            transition-all duration-[420ms] ease-[cubic-bezier(0.22,1,0.36,1)]
+            fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform
+            bg-[#0e101a]/80 backdrop-blur-2xl border border-white/[0.08]
+            shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_28px_70px_-28px_rgba(0,0,0,0.95)]
+            transition-all duration-[600ms] ease-[cubic-bezier(0.32,0.72,0,1)]
             max-h-[calc(100dvh-160px)] overflow-y-auto pr-1.5 scrollbar-thin
             ${fabOpen
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto'
-              : 'opacity-0 translate-x-10 scale-[0.96] blur-[2px] pointer-events-none'
+              : 'opacity-0 translate-x-16 scale-[0.98] pointer-events-none'
             }
           `}>
               {/* Nhóm AI */}
@@ -2397,21 +2411,27 @@ useEffect(() => {
               </button>
             </div>
 
-            {/* Tab mũi tên bám mép phải (kiểu Google Drive): hover đẩy ra, bấm mở toàn bộ công cụ */}
+            {/* Tab mép phải kiểu Drive — smoked glass, LED accent, chevron island */}
             <button
               onClick={() => setFabOpen(!fabOpen)}
               className={`
-                fixed bottom-6 right-0 z-50 h-14 pl-4 pr-3 flex items-center rounded-l-full text-white border border-white/15 border-r-0
-                shadow-[0_6px_20px_-4px_rgba(74,125,255,0.5)] will-change-transform
-                transition-all duration-[380ms] ease-[cubic-bezier(0.22,1,0.36,1)]
+                group fixed bottom-6 right-0 z-50 h-14 pl-3 pr-2.5 flex items-center rounded-l-full
+                bg-[#0e101a]/85 backdrop-blur-xl border border-white/[0.10] border-r-0
+                shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_1px_0_0_rgba(255,255,255,0.05),0_14px_36px_-18px_rgba(0,0,0,0.9)]
+                transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform
                 ${fabOpen
-                  ? 'bg-gradient-to-b from-[#3f6ee8] to-[#274bbd] -translate-x-1 shadow-[0_6px_22px_-4px_rgba(74,125,255,0.6)]'
-                  : 'bg-gradient-to-b from-[#7ba5ff] via-[#4a7dff] to-[#3159d6] hover:from-[#93b5ff] hover:via-[#5f8fff] hover:to-[#3f68e6] hover:-translate-x-3.5 hover:shadow-[0_10px_30px_-4px_rgba(110,150,255,0.8)]'
+                  ? '-translate-x-1 bg-[#12141f]/90'
+                  : 'hover:-translate-x-3 hover:bg-[#151827]/95 hover:border-white/[0.18] active:scale-[0.98]'
                 }
               `}
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
-              <ChevronLeft size={20} className={`transition-transform duration-[380ms] ease-[cubic-bezier(0.34,1.45,0.64,1)] ${fabOpen ? 'rotate-180' : ''}`} />
+              {/* LED light — nguon sang xanh nhe, khong to mau */}
+              <span className={`absolute left-[7px] top-3 bottom-3 w-px bg-gradient-to-b from-[#8fb2ff] via-[#8fb2ff]/30 to-transparent transition-opacity duration-500 ${fabOpen ? 'opacity-100' : 'opacity-55 group-hover:opacity-100'}`} />
+              {/* island: chevron trong vong kinh */}
+              <span className="w-8 h-8 flex items-center justify-center rounded-full bg-white/[0.06] transition-all duration-500 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] group-hover:bg-white/[0.12] group-hover:-translate-x-px">
+                <ChevronLeft size={16} strokeWidth={1.5} className={`text-[#9db9ff] transition-transform duration-500 ease-[cubic-bezier(0.34,1.4,0.64,1)] ${fabOpen ? 'rotate-180' : ''}`} />
+              </span>
             </button>
         </>
       )}
