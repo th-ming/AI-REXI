@@ -1,7 +1,21 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket } from 'lucide-react';
+import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles } from 'lucide-react';
 import { sanitizeMarkdown } from '../utils/sanitize';
 import { t } from '../i18n';
+
+// ── Welcome quick-actions (redesign) — thêm/bớt card chỉ sửa mảng này ──
+const QUICK_ACTIONS = [
+  { tab: 'video',      label: 'Tạo Video',       desc: 'Chọn mẫu → điền chữ → render MP4. Hướng dẫn 4 bước, không cần biết code.', icon: <Clapperboard size={20} />, chip: 'bg-purple-500/10 text-purple-300 border-purple-500/25', glow: 'rgba(168,85,247,.40)', borderHover: 'hover:border-purple-500/45', titleHover: 'group-hover:text-purple-300', span: 'lg:col-span-2', delay: 70 },
+  { tab: 'tts',        label: 'Tạo Giọng Đọc',   desc: 'Chữ → file MP3 giọng Việt (Edge/VieNeu, có clone giọng). Lồng tiếng, bài giảng, đọc truyện.', icon: <Mic size={20} />, chip: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25', glow: 'rgba(34,211,238,.40)', borderHover: 'hover:border-cyan-500/45', titleHover: 'group-hover:text-cyan-300', span: 'lg:col-span-2', delay: 140 },
+  { tab: 'image',      label: 'Tạo Ảnh AI',      desc: 'Mô tả bằng chữ → ảnh AI (Gemini).', icon: <ImageIcon size={20} />, chip: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25', glow: 'rgba(99,102,241,.40)', borderHover: 'hover:border-indigo-500/45', titleHover: 'group-hover:text-indigo-300', delay: 210 },
+  { tab: 'documents',  label: 'Đọc & Hiểu File', desc: 'PDF/Word/TXT → AI đọc và trả lời theo nội dung.', icon: <FileText size={20} />, chip: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', glow: 'rgba(16,185,129,.40)', borderHover: 'hover:border-emerald-500/45', titleHover: 'group-hover:text-emerald-300', delay: 280 },
+  { tab: 'youtube',    label: 'YouTube',         desc: 'Tải / tóm tắt / tạo phụ đề video.', icon: <MonitorPlay size={20} />, chip: 'bg-red-500/10 text-red-300 border-red-500/25', glow: 'rgba(239,68,68,.40)', borderHover: 'hover:border-red-500/45', titleHover: 'group-hover:text-red-300', delay: 350 },
+  { tab: 'iptv',       label: 'Xem TV',          desc: 'Kênh truyền hình trực tuyến toàn cầu.', icon: <Tv size={20} />, chip: 'bg-rose-500/10 text-rose-300 border-rose-500/25', glow: 'rgba(244,63,94,.40)', borderHover: 'hover:border-rose-500/45', titleHover: 'group-hover:text-rose-300', delay: 420 },
+  { tab: 'opencut',    label: 'OpenCut',         desc: 'Dựng & biên tập video trên web.', icon: <Scissors size={20} />, chip: 'bg-sky-500/10 text-sky-300 border-sky-500/25', glow: 'rgba(14,165,233,.40)', borderHover: 'hover:border-sky-500/45', titleHover: 'group-hover:text-sky-300', delay: 490 },
+  { tab: 'openshorts', label: 'OpenShorts',      desc: 'Cắt clip ngắn tự động.', icon: <Film size={20} />, chip: 'bg-orange-500/10 text-orange-300 border-orange-500/25', glow: 'rgba(249,115,22,.40)', borderHover: 'hover:border-orange-500/45', titleHover: 'group-hover:text-orange-300', delay: 560 },
+  { tab: 'classroom',  label: 'Lớp Học AI',      desc: 'Học tập, giải thích, luyện đề.', icon: <GraduationCap size={20} />, chip: 'bg-teal-500/10 text-teal-300 border-teal-500/25', glow: 'rgba(20,184,166,.40)', borderHover: 'hover:border-teal-500/45', titleHover: 'group-hover:text-teal-300', delay: 630 },
+  { tab: 'games',      label: 'Trò Chơi',        desc: 'Giải trí, game mini trong app.', icon: <Gamepad2 size={20} />, chip: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/25', glow: 'rgba(217,70,239,.40)', borderHover: 'hover:border-fuchsia-500/45', titleHover: 'group-hover:text-fuchsia-300', delay: 700 },
+];
 
 export default function ChatTab({
   messages, inputText, setInputText, loading, attachedFiles,
@@ -114,62 +128,46 @@ export default function ChatTab({
       <div className="relative flex-1 min-h-0">
         <div ref={chatScrollRef} onScroll={handleChatScroll} className="h-full overflow-y-auto space-y-4 pr-1 mt-2">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-6">
-              <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo w-16 h-16 object-contain" />
-              <div>
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+            <div className="relative h-full flex flex-col items-center justify-center text-center p-6 overflow-hidden">
+              <div className="rexi-aura" aria-hidden="true">
+                <span className="rexi-blob rexi-blob-1" />
+                <span className="rexi-blob rexi-blob-2" />
+                <span className="rexi-blob rexi-blob-3" />
+              </div>
+
+              <div className="relative z-10 w-full max-w-4xl flex flex-col items-center">
+                <div className="rexi-rise flex items-center justify-center w-16 h-16 rounded-2xl bg-white/5 border border-white/10 mb-4">
+                  <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-hero-logo w-11 h-11 object-contain" />
+                </div>
+                <h2 className="rexi-rise text-2xl sm:text-3xl font-bold rexi-grad-text" style={{ animationDelay: '60ms' }}>
                   Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
                 </h2>
-                <p className="text-xs text-slate-400 mt-2">Bạn muốn làm gì hôm nay?</p>
-              </div>
+                <p className="rexi-rise text-xs sm:text-sm text-slate-400 mt-2 mb-7 max-w-xl" style={{ animationDelay: '110ms' }}>
+                  Bạn muốn làm gì hôm nay? Chọn một năng lực bên dưới, hoặc gõ câu hỏi để bắt đầu.
+                </p>
 
-              {/* ═══ BẮT ĐẦU TỪ ĐÂU — 5 việc phổ biến (3 trên + 2 dưới, căn giữa) ═══ */}
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-2.5 w-full max-w-3xl">
-                <button
-                  onClick={() => onOpenFeature?.('video')}
-                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all text-left flex flex-col"
-                >
-                  <div className="mb-2 text-purple-300"><Clapperboard size={22} /></div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-purple-300">Tạo Video</div>
-                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Chọn mẫu → điền chữ → render MP4. Có hướng dẫn 4 bước sẵn, không cần biết code.</div>
-                </button>
-                <button
-                  onClick={() => onOpenFeature?.('tts')}
-                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all text-left flex flex-col"
-                >
-                  <div className="mb-2 text-cyan-300"><Mic size={22} /></div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-cyan-300">Tạo Giọng Đọc</div>
-                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Chữ → file MP3 giọng Việt. Dùng để lồng tiếng video, làm bài giảng, đọc truyện.</div>
-                </button>
-                <button
-                  onClick={() => onOpenFeature?.('iptv')}
-                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-rose-500/40 hover:bg-rose-500/5 transition-all text-left flex flex-col"
-                >
-                  <div className="mb-2 text-rose-300"><Tv size={22} /></div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-rose-300">Xem TV</div>
-                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Xem kênh truyền hình trực tuyến từ khắp nơi trên thế giới.</div>
-                </button>
-                <button
-                  onClick={() => onOpenFeature?.('image')}
-                  className="group sm:col-span-2 sm:col-start-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-indigo-500/40 hover:bg-indigo-500/5 transition-all text-left flex flex-col"
-                >
-                  <div className="mb-2 text-indigo-300"><ImageIcon size={22} /></div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-indigo-300">Tạo Ảnh AI</div>
-                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Mô tả bằng chữ → ảnh AI (Gemini). Tạo ảnh minh họa, avatar, poster...</div>
-                </button>
-                <button
-                  onClick={() => onOpenFeature?.('documents')}
-                  className="group sm:col-span-2 p-4 rounded-2xl bg-[#1e1f20] border border-white/5 hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all text-left flex flex-col"
-                >
-                  <div className="mb-2 text-emerald-300"><FileText size={22} /></div>
-                  <div className="text-xs font-bold text-slate-100 group-hover:text-emerald-300">Đọc & Hiểu File</div>
-                  <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Đưa PDF/Word/TXT vào — AI tự đọc, hiểu theo nghĩa và trả lời dựa trên nội dung file.</div>
-                </button>
-              </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 w-full">
+                  {QUICK_ACTIONS.map((a) => (
+                    <button
+                      key={a.tab}
+                      onClick={() => onOpenFeature?.(a.tab)}
+                      className={`rexi-card rexi-rise group text-left rounded-2xl p-4 bg-[#1e1f20] border border-white/5 ${a.borderHover} ${a.span || ''}`}
+                      style={{ animationDelay: `${a.delay}ms` }}
+                    >
+                      <span className="rexi-card-glow" style={{ background: `radial-gradient(150px 90px at 50% -15%, ${a.glow}, transparent 72%)` }} />
+                      <span className={`rexi-card-icon inline-flex items-center justify-center w-10 h-10 rounded-xl border ${a.chip} mb-3`}>
+                        {a.icon}
+                      </span>
+                      <div className={`text-[13px] font-bold text-slate-100 ${a.titleHover}`}>{a.label}</div>
+                      <div className="text-[10.5px] text-slate-500 mt-1 leading-relaxed">{a.desc}</div>
+                    </button>
+                  ))}
+                </div>
 
-              <p className="text-[10px] text-slate-500 max-w-md leading-relaxed">
-                👇 Hoặc <b>gõ câu hỏi vào ô chat bên dưới</b> — ví dụ: "Soạn giúp tôi một bài văn" — và bấm Enter. Rexi AI sẽ trả lời ngay.
-              </p>
+                <p className="rexi-rise text-[11px] text-slate-500 max-w-md leading-relaxed mt-6" style={{ animationDelay: '760ms' }}>
+                  👇 Hoặc <b className="text-slate-400">gõ câu hỏi vào ô chat bên dưới</b> — ví dụ: "Soạn giúp tôi một bài văn" — rồi bấm Enter.
+                </p>
+              </div>
             </div>
           ) : (
             messages.map((msg, idx) => (

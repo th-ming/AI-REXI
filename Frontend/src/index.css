@@ -167,6 +167,52 @@ select {
 }
 .animate-slide-up { animation: slide-up 0.3s ease-out; }
 
+/* ═════════ WELCOME / HERO (redesign) — aura, stagger reveal, card glow ═════════ */
+@keyframes rexi-rise {
+  from { opacity: 0; transform: translateY(14px) scale(.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.rexi-rise { animation: rexi-rise .55s var(--ease-out) both; }
+
+@keyframes rexi-float-y {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+.rexi-hero-logo { animation: rexi-float-y 4.5s ease-in-out infinite; }
+
+@keyframes rexi-grad-pan {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+.rexi-grad-text {
+  background-image: linear-gradient(90deg, #22d3ee, #818cf8, #c084fc, #22d3ee);
+  background-size: 200% auto;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: rexi-grad-pan 6s linear infinite;
+}
+
+.rexi-aura { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.rexi-blob { position: absolute; border-radius: 9999px; filter: blur(72px); opacity: .22; will-change: transform; }
+.rexi-blob-1 { width: 300px; height: 300px; background: #22d3ee; top: -70px; left: 6%; animation: rexi-float-y 9s ease-in-out infinite; }
+.rexi-blob-2 { width: 320px; height: 320px; background: #a855f7; bottom: -100px; right: 8%; animation: rexi-float-y 11s ease-in-out infinite; }
+.rexi-blob-3 { width: 260px; height: 260px; background: #6366f1; top: 34%; left: 44%; animation: rexi-float-y 13s ease-in-out infinite; }
+[data-theme="light"] .rexi-blob { opacity: .16; }
+
+.rexi-card {
+  position: relative; overflow: hidden;
+  transition: transform .25s var(--ease-out), border-color .25s ease, background-color .25s ease, box-shadow .25s ease;
+}
+.rexi-card:hover { transform: translateY(-4px); box-shadow: 0 14px 34px -14px rgba(0,0,0,.7); }
+.rexi-card:active { transform: translateY(-1px) scale(.99); }
+.rexi-card-glow {
+  position: absolute; inset: 0; border-radius: inherit; opacity: 0;
+  transition: opacity .3s ease; pointer-events: none;
+}
+.rexi-card:hover .rexi-card-glow { opacity: 1; }
+.rexi-card-icon { transition: transform .3s var(--ease-out); }
+.rexi-card:hover .rexi-card-icon { transform: scale(1.12) rotate(-3deg); }
+
 /* ═════════ STOREIFY THEME — port từ reel demo (light, sạch, accent xanh) ═════════ */
 [data-theme="light"] {
   --bg-main: #d7dee8;
@@ -508,6 +554,8 @@ select {
 :root { --ease-out: cubic-bezier(.23,1,.32,1); }
 @media (prefers-reduced-motion: reduce) {
   .animate-slide-up { animation: none !important; }
+  .rexi-rise, .rexi-hero-logo, .rexi-grad-text, .rexi-blob { animation: none !important; }
+  .rexi-card:hover { transform: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════
