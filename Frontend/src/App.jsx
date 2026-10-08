@@ -1585,15 +1585,9 @@ useEffect(() => {
     });
     
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-    const width = 500, height = 600;
-    const left = (screen.width - width) / 2;
-    const top = (screen.height - height) / 2;
-    
-    window.open(
-      googleAuthUrl,
-      'google_oauth',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
-    );
+    // Đăng nhập NGAY TRÊN CỬA SỔ CHÍNH (không mở popup nhỏ) — callback quay về app
+    // và tự đăng nhập luôn; không còn "ô nhỏ" phải tự đóng.
+    window.location.assign(googleAuthUrl);
   };
 
 
