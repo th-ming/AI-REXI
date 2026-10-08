@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles, Folder, Monitor } from 'lucide-react';
+import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles, Folder, Monitor } from 'lucide-react';
 import { sanitizeMarkdown } from '../utils/sanitize';
 import { t } from '../i18n';
 
@@ -33,7 +33,6 @@ export default function ChatTab({
   messages, inputText, setInputText, loading, attachedFiles,
   executionMode, setExecutionMode, agentEngine, setAgentEngine, chatModeOpen, setChatModeOpen,
   listening, voiceTranscript, copiedId, speakingMsgId,
-  reasoning, setReasoning,
   handleSendMessage, startVoice, speakText, copyToClipboard,
   fileInputRef, handleFileSelect, chatScrollRef, handleChatScroll,
   showScrollTop, showScrollBottom, scrollToTopSmooth, scrollToBottomSmooth,
@@ -41,9 +40,7 @@ export default function ChatTab({
   currentUser, onOpenFeature, lang
 }) {
   const dropdownRef = useRef(null);
-  const pdfInputRef = useRef(null);
   const taRef = useRef(null);
-  const [pdfLoading, setPdfLoading] = React.useState(false);
   const [sharePop, setSharePop] = React.useState({ open: false, loading: false, url: '', err: '' });
 
   const autoGrow = () => {
@@ -96,48 +93,7 @@ export default function ChatTab({
     };
   }, [chatModeOpen, setChatModeOpen]);
 
-  const handlePdfSelect = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-      alert('Vui lòng chọn file PDF.');
-      return;
-    }
-    if (file.size > 20 * 1024 * 1024) {
-      alert('File PDF quá lớn (tối đa 20MB).');
-      return;
-    }
-    setPdfLoading(true);
-    try {
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(',')[1]);
-        reader.onerror = () => reject(new Error('Không đọc được file'));
-        reader.readAsDataURL(file);
-      });
-      const token = localStorage.getItem('rexi_token') || '';
-      const res = await fetch('/api/services/office/process-pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        credentials: 'include',
-        body: JSON.stringify({ action: 'extract', base64_pdf: base64 })
-      });
-      const data = await res.json();
-      if (!data.success || !data.text) {
-        throw new Error(data.error || 'Không trích được chữ từ PDF này (có thể là file scan ảnh).');
-      }
-      const preview = data.text.length > 15000 ? data.text.substring(0, 15000) + '\n...[đã cắt, toàn bộ dài ' + data.text.length + ' ký tự]' : data.text;
-      handleSendMessage(`📄 **File PDF: ${file.name}** (${data.pages} trang, ${data.chars} ký tự)\n\nNội dung:\n\n${preview}\n\n---\nHãy phân tích / tóm tắt nội dung file này.`);
-    } catch (err) {
-      alert('Lỗi xử lý PDF: ' + err.message);
-    } finally {
-      setPdfLoading(false);
-    }
-  };
+  const hasSendText = !!(inputText.trim() || attachedFiles.length);
 
   return (
     <div className="flex flex-col h-full max-w-4xl mx-auto px-4 py-3">
@@ -504,33 +460,6 @@ export default function ChatTab({
             )}
           </div>
 
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 text-slate-400 hover:text-cyan-400 transition-colors" title="Đính kèm file">
-            <Paperclip size={16} />
-          </button>
-          <input type="file" ref={pdfInputRef} onChange={handlePdfSelect} accept=".pdf,application/pdf" className="hidden" />
-          <button
-            onClick={() => pdfInputRef.current?.click()}
-            disabled={pdfLoading}
-            className={`p-2 rounded-lg transition-all ${pdfLoading ? 'text-amber-400 animate-pulse' : 'text-slate-400 hover:text-amber-400 hover:bg-amber-500/10'}`}
-            title="Gửi PDF cho AI phân tích (trích chữ + tóm tắt)"
-          >
-            {pdfLoading ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
-          </button>
-          <button
-            onClick={() => setReasoning?.(!reasoning)}
-            className={`relative p-2 rounded-lg transition-all ${reasoning ? "text-purple-300 bg-purple-500/15 border border-purple-500/40" : "text-slate-400 hover:text-purple-400 hover:bg-white/5"}`}
-            title="Suy luận sâu: bật để câu hỏi khó được xử lý bằng model reasoning (DeepSeek) — chậm hơn nhưng thông minh hơn"
-          >
-            <span className="text-base leading-none"><Brain size={16} /></span>
-          </button>
-          <button
-            onClick={startVoice}
-            className={`relative p-2 rounded-lg transition-all ${listening ? "text-rose-400 bg-rose-500/15 animate-pulse" : "text-slate-400 hover:text-cyan-400 hover:bg-white/5"}`}
-            title="Nhập bằng giọng nói: bấm 🎤 → nói tiếng Việt → chữ tự điền vào ô chat (bấm lại để dừng)"
-          >
-            <Mic size={16} />
-          </button>
-
           <textarea
             ref={taRef}
             value={inputText}
@@ -553,10 +482,23 @@ export default function ChatTab({
             className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 outline-none resize-none max-h-32 px-2 py-1.5 leading-6"
           />
 
-          <button onClick={() => handleSendMessage()}
-            disabled={(!inputText.trim() && attachedFiles.length === 0) || loading}
-            className="ml-2 p-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-white shadow-md transition-all shrink-0">
-            <Send size={16} />
+          <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-white/5 transition-all" title="Đính kèm file (PDF/Word/hình ảnh — AI tự đọc nội dung khi gửi)">
+            <Paperclip size={16} />
+          </button>
+
+          <button
+            onClick={hasSendText ? () => handleSendMessage() : startVoice}
+            disabled={hasSendText && loading}
+            title={hasSendText ? 'Gửi tin nhắn' : 'Nhập bằng giọng nói: bấm → nói tiếng Việt → chữ tự điền vào ô chat'}
+            className={`ml-1.5 p-2.5 rounded-xl transition-all shrink-0 ${
+              hasSendText
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-white shadow-md'
+                : listening
+                  ? 'text-rose-400 bg-rose-500/15 animate-pulse'
+                  : 'text-slate-400 hover:text-cyan-400 hover:bg-white/5'
+            }`}
+          >
+            {hasSendText ? <Send size={16} /> : <Mic size={16} />}
           </button>
         </div>
       </div>

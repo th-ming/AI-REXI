@@ -365,7 +365,6 @@ export default function App() {
 
   // AI Configuration State
   const [provider, setProvider] = useState(() => localStorage.getItem('rexi_provider') || 'xkiro');
-  const [reasoning, setReasoning] = useState(false); // 🧠 Suy luận sâu
   const [modelName, setModelName] = useState(() => localStorage.getItem('rexi_model') || 'mistralai/mistral-small-2603');
   const lastAutoSwapRef = useRef(''); // chống toast đúp khi nhiều nguồn refresh model cùng lúc
   const [apiKey, setApiKey] = useState(() => {
@@ -1179,7 +1178,7 @@ useEffect(() => {
           mode: aiSpecialty,
           execution_mode: executionMode,
           agent_engine: agentEngine,
-          thinking_level: reasoning ? 'deep' : 'normal'
+          thinking_level: thinkingLevel === 'deep' ? 'deep' : 'normal'
         })
       });
 
@@ -1852,7 +1851,6 @@ useEffect(() => {
               showScrollTop={showScrollTop} showScrollBottom={showScrollBottom}
               scrollToTopSmooth={scrollToTopSmooth} scrollToBottomSmooth={scrollToBottomSmooth}
               currentUser={currentUser}
-              reasoning={reasoning} setReasoning={setReasoning}
               onOpenFeature={handleSetActiveTab}
               activeConvId={activeConvId}
               onShare={handleShareConversation}
