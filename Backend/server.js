@@ -17,6 +17,7 @@ const modelsRoutes = require('./src/routes/models.routes');
 const mediaRoutes = require('./src/routes/media.routes');
 const workspaceRoutes = require('./src/routes/workspace.routes');
 const agentRoutes = require('./src/routes/agent.routes');
+const socialRoutes = require('./src/routes/social.routes');
 const { rateLimitMiddleware } = require('./src/middleware/rateLimit.middleware');
 const { auditMiddleware } = require('./src/middleware/audit.middleware');
 const { handleTranscriptionConnection } = require('./src/routes/realtimeTranscription.routes');
@@ -187,6 +188,7 @@ const sessionSecret = resolveSessionSecret();
   app.use('/api/media', mediaRoutes);
   app.use('/api/workspace', workspaceRoutes);
   app.use('/api/agent', agentRoutes);
+  app.use('/api/social', socialRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/admin/github', githubRoutes);
   // Real-time transcription

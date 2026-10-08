@@ -1,6 +1,7 @@
 import { API_BASE } from '../config';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Eye, EyeOff, RefreshCw, Zap } from 'lucide-react';
+import SocialConnect from './SocialConnect';
 
 const FALLBACK_PROVIDERS = {
   gemini: { name: 'Google Gemini', placeholder: 'AIzaSy...', defaultBaseUrl: '' },
@@ -19,7 +20,7 @@ const KEY_ONLY_PROVIDERS = ['gemini', 'claude', 'openai', 'deepseek', 'groq', 'g
 export default function SettingsModal({
   settingsOpen, setSettingsOpen,
   provider, setProvider, modelName, setModelName,
-  apiKey, setApiKey, baseUrl, setBaseUrl
+  apiKey, setApiKey, baseUrl, setBaseUrl, showToast
 }) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [dynamicProviders, setDynamicProviders] = useState([]);
@@ -134,7 +135,7 @@ export default function SettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{backgroundColor:'rgba(0,0,0,.10)', transition:'background-color .2s'}} onClick={() => setSettingsOpen(false)}>
-      <div className="bg-[#141522] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-[#141522] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
             <Settings size={18} className="text-cyan-500" /> Cài Đặt Hệ Thống Rexi AI
@@ -254,6 +255,8 @@ export default function SettingsModal({
           >
             <Zap size={15} /> Lưu Cài Đặt
           </button>
+
+          <SocialConnect showToast={showToast} />
         </div>
       </div>
     </div>

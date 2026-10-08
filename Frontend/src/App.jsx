@@ -603,6 +603,28 @@ export default function App() {
     }
   }, []);
 
+  // Handle social connectors redirect (?social_connected=<p> / ?social_error=<...>)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const connected = params.get('social_connected');
+      const socialError = params.get('social_error');
+      if (!connected && !socialError) return;
+      const names = { x: 'X (Twitter)', tiktok: 'TikTok', instagram: 'Instagram' };
+      if (connected) {
+        showToast(`Đã kết nối ${names[connected] || connected}!`, 'success');
+      } else {
+        showToast(`Kết nối mạng xã hội thất bại: ${socialError}`, 'error');
+      }
+      params.delete('social_connected');
+      params.delete('social_error');
+      const qs = params.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (qs ? `?${qs}` : ''));
+    } catch (e) {
+      console.warn('[Social] query param handling failed', e);
+    }
+  }, []);
+
   const chatScrollRef = useRef(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -2344,6 +2366,7 @@ useEffect(() => {
         modelName={modelName} setModelName={setModelName}
         apiKey={apiKey} setApiKey={setApiKey}
         baseUrl={baseUrl} setBaseUrl={setBaseUrl}
+        showToast={showToast}
       />
 
       {/* ═══════════════════ FLOATING SPEED DIAL MENU (Hiển thị ở mọi tab, kể cả Admin) ═══════════════════ */}
