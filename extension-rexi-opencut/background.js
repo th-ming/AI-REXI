@@ -1,5 +1,5 @@
 // background.js — poll lệnh từ Rexi, chuyển xuống tab OpenCut, trả kết quả.
-const API = 'https://rexiai.bot.cd/api/opencut-bridge';
+const API = 'https://rexiai.bot.cd/api/services/opencut-bridge';
 
 let port = null;      // long-lived port từ content-opencut (tab OpenCut)
 let token = null;

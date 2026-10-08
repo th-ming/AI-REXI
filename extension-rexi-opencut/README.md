@@ -4,13 +4,16 @@ Cho **agent Rexi AI điều khiển OpenCut** (`opencut.app`) thay bạn: bấm 
 
 ## Cách hoạt động
 ```
-Agent Rexi (server) ──WS /api/opencut-bridge──▶ Extension (background)
-                                                   │ port
-                                                   ▼
-                                          Tab OpenCut (opencut.app) → thao tác DOM
+Agent Rexi (server) ──enqueue lệnh──▶ bridge (server, in-memory)
+                                         ▲ poll ~1.5s (HTTP)      │
+Extension background ────────────────────┘                        │ result
+   │ port                                                          │
+   ▼                                                               │
+Tab OpenCut (opencut.app) ── thao tác DOM ──▶ trả kết quả ────────┘
 ```
-- Extension tự lấy token đăng nhập Rexi (`localStorage.rexi_token` trên `rexiai.bot.cd`) → mở WebSocket tới server.
-- Agent gọi tool `opencut_act` → server đẩy lệnh xuống tab OpenCut → trả kết quả.
+- Extension tự lấy token đăng nhập Rexi (`localStorage.rexi_token` trên `rexiai.bot.cd`) → poll `POST /api/services/opencut-bridge/poll` mỗi ~1.5s để lấy lệnh.
+- Thao tác xong → `POST /api/services/opencut-bridge/result`.
+- Agent gọi tool `opencut_act` → server xếp lệnh → extension lấy và thực thi.
 
 ## Cài đặt (Chrome/Edge — 1 lần)
 1. Mở `chrome://extensions` (hoặc `edge://extensions`).
