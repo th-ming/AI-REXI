@@ -39,7 +39,7 @@ import {
   Gamepad2,
   FileText,
   Languages,
-  Sliders,
+  ChevronLeft,
   Sun,
   Moon,
   MoreVertical,
@@ -2307,16 +2307,15 @@ useEffect(() => {
             />
           )}
 
-          <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none">
-            {/* Danh sách các công cụ hiện lên khi bấm mở (Có hỗ trợ cuộn nếu có nhiều tính năng) */}
-            <div ref={fabMenuRef} className={`
-              flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl transition-all duration-300 origin-bottom-right
-              max-h-[calc(100dvh-140px)] overflow-y-auto pr-1.5 scrollbar-thin
-              ${fabOpen
-                ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
-                : 'opacity-0 scale-75 translate-y-6 pointer-events-none'
-              }
-            `}>
+          {/* Panel công cụ — trượt ra từ mép phải, dài quá thì cuộn */}
+          <div ref={fabMenuRef} className={`
+            fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 bg-[#181920] border border-white/10 rounded-2xl shadow-xl transition-all duration-300 origin-right
+            max-h-[calc(100dvh-160px)] overflow-y-auto pr-1.5 scrollbar-thin
+            ${fabOpen
+              ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto'
+              : 'opacity-0 translate-x-8 scale-95 pointer-events-none'
+            }
+          `}>
               {/* Nhóm AI */}
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">{t(lang, 'fabAi')}</p>
               {[
@@ -2399,21 +2398,20 @@ useEffect(() => {
               </button>
             </div>
 
-            {/* Nút FAB chính - biểu tượng công cụ */}
+            {/* Tab mũi tên bám mép phải (kiểu Google Drive): hover đẩy ra, bấm mở toàn bộ công cụ */}
             <button
               onClick={() => setFabOpen(!fabOpen)}
               className={`
-                pointer-events-auto w-[48px] h-[48px] flex items-center justify-center rounded-full shadow-md transition-all duration-200
+                fixed bottom-6 right-0 z-50 h-14 pl-3.5 pr-2.5 flex items-center rounded-l-full text-white shadow-md transition-all duration-200
                 ${fabOpen
-                  ? 'bg-[#3d6ae6] hover:bg-[#2c52b2] text-white shadow-[#4a7dff]/30 scale-105'
-                  : 'bg-[#4a7dff] hover:bg-[#3d6ae6] text-white shadow-[#4a7dff]/20'
+                  ? 'bg-[#2c52b2] shadow-[#4a7dff]/40'
+                  : 'bg-[#4a7dff] hover:bg-[#3d6ae6] hover:-translate-x-2 hover:shadow-lg hover:shadow-[#4a7dff]/40'
                 }
               `}
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
-              <Sliders size={20} className={`transition-all duration-200 ${fabOpen ? 'scale-110 rotate-90' : ''}`} />
+              <ChevronLeft size={20} className={`transition-transform duration-200 ${fabOpen ? 'rotate-180' : ''}`} />
             </button>
-          </div>
         </>
       )}
 
