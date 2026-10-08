@@ -3846,4 +3846,18 @@ router.post('/opencut-bridge/ask', authMiddleware, async (req, res) => {
   }
 });
 
+// Upload file nguồn cho dựng video (lưu temp, trả path server dùng cho /video/edit)
+const videoUpload = multer({ dest: path.join(__dirname, '..', '..', 'temp'), limits: { fileSize: 200 * 1024 * 1024 } });
+router.post('/video/upload', authMiddleware, videoUpload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Chưa có file' });
+    const ext = (path.extname(req.file.originalname) || '.mp4').toLowerCase();
+    const dest = path.join(VIDEO_TEMP_DIR, 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) + ext);
+    try { fs.renameSync(req.file.path, dest); } catch (e) { fs.copyFileSync(req.file.path, dest); try { fs.unlinkSync(req.file.path); } catch (e2) {} }
+    res.json({ success: true, path: dest, name: path.basename(dest), sizeBytes: req.file.size });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

@@ -51,7 +51,8 @@ import {
   User,
   Play,
   GraduationCap,
-  Scissors
+  Scissors,
+  Wand2
 } from 'lucide-react';
 import { getLang, setLang, t } from './i18n';
 import Hls from 'hls.js';
@@ -68,6 +69,7 @@ import AdminPanel from './AdminPanel';
 import StudioTab from './components/StudioTab';
 import VideoCreatorTab from './components/VideoCreatorTab';
 import OpenCutTab from './components/OpenCutTab';
+import VideoEditTab from './components/VideoEditTab';
 import OpenShortsTab from './components/OpenShortsTab';
 import ImageGenTab from './components/ImageGenTab';
 import DocumentsTab from './components/DocumentsTab';
@@ -92,8 +94,13 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
         setOpen(false);
       }
     };
+    const handleKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, []);
 
   const activeModelObj = useMemo(() => {
@@ -991,11 +998,14 @@ useEffect(() => {
     if (activeTab === 'desktop') fetchDesktopScreenshot();
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const creatingConvRef = useRef(false); // chặn click-spam: POST conv chưa xong mà bấm tiếp
   const handleNewConversation = async () => {
+    if (creatingConvRef.current) return; // đang tạo dở (await POST) → bỏ qua click thừa
     // Nếu cuộc trò chuyện hiện tại chưa có tin nhắn nào → không cho tạo thêm
     if (activeConvId && messages.length === 0) {
       return; // Đã có cuộc trò chuyện trống, không tạo thêm
     }
+    creatingConvRef.current = true;
     try {
       const data = await apiFetch('/chat/conversations', {
         method: 'POST',
@@ -1005,6 +1015,7 @@ useEffect(() => {
       setActiveConvId(data.ma_hoi_thoai);
       setMessages([]);
     } catch (e) { console.error(e); }
+    finally { creatingConvRef.current = false; }
   };
 
   const handleDeleteConversation = async (id, e) => {
@@ -1021,6 +1032,22 @@ useEffect(() => {
       } else {
         showToast(err.message || 'Xóa hội thoại thất bại.', 'error');
       }
+    }
+  };
+
+  const handleTogglePin = async (conv, e) => {
+    if (e) e.stopPropagation();
+    const next = conv.da_ghim ? 0 : 1;
+    setConversations(prev => prev.map(c => c.ma_hoi_thoai === conv.ma_hoi_thoai ? { ...c, da_ghim: next } : c));
+    try {
+      await apiFetch(`/chat/conversations/${conv.ma_hoi_thoai}/pin`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ da_ghim: next })
+      });
+    } catch (err) {
+      setConversations(prev => prev.map(c => c.ma_hoi_thoai === conv.ma_hoi_thoai ? { ...c, da_ghim: conv.da_ghim || 0 } : c));
+      showToast(err.message || (next ? 'Ghim hội thoại thất bại.' : 'Bỏ ghim thất bại.'), 'error');
     }
   };
 
@@ -1627,7 +1654,7 @@ useEffect(() => {
   const filteredConvs = conversations.filter(c =>
     (c.tieu_de || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (searchIds && searchIds.has(c.ma_hoi_thoai))
-  );
+  ).sort((a, b) => (b.da_ghim ? 1 : 0) - (a.da_ghim ? 1 : 0));
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[var(--bg-main)] text-[var(--text-main)] font-sans antialiased">
@@ -1642,6 +1669,7 @@ useEffect(() => {
         activeConvId={activeConvId} setActiveConvId={setActiveConvId}
         handleNewConversation={handleNewConversation}
         handleDeleteConversation={handleDeleteConversation}
+        handleTogglePin={handleTogglePin}
         filesDrawerOpen={filesDrawerOpen} setFilesDrawerOpen={setFilesDrawerOpen}
         renderTree={renderTree} fileTree={fileTree}
          setSkillsOpen={setSkillsOpen} setSuperToolsOpen={setSuperToolsOpen} setHelpOpen={setHelpOpen}
@@ -1941,6 +1969,14 @@ useEffect(() => {
             />
           )}
 
+          {/* TAB: DỰNG VIDEO (server-side, không cần cài) */}
+          {activeTab === 'videoedit' && (
+            <VideoEditTab
+              authToken={authToken}
+              showToast={showToast}
+            />
+          )}
+
           {/* TAB: OPENSHORTS — video dài → shorts 9:16 */}
           {activeTab === 'openshorts' && (
             <OpenShortsTab
@@ -2040,8 +2076,8 @@ useEffect(() => {
 
       {/* Super Tools Modal (Exec, Git, Memory) */}
       {superToolsOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#181920] border border-white/10 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setSuperToolsOpen(false)}>
+          <div className="bg-[#181920] border border-white/10 rounded-2xl w-full max-w-2xl p-6 space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <div className="flex items-center gap-2">
                 <Zap className="text-amber-400" size={20} />
@@ -2149,8 +2185,8 @@ useEffect(() => {
 
       {/* ═══════════════════ USER AUTH MODAL ═══════════════════ */}
       {authModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#181920] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4" onClick={() => { setAuthModalOpen(false); setForgotStep('login'); setShowPassword(false); setShowForgotNewPassword(false); setForgotMessage(''); }}>
+          <div className="bg-[#181920] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => { setAuthModalOpen(false); setForgotStep('login'); setShowPassword(false); setShowForgotNewPassword(false); setForgotMessage(''); }} className="absolute top-4 right-4 text-slate-400 hover:text-white">
               <X size={18} />
             </button>
@@ -2320,7 +2356,7 @@ useEffect(() => {
 
           {/* Panel công cụ — smoked glass, tuot ra tu mep, dau thi stagger */}
           <div ref={fabMenuRef} className={`
-            fixed right-3 bottom-24 z-50 flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform
+            fixed right-3 bottom-24 z-[45] flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform
             rexi-fab-panel border
             transition-all duration-[600ms] ease-[cubic-bezier(0.32,0.72,0,1)]
             max-h-[calc(100dvh-160px)] overflow-y-auto pr-1.5 scrollbar-thin
@@ -2345,6 +2381,7 @@ useEffect(() => {
                 { tab: 'tts', icon: <Mic size={17} />, label: t(lang, 'fabTts'), color: 'text-cyan-400', desc: t(lang, 'fabTtsDesc') },
                 { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: t(lang, 'fabDocsDesc') },
                 { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: t(lang, 'fabVideoDesc') },
+                { tab: 'videoedit', icon: <Wand2 size={17} />, label: 'Dựng Video', color: 'text-cyan-400', desc: 'Cắt/ghép/chữ/nhạc → MP4 (server, không cần cài)' },
                 { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: t(lang, 'fabOpenCutDesc') },
                 { tab: 'openshorts', icon: <Scissors size={17} />, label: t(lang, 'fabOpenShorts'), color: 'text-orange-400', desc: t(lang, 'fabOpenShortsDesc') },
                 { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: t(lang, 'fabYoutubeDesc') },
@@ -2415,7 +2452,7 @@ useEffect(() => {
             <button
               onClick={() => setFabOpen(!fabOpen)}
               className={`
-                group fixed bottom-6 right-0 z-50 h-14 pl-3 pr-2.5 flex items-center rounded-l-full
+                group fixed bottom-6 right-0 z-[45] h-14 pl-3 pr-2.5 flex items-center rounded-l-full
                 rexi-fab-tab border border-r-0
                 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform
                 ${fabOpen
