@@ -193,6 +193,20 @@ select {
 }
 
 .rexi-aura { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.rexi-glow-top {
+  position: absolute; top: -45%; left: 50%; transform: translateX(-50%);
+  width: 620px; height: 620px; border-radius: 9999px;
+  background: radial-gradient(circle at center, rgba(34,211,238,.16), rgba(168,85,247,.12) 45%, transparent 70%);
+  filter: blur(18px);
+}
+[data-theme="light"] .rexi-glow-top { opacity: .55; }
+.rexi-halo {
+  position: absolute; inset: -10px; border-radius: 9999px; z-index: 0;
+  background: radial-gradient(circle, rgba(34,211,238,.35), transparent 68%);
+  filter: blur(10px);
+}
+.rexi-pill { transition: background-color .2s ease, color .2s ease, border-color .2s ease; }
+.rexi-pill:hover { border-color: rgba(255,255,255,.18); }
 .rexi-blob { position: absolute; border-radius: 9999px; filter: blur(72px); opacity: .22; will-change: transform; }
 .rexi-blob-1 { width: 300px; height: 300px; background: #22d3ee; top: -70px; left: 6%; animation: rexi-float-y 9s ease-in-out infinite; }
 .rexi-blob-2 { width: 320px; height: 320px; background: #a855f7; bottom: -100px; right: 8%; animation: rexi-float-y 11s ease-in-out infinite; }

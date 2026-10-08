@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Mic, Paperclip, Volume2, Copy, Check, ArrowUp, ArrowDown, Square, FileText, Loader2, Zap, Brain, MessageSquare, Share2, X, Pencil, Clapperboard, Tv, Image as ImageIcon, ChevronDown, Bot, Rocket, MonitorPlay, Scissors, Film, Gamepad2, GraduationCap, Sparkles, Folder, Monitor } from 'lucide-react';
 import { sanitizeMarkdown } from '../utils/sanitize';
 import { t } from '../i18n';
 
@@ -17,6 +17,18 @@ const QUICK_ACTIONS = [
   { tab: 'games',      label: 'Trò Chơi',        desc: 'Giải trí, game mini trong app.', icon: <Gamepad2 size={20} />, chip: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/25', glow: 'rgba(217,70,239,.40)', borderHover: 'hover:border-fuchsia-500/45', titleHover: 'group-hover:text-fuchsia-300', delay: 700 },
 ];
 
+// 6 ô "đại diện" hiện dạng tile; phần còn lại nằm trong dải pill cuộn ngang.
+const FEATURED_ACTIONS = QUICK_ACTIONS.slice(0, 6);
+const EXTRA_ACTIONS = [
+  { tab: 'opencut',    label: 'OpenCut',        icon: <Scissors size={14} />,      iconColor: 'text-sky-300' },
+  { tab: 'openshorts', label: 'OpenShorts',     icon: <Film size={14} />,          iconColor: 'text-orange-300' },
+  { tab: 'classroom',  label: 'Lớp Học AI',     icon: <GraduationCap size={14} />, iconColor: 'text-teal-300' },
+  { tab: 'games',      label: 'Trò Chơi',       icon: <Gamepad2 size={14} />,      iconColor: 'text-fuchsia-300' },
+  { tab: 'browser',    label: 'Trình Duyệt AI', icon: <Bot size={14} />,           iconColor: 'text-purple-300' },
+  { tab: 'files',      label: 'Tệp Tin',        icon: <Folder size={14} />,        iconColor: 'text-amber-300' },
+  { tab: 'desktop',    label: 'Màn Hình',       icon: <Monitor size={14} />,       iconColor: 'text-emerald-300' },
+];
+
 export default function ChatTab({
   messages, inputText, setInputText, loading, attachedFiles,
   executionMode, setExecutionMode, agentEngine, setAgentEngine, chatModeOpen, setChatModeOpen,
@@ -31,8 +43,6 @@ export default function ChatTab({
   const dropdownRef = useRef(null);
   const pdfInputRef = useRef(null);
   const taRef = useRef(null);
-  const carouselRef = useRef(null);
-  const scrollRail = (dir) => carouselRef.current?.scrollBy({ left: dir * 250, behavior: 'smooth' });
   const [pdfLoading, setPdfLoading] = React.useState(false);
   const [sharePop, setSharePop] = React.useState({ open: false, loading: false, url: '', err: '' });
 
@@ -132,48 +142,54 @@ export default function ChatTab({
           {messages.length === 0 ? (
             <div className="relative h-full flex flex-col items-center justify-center px-4 py-6 overflow-hidden">
               <div className="rexi-aura" aria-hidden="true">
-                <span className="rexi-blob rexi-blob-1" />
-                <span className="rexi-blob rexi-blob-2" />
+                <span className="rexi-glow-top" />
               </div>
 
-              <div className="relative z-10 w-full max-w-5xl flex flex-col items-center">
-                <div className="rexi-rise flex items-center gap-3 mb-5">
-                  <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-hero-logo w-12 h-12 object-contain shrink-0" />
-                  <div className="text-left">
-                    <h2 className="text-lg sm:text-2xl font-bold rexi-grad-text leading-tight">
-                      Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
-                    </h2>
-                    <p className="text-[11px] sm:text-xs text-slate-400 mt-1">Chọn một năng lực để bắt đầu, hoặc gõ câu hỏi bên dưới.</p>
+              <div className="relative z-10 w-full max-w-3xl flex flex-col items-center">
+                <div className="rexi-rise flex flex-col items-center text-center mb-6">
+                  <div className="relative mb-3">
+                    <span className="rexi-halo" aria-hidden="true" />
+                    <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-hero-logo w-14 h-14 object-contain relative" />
                   </div>
+                  <h2 className="text-xl sm:text-2xl font-bold rexi-grad-text">
+                    Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
+                  </h2>
+                  <p className="text-[11px] sm:text-xs text-slate-400 mt-1.5">Chọn năng lực để bắt đầu — hoặc gõ câu hỏi bên dưới.</p>
                 </div>
 
-                <div className="rexi-rail w-full relative">
-                  <button type="button" onClick={() => scrollRail(-1)} aria-label="Trước" className="rexi-nav rexi-nav-left">
-                    <ChevronLeft size={18} />
-                  </button>
-                  <div ref={carouselRef} className="rexi-scroll flex gap-3 overflow-x-auto snap-x snap-mandatory px-1 pb-2">
-                    {QUICK_ACTIONS.map((a, i) => (
-                      <button
-                        key={a.tab}
-                        onClick={() => onOpenFeature?.(a.tab)}
-                        style={{ animationDelay: `${Math.min(i, 6) * 60}ms` }}
-                        className={`rexi-card rexi-slide group snap-start shrink-0 w-44 sm:w-48 text-left rounded-2xl p-4 bg-[#1e1f20] border border-white/5 ${a.borderHover}`}
-                      >
-                        <span className="rexi-card-glow" style={{ background: `radial-gradient(150px 90px at 50% -15%, ${a.glow}, transparent 72%)` }} />
-                        <span className={`rexi-card-icon inline-flex items-center justify-center w-10 h-10 rounded-xl border ${a.chip} mb-3`}>
-                          {a.icon}
-                        </span>
-                        <div className={`text-[13px] font-bold text-slate-100 ${a.titleHover}`}>{a.label}</div>
-                        <div className="text-[10.5px] text-slate-500 mt-1 leading-relaxed line-clamp-2">{a.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => scrollRail(1)} aria-label="Sau" className="rexi-nav rexi-nav-right">
-                    <ChevronRight size={18} />
-                  </button>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 w-full">
+                  {FEATURED_ACTIONS.map((a, i) => (
+                    <button
+                      key={a.tab}
+                      onClick={() => onOpenFeature?.(a.tab)}
+                      style={{ animationDelay: `${i * 55}ms` }}
+                      className={`rexi-card rexi-slide group relative flex items-center gap-3 text-left rounded-2xl p-3 bg-[#1e1f20] border border-white/5 ${a.borderHover}`}
+                    >
+                      <span className="rexi-card-glow" style={{ background: `radial-gradient(130px 70px at 25% -20%, ${a.glow}, transparent 72%)` }} />
+                      <span className={`rexi-card-icon inline-flex items-center justify-center w-10 h-10 rounded-xl border shrink-0 ${a.chip}`}>
+                        {a.icon}
+                      </span>
+                      <span className="min-w-0">
+                        <span className={`block text-[13px] font-semibold text-slate-100 ${a.titleHover}`}>{a.label}</span>
+                        <span className="block text-[10.5px] text-slate-500 truncate">{a.desc}</span>
+                      </span>
+                    </button>
+                  ))}
                 </div>
 
-                <p className="rexi-rise text-[11px] text-slate-500 mt-4" style={{ animationDelay: '400ms' }}>
+                <div className="rexi-scroll flex gap-2 w-full overflow-x-auto px-1 py-1 mt-3.5">
+                  {EXTRA_ACTIONS.map((x) => (
+                    <button
+                      key={x.tab}
+                      onClick={() => onOpenFeature?.(x.tab)}
+                      className="rexi-pill inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-[11px] text-slate-300 hover:text-white"
+                    >
+                      <span className={x.iconColor}>{x.icon}</span>{x.label}
+                    </button>
+                  ))}
+                </div>
+
+                <p className="rexi-rise text-[11px] text-slate-500 mt-4" style={{ animationDelay: '420ms' }}>
                   👇 Hoặc <b className="text-slate-400">gõ câu hỏi vào ô chat bên dưới</b> rồi bấm Enter.
                 </p>
               </div>
