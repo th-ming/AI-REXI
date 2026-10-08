@@ -107,6 +107,21 @@ const TOOL_REGISTRY = [
       },
       required: ['operation']
     }
+  },
+  {
+    name: 'opencut_act',
+    description: 'Điều khiển tab OpenCut đang mở trên trình duyệt NGƯỜI DÙNG (qua extension Rexi OpenCut Bridge) để thao tác hộ: bấm nút, gõ chữ, chạy JS, đọc trang. action: eval ({code}) chạy JS trong trang và trả kết quả; click ({selector} hoặc {text}); type ({selector, text}); text (đọc nội dung trang); list (liệt kê các nút bấm được); wait ({ms}).',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['eval', 'click', 'type', 'text', 'list', 'wait'], description: 'Hành động' },
+        selector: { type: 'string', description: 'CSS selector' },
+        text: { type: 'string', description: 'Text để tìm/click, hoặc nội dung cần gõ' },
+        code: { type: 'string', description: 'JS chạy khi action=eval' },
+        ms: { type: 'number', description: 'Thời gian chờ (ms) khi action=wait' }
+      },
+      required: ['action']
+    }
   }
 ];
 
@@ -233,6 +248,10 @@ async function executeTool(toolName, args) {
         r.url = `${base}/api/services/video/file/${r.fileName}`;
       }
       return r;
+    }
+    case 'opencut_act': {
+      const { sendCommand } = require('./opencutBridge');
+      return await sendCommand(args.action, args);
     }
     default:
       return { error: "Tool '" + toolName + "' chưa được implement" };

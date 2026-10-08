@@ -303,6 +303,27 @@ const sessionSecret = resolveSessionSecret();
   });
   browserStream.setWSS(wss);
 
+  // WebSocket server cho OpenCut Bridge (extension trình duyệt người dùng điều khiển OpenCut)
+  const opencutBridge = require('./src/services/opencutBridge');
+  const opencutWSS = new WebSocketServer({ server, path: '/api/opencut-bridge', perMessageDeflate: { zlibDeflateOptions: { chunkSize: 1024 } } });
+  const verifyOpencutWS = (ws, req) => {
+    try {
+      const reqUrl = req.url || '';
+      let token = '';
+      const q = reqUrl.indexOf('?');
+      if (q >= 0) { try { token = new URL(reqUrl, 'http://localhost').searchParams.get('token') || ''; } catch (e) {} }
+      if (!token) {
+        const proto = req.headers['sec-websocket-protocol'] || '';
+        const parts = String(proto).split(',').map((s) => s.trim()).filter(Boolean);
+        if (parts.length) token = parts[parts.length - 1];
+      }
+      if (!token) return false;
+      jwt.verify(token, getJWTSecret());
+      return true;
+    } catch (e) { return false; }
+  };
+  opencutBridge.setWSS(opencutWSS, { verify: verifyOpencutWS });
+
   // WebSocket server cho Real-time Transcription
   const transcriptionWSS = new WebSocketServer({ server, path: '/api/services/transcribe-live', perMessageDeflate: { zlibDeflateOptions: { chunkSize: 1024 } } });
   transcriptionWSS.on('connection', async (ws, req) => {

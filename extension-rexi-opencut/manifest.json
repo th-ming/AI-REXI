@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Rexi OpenCut Bridge",
+  "version": "1.0.0",
+  "description": "Cho agent Rexi AI điều khiển OpenCut (opencut.app) thay bạn.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://opencut.app/*",
+    "https://rexiai.bot.cd/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://opencut.app/*"],
+      "js": ["content-opencut.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://rexiai.bot.cd/*"],
+      "js": ["content-rexi.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Rexi OpenCut Bridge"
+  }
+}
