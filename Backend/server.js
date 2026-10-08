@@ -93,7 +93,7 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
       mediaSrc: ["'self'", 'data:', 'blob:', 'https:', 'http://localhost:*'],
       connectSrc: ["'self'", 'https:', 'wss:', 'ws:', 'http://localhost:*', 'http://127.0.0.1:*'],
-      frameSrc: ["'self'", 'https://www.youtube.com', 'https://accounts.google.com', 'https://open.maic.chat', 'https://*.maic.chat'],
+      frameSrc: ["'self'", 'https://www.youtube.com', 'https://accounts.google.com', 'https://open.maic.chat', 'https://*.maic.chat', 'http://localhost:*', 'http://127.0.0.1:*', 'https://localhost:*', 'https://127.0.0.1:*'],
       workerSrc: ["'self'", 'blob:'],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
