@@ -2833,7 +2833,7 @@ router.get('/video/status', authMiddleware, async (req, res) => {
 // POST: Render HTML composition → MP4
 // P2-20(6): rate-limit 3 render/giờ/user (sau auth để key theo user) + giới hạn
 // duration ≤ 30s + width ≤ 1920 (chống đốt CPU/RAM bằng job khổng lồ).
-router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max: 3, message: 'Bạn đã render 3 video trong giờ này. Vui lòng chờ thêm rồi thử lại.' }), async (req, res) => {
+router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max: 20, message: 'Bạn đã render 20 video trong giờ này. Vui lòng chờ thêm rồi thử lại.' }), async (req, res) => {
   const { html, width, height, fps, duration } = req.body;
   if (!html || !html.trim()) {
     return res.status(400).json({ error: 'Thiếu nội dung HTML composition' });
