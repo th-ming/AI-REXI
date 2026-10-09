@@ -50,14 +50,15 @@ async function pollOnce() {
   } catch (e) {}
 }
 
-function loop() { if (pollTimer) clearInterval(pollTimer); pollOnce(); pollTimer = setInterval(pollOnce, 1500); }
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'token' && msg.token) {
     const changed = msg.token !== token;
     token = msg.token;
     chrome.storage.local.set({ rexi_token: token });
-    if (changed) { log('token received'); loop(); }
+    if (changed) { log('token received'); pollOnce(); }
+    sendResponse && sendResponse({ ok: true });
+  } else if (msg && msg.type === 'pollNow') {
+    pollOnce();
     sendResponse && sendResponse({ ok: true });
   } else if (msg && msg.type === 'getStatus') {
     fetch(API + '/status', { headers: authHeaders() })
@@ -76,4 +77,4 @@ chrome.runtime.onConnect.addListener((p) => {
   p.onDisconnect.addListener(() => { if (port === p) port = null; });
 });
 
-chrome.storage.local.get(['rexi_token'], (r) => { if (r && r.rexi_token) { token = r.rexi_token; loop(); } });
+chrome.storage.local.get(['rexi_token'], (r) => { if (r && r.rexi_token) { token = r.rexi_token; pollOnce(); } });

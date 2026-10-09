@@ -2,6 +2,11 @@
 const port = chrome.runtime.connect({ name: 'opencut' });
 port.postMessage({ type: 'hello' });
 
+// Giữ service worker sống + poll lệnh liên tục (MV3 SW bị Chrome kill khi idle)
+function pingPoll() { try { chrome.runtime.sendMessage({ type: 'pollNow' }, () => { void chrome.runtime.lastError; }); } catch (e) {} }
+pingPoll();
+setInterval(pingPoll, 1500);
+
 function send(id, result) { try { port.postMessage({ type: 'result', id, result }); } catch (e) {} }
 
 function findByText(t) {
