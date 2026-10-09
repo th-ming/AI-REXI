@@ -374,10 +374,32 @@ class BrowserStreamService {
   async navigate(url) {
     if (!this.page) {
       await this.launch({ url });
-      return { success: true, url: this.page ? this.page.url() : url };
+    } else {
+      await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     }
-    await this.page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    return { success: true, url: this.page.url() };
+    // Trả luôn TIÊU ĐỀ + TEXT trang để agent (model text) đọc được nội dung ngay,
+    // không phải đoán qua screenshot (model không nhìn ảnh).
+    let title = '';
+    let text = '';
+    try {
+      title = await this.page.title();
+      text = await this.page.evaluate(() =>
+        String((document.body && document.body.innerText) || '')
+          .replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim().slice(0, 6000));
+    } catch (e) { /* ignore */ }
+    return { success: true, url: this.page.url(), title, text };
+  }
+
+  // Đọc lại nội dung trang hiện tại dưới dạng text (cho agent).
+  async readText(maxChars = 6000) {
+    if (!this.page) return { success: false, error: 'Chưa mở trang nào.' };
+    try {
+      const title = await this.page.title();
+      const text = await this.page.evaluate((m) =>
+        String((document.body && document.body.innerText) || '')
+          .replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim().slice(0, m), maxChars);
+      return { success: true, url: this.page.url(), title, text };
+    } catch (e) { return { success: false, error: e.message }; }
   }
 
   async act(instruction) {

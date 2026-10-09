@@ -36,6 +36,11 @@ const TOOL_REGISTRY = [
     parameters: { type: 'object', properties: {} }
   },
   {
+    name: 'browser_read',
+    description: 'Đọc nội dung TEXT (tiêu đề + chữ) của trang đang mở. DÙNG NGAY SAU browser_navigate để lấy nội dung trang rồi tóm tắt/trả lời (tốt hơn browser_screenshot với model chỉ đọc chữ).',
+    parameters: { type: 'object', properties: { maxChars: { type: 'number', description: 'Số ký tự tối đa (mặc định 6000)' } } }
+  },
+  {
     name: 'process_word',
     description: 'Đọc/xử lý file Word (.docx). Dùng để phân tích, chỉnh sửa văn bản',
     parameters: { type: 'object', properties: { filePath: { type: 'string', description: 'Đường dẫn file Word' }, instruction: { type: 'string', description: 'Cần làm gì với file?' } }, required: ['filePath', 'instruction'] }
@@ -155,6 +160,8 @@ async function executeTool(toolName, args) {
       if (!browserStream.page) return { error: 'Browser chưa mở' };
       const buf = await browserStream.page.screenshot({ type: 'jpeg', quality: 70 });
       return { screenshot: 'data:image/jpeg;base64,' + buf.toString('base64') };
+    case 'browser_read':
+      return await browserStream.readText(args.maxChars || 6000);
     case 'process_word': {
       const content = fs.readFileSync(args.filePath, 'utf-8');
       const result = await callAI('Xử lý: ' + args.instruction + '\n\nNội dung:\n' + content);

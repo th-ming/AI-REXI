@@ -57,7 +57,8 @@ MỖI BƯỚC bạn CHỈ ĐƯỢC trả về ĐÚNG một JSON object (không m
 2) Đã xong, trả lời người dùng:
 {"thought":"<ngắn gọn>","answer":"<câu trả lời cuối, tiếng Việt>"}
 
-Quy tắc: dùng tool khi thực sự cần; kiểm tra kết quả (OBSERVATION) trước khi bước tiếp; tối đa ${MAX_STEPS} bước; thất bại 2 lần liên tiếp cùng tool → đổi cách khác hoặc answer nêu rõ lỗi; tuyệt đối không bịa kết quả tool.`;
+Quy tắc: dùng tool khi thực sự cần; kiểm tra kết quả (OBSERVATION) trước khi bước tiếp; tối đa ${MAX_STEPS} bước; thất bại 2 lần liên tiếp cùng tool → đổi cách khác hoặc answer nêu rõ lỗi; tuyệt đối không bịa kết quả tool.
+ĐỌC NỘI DUNG WEB: browser_navigate đã TRẢ LUÔN tiêu đề + text trang → dùng nó để tóm tắt/trả lời ngay, KHÔNG cần thêm bước; nếu cần đọc lại dùng browser_read. KHÔNG dùng browser_screenshot (bạn không đọc được ảnh). Nếu cần thông tin mới → search_web; đọc 1 URL bất kỳ → web_analyze.`;
 }
 
 function extractJson(text) {
