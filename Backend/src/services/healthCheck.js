@@ -31,6 +31,9 @@ const TEST_PLAN = {
   bai:         { url: 'https://api.b.ai/v1/chat/completions',               model: 'qwen3.8-flash',               auth: 'bearer' },
   kiosapi:     { url: 'https://router.kiosapi.com/v1/chat/completions',     model: 'sensenova-6.8-flash-lite',    auth: 'bearer' },
   gemini:      { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent', model: null, auth: 'query' },
+  // kilo: KEYLESS — không cần key; nếu test không có key thì gửi không Authorization
+  kilo:        { url: 'https://kilo.ai/api/openrouter/chat/completions', model: 'nvidia/nemotron-3.5-lightning:free', auth: 'bearer' },
+  kiro:        { url: 'https://kiroforge.cloud/v1/chat/completions', model: 'GPT_5.5', auth: 'bearer' },
 };
 
 // Lấy toàn bộ key từ DB (đã decrypt)
@@ -53,7 +56,7 @@ async function testProvider(provider, apiKey) {
   try {
     let url = plan.url;
     const headers = { 'Content-Type': 'application/json' };
-    if (plan.auth === 'bearer') headers['Authorization'] = `Bearer ${apiKey}`;
+    if (plan.auth === 'bearer' && apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
     // agentrouter chặn client lạ → phải giả lập UA của opencode
     if (provider === 'agentrouter') headers['User-Agent'] = 'opencode/1.17.12';
     if (plan.auth === 'query' && apiKey) {

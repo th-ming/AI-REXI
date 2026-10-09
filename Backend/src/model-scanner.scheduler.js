@@ -59,6 +59,13 @@ const PROVIDER_ENDPOINTS = {
   // chỉ gây bão 429, vô nghĩa. Đăng ký thẳng theo listing (:free = active), quotaManager
   // giới hạn 1/phút lúc chat thật.
   unorouter:   { name: 'UnoRouter',          endpoint: 'https://api.unorouter.com/v1/models',                  auth: 'bearer', trustCatalog: true },
+  // kilo: Kilo Code gateway — KEYLESS hoàn toàn (verify 10/2026: /api/gateway/models +
+  // /api/openrouter/chat/completions KHÔNG 401 khi không có Authorization). Base chat là
+  // 2 path segments (https://kilo.ai/api/openrouter) — KHÔNG /v1.
+  kilo:        { name: 'Kilo Code',          endpoint: 'https://kilo.ai/api/gateway/models',                   auth: 'bearer' },
+  // kiro: KiroForge (kiroforge.cloud) — New API instance, CÓ key (lưu khoa_api encrypted).
+  // /v1/models trả EMPTY {"data":[]} → fetchModels hardcode 23-model list (từ /api/pricing, 10/2026).
+  kiro:        { name: 'KiroForge',          endpoint: 'https://kiroforge.cloud/v1/models',                    auth: 'bearer' },
 };
 
 // Lấy API key từ CSDL cho một provider (key lưu mã hóa — phải decryptKey)
@@ -77,6 +84,21 @@ async function getKeyForProvider(providerId) {
 // Fetch danh sách model từ endpoint
 async function fetchModels(providerId, apiKey, endpoint, authType) {
 try {
+    // KiroForge: /v1/models trả EMPTY (New API không expose listing) → hardcode 23-model
+    // list từ /api/pricing (verify 10/2026, group All_Models). bge-m3 embed + GPT_Image_2
+    // image → scanner tự phân loại non-chat (catalog only).
+    if (providerId === 'kiro') {
+      const KIRO_MODELS = [
+        'Claude_Opus_4.7', 'Claude_Opus_4.8_Anthropic', 'Claude_Opus_4.6_Anthropic',
+        'Claude_Sonnet_4.6_Anthropic', 'Claude_Fable_5_Anthropic', 'GPT_6_Sol',
+        'DeepSeek_V4_Flash', 'Claude_Opus_4.8', 'Codex_Auto_Review', 'GPT_5.6_Sol',
+        'Claude_Sonnet_4.6', 'DeepSeek_V4_Pro', 'BAAI/bge-m3', 'Claude_Opus_4.7_Anthropic',
+        'Claude_Opus_5_Anthropic', 'Claude_Fable_5', 'GPT_5.5', 'GPT_5.6_Terra',
+        'GPT_Image_2', 'GPT_5.6_Luna', 'GPT_6_Astra', 'GPT_6.1_Sol', 'Claude_Opus_4.6',
+      ];
+      return { success: true, models: KIRO_MODELS, tiers: {} };
+    }
+
     // OpenCode là CLI local (opencode.exe) — gọi opencode models để lấy danh sách động
     if (providerId === 'opencode') {
       const { spawn } = require('child_process');
@@ -143,6 +165,16 @@ try {
       }
     }
 
+    // Kilo: 401 model, gần như toàn bộ trả phí → chỉ giữ :free + kilo-auto/* (routing).
+    // Paid sẽ 402 'Insufficient credits' + đốt call test vô nghĩa.
+    if (providerId === 'kilo') {
+      const before = models.length;
+      models = models.filter(m => m.endsWith(':free') || m.startsWith('kilo-auto/'));
+      if (models.length > 0 && models.length < before) {
+        console.log(`[ModelScanner] Kilo: lọc ${before} model → chỉ giữ ${models.length} (:free + kilo-auto/*, trả phí bỏ qua)`);
+      }
+    }
+
     // FIX: If no models found, check for error messages in response
     if (models.length === 0) {
       const errMsg = data.error || data.message || data.detail || '';
@@ -182,6 +214,8 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
       bai: 'https://api.b.ai/v1/chat/completions',
       kiosapi: 'https://router.kiosapi.com/v1/chat/completions',
       unorouter: 'https://api.unorouter.com/v1/chat/completions',
+      kilo: 'https://kilo.ai/api/openrouter/chat/completions',
+      kiro: 'https://kiroforge.cloud/v1/chat/completions',
     };
 
     const endpoint = CHAT_ENDPOINTS[providerId];
@@ -252,9 +286,12 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
 
     // max_tokens hơi rộng tay (50): router mới (b.ai/tencent) nhét reasoning/manifest vào
     // token đầu khiến choices rỗng nếu max_tokens=1.
+    // Authorization chỉ gửi khi CÓ key — kilo keyless gửi 'Bearer ' rỗng sẽ 401.
+    const healthHeaders = { 'Content-Type': 'application/json' };
+    if (apiKey) healthHeaders['Authorization'] = `Bearer ${apiKey}`;
     const resp = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      headers: healthHeaders,
       body: JSON.stringify({ model: modelId, messages: [{ role: 'user', content: 'hi' }], max_tokens: 50 }),
       signal: AbortSignal.timeout(12000)
     });
@@ -365,10 +402,12 @@ async function scanProvider(providerId) {
   if (!cfg) return { success: false, error: 'Unknown provider' };
 
   let apiKey = await getKeyForProvider(providerId);
-  if (!apiKey && !['opencode'].includes(providerId)) {
+  if (!apiKey && !['opencode', 'kilo'].includes(providerId)) {
     return { success: false, error: 'No API key configured', skipped: true };
   }
-  if (!apiKey) apiKey = 'free_key';
+  // kilo keyless: giữ chuỗi rỗng → mọi request KHÔNG gửi Authorization (gửi 'Bearer free_key' sẽ 401).
+  // opencode đi CLI riêng không tới đây.
+  if (!apiKey && providerId !== 'kilo') apiKey = 'free_key';
 
   console.log(`[ModelScanner] Scanning ${cfg.name}...`);
 
@@ -720,8 +759,8 @@ async function scanOnStartup() {
   const summary = [];
   for (const providerId of Object.keys(PROVIDER_ENDPOINTS)) {
     const apiKey = await getKeyForProvider(providerId);
-    // Bỏ qua provider KHÔNG có key, TRỪ các provider không cần key (local CLI / free)
-    if (!apiKey && !['opencode'].includes(providerId)) {
+    // Bỏ qua provider KHÔNG có key, TRỪ các provider không cần key (local CLI / keyless gateway)
+    if (!apiKey && !['opencode', 'kilo'].includes(providerId)) {
       await cleanupStaleModels(providerId); // provider không có key → dọn model ma cũ của họ
       continue;
     }

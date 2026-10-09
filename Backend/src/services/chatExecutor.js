@@ -9,7 +9,7 @@ const { resolveProvider, recordLatency } = require('./modelRouter');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const quota = require('./quotaManager');
 
-const OPENAI_COMPAT = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter'];
+const OPENAI_COMPAT = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kilo', 'kiro'];
 
 function stripProviderPrefix(provider, model) {
   let m = String(model || '');
@@ -45,6 +45,8 @@ function defaultBase(provider) {
     bai: 'https://api.b.ai/v1',
     kiosapi: 'https://router.kiosapi.com/v1',
     unorouter: 'https://api.unorouter.com/v1',
+    kilo: 'https://kilo.ai/api/openrouter',
+    kiro: 'https://kiroforge.cloud/v1',
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
   };
   return map[provider] || 'https://api.openai.com/v1';
@@ -156,7 +158,9 @@ function buildHistoryGemini(history) {
 async function callOnce(candidate, { systemPrompt, history, thinkingLevel }) {
   const { provider, model } = candidate;
   const { apiKey, baseUrl } = await resolveProvider(provider);
-  if (!apiKey && provider !== 'opencode') {
+  // opencode + kilo KEYLESS — không cần API key (verify 10/2026: kilo.ai/api/openrouter
+  // không 401 khi không có Authorization)
+  if (!apiKey && !['opencode', 'kilo'].includes(provider)) {
     return { ok: false, error: `[${provider}] thiếu API key` };
   }
   const finalModel = stripProviderPrefix(provider, model);
@@ -180,8 +184,8 @@ async function callOnce(candidate, { systemPrompt, history, thinkingLevel }) {
     'Content-Type': 'application/json',
     'Accept': 'application/json, text/plain, */*',
   };
-  // opencode Zen free KHÔNG BAO GIỜ gửi Authorization (key trong DB là key khác — gửi vào sẽ bị 401)
-  if (provider !== 'opencode') headers['Authorization'] = `Bearer ${apiKey}`;
+  // opencode Zen free + kilo gateway KHÔNG BAO GIỜ gửi Authorization (key trong DB là key khác — gửi vào sẽ bị 401)
+  if (!['opencode', 'kilo'].includes(provider)) headers['Authorization'] = `Bearer ${apiKey}`;
   if (provider === 'agentrouter') headers['User-Agent'] = 'opencode/1.17.12';
 
   const t0 = Date.now();

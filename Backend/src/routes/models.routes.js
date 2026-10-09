@@ -110,8 +110,11 @@ router.get('/', (req, res) => {
       const pKey = r.ma_nha_cung_cap.toLowerCase();
       const cached = cacheState.get(`${pKey}|${r.ma_model}`);
       if (!map.has(pKey)) map.set(pKey, []);
-      // FREE-ALL: loại bỏ paid + model scanner vừa kết luận needs_balance khỏi picker
-      if (r.loai === 'paid' || cached === 'needs_balance') continue;
+      // FREE-ALL: loại bỏ paid + model scanner kết luận needs_balance khỏi picker.
+      // FIX picker-leak (9/10/2026): 'error' (lỗi khi quét) và 'dead' (chết hẳn) cũng
+      // phải ẩn — user click vào là lỗi kết nối, không có retry thủ công.
+      // 'working' + chưa quét (no cache row) vẫn hiện đúng như trạng thái thật.
+      if (r.loai === 'paid' || cached === 'needs_balance' || cached === 'error' || cached === 'dead') continue;
       map.get(pKey).push({
         id: r.ma_model,
         name: r.ten_hien_thi,
@@ -398,6 +401,32 @@ async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
     const data = await resp.json();
     if (data.data && Array.isArray(data.data)) modelsList = data.data.map(m => m.id);
     else if (data.error) return { success: false, error: 'xKiro: ' + (data.error.message || JSON.stringify(data.error)) };
+  } else if (provider === 'kilo') {
+    // Kilo Code gateway — KEYLESS (không cần Authorization), OpenRouter-style data[]
+    const kiloBase = (baseUrl || 'https://kilo.ai/api/openrouter').replace(/\/+$/, '');
+    const kiloUrl = kiloBase.endsWith('/models')
+      ? kiloBase
+      : kiloBase.replace('/openrouter', '/gateway') + '/models';
+    const resp = await fetch(kiloUrl, { headers: { 'Accept': 'application/json' }, signal: AbortSignal.timeout(15000) });
+    const data = await resp.json().catch(() => ({}));
+    if (data.data && Array.isArray(data.data)) {
+      modelsList = data.data.map(m => m.id).filter(m => typeof m === 'string' && (m.endsWith(':free') || m.startsWith('kilo-auto/')));
+    } else if (data.error) {
+      return { success: false, error: 'Kilo: ' + (data.error.message || data.error) };
+    } else {
+      return { success: false, error: 'Kilo: API trả về định dạng không hợp lệ' };
+    }
+  } else if (provider === 'kiro') {
+    // KiroForge — /v1/models trả EMPTY → hardcode 23-model list (từ /api/pricing, 10/2026)
+    const KIRO_MODELS = [
+      'Claude_Opus_4.7', 'Claude_Opus_4.8_Anthropic', 'Claude_Opus_4.6_Anthropic',
+      'Claude_Sonnet_4.6_Anthropic', 'Claude_Fable_5_Anthropic', 'GPT_6_Sol',
+      'DeepSeek_V4_Flash', 'Claude_Opus_4.8', 'Codex_Auto_Review', 'GPT_5.6_Sol',
+      'Claude_Sonnet_4.6', 'DeepSeek_V4_Pro', 'BAAI/bge-m3', 'Claude_Opus_4.7_Anthropic',
+      'Claude_Opus_5_Anthropic', 'Claude_Fable_5', 'GPT_5.5', 'GPT_5.6_Terra',
+      'GPT_Image_2', 'GPT_5.6_Luna', 'GPT_6_Astra', 'GPT_6.1_Sol', 'Claude_Opus_4.6',
+    ];
+    modelsList = [...KIRO_MODELS];
   } else if (provider === 'agentrouter') {
     const resp = await fetch('https://agentrouter.org/v1/models', { headers: { 'Authorization': 'Bearer ' + apiKey, 'User-Agent': 'opencode/1.17.12' } });
     const data = await resp.json();
@@ -621,7 +650,7 @@ async function verifyModelHealth(provider, apiKey, baseUrl, modelId) {
       }
     }
 
-    if (['openai', 'groq', 'grok', 'deepseek', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter'].includes(provider)) {
+    if (['openai', 'groq', 'grok', 'deepseek', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'kilo', 'kiro'].includes(provider)) {
       let endpoint = 'https://api.openai.com/v1/chat/completions';
       if (provider === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
       if (provider === 'grok') endpoint = 'https://api.x.ai/v1/chat/completions';
@@ -633,6 +662,14 @@ async function verifyModelHealth(provider, apiKey, baseUrl, modelId) {
       }
       if (provider === 'xkiro') {
         const base = cleanBase || 'https://api.xkiro.com/v1';
+        endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+      }
+      if (provider === 'kilo') {
+        const base = cleanBase || 'https://kilo.ai/api/openrouter';
+        endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+      }
+      if (provider === 'kiro') {
+        const base = cleanBase || 'https://kiroforge.cloud/v1';
         endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
       }
       if (provider === 'agentrouter') {

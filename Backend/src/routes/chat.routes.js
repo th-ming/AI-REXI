@@ -877,9 +877,10 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
         keyToUse = process.env.GEMINI_API_KEY;
       }
 
-      if (!keyToUse && !['opencode'].includes(selectedProvider)) {
+      if (!keyToUse && !['opencode', 'kilo'].includes(selectedProvider)) {
         // Fallback: nếu đã cài opencode.exe, cho phép dùng miễn phí thay vì chặn
-        if (IS_OPENCODE_AVAILABLE) {
+        // kilo keyless (10/2026): không cần API key — cho qua như opencode
+        if (IS_OPENCODE_AVAILABLE && selectedProvider !== 'kilo') {
           selectedProvider = 'opencode';
           selectedModel = 'nvidia/google/gemma-4-31b-it';
         } else {
@@ -1059,7 +1060,7 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               }
             }
 
-          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
+          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode', 'kilo', 'kiro'].includes(selectedProvider)) {
             let endpoint = "https://api.openai.com/v1/chat/completions";
             if (selectedProvider === 'deepseek') endpoint = "https://api.deepseek.com/chat/completions";
             else if (selectedProvider === 'groq') endpoint = "https://api.groq.com/openai/v1/chat/completions";
@@ -1069,6 +1070,13 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
             } else if (selectedProvider === 'xkiro') {
               const cleanedBase = (baseUrl || "https://api.xkiro.com/v1").replace(/\/+$/, '');
+              endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
+            } else if (selectedProvider === 'kilo') {
+              // kilo keyless (10/2026): base 2 segment KHÔNG /v1; model ID đầy đủ kiểu OpenRouter
+              const cleanedBase = (baseUrl || "https://kilo.ai/api/openrouter").replace(/\/+$/, '');
+              endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
+            } else if (selectedProvider === 'kiro') {
+              const cleanedBase = (baseUrl || "https://kiroforge.cloud/v1").replace(/\/+$/, '');
               endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
             } else if (['bai', 'kiosapi', 'unorouter'].includes(selectedProvider)) {
               const NEW_BASES = { bai: 'https://api.b.ai/v1', kiosapi: 'https://router.kiosapi.com/v1', unorouter: 'https://api.unorouter.com/v1' };
@@ -1102,6 +1110,9 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
             if (selectedProvider === 'agentrouter') fetchHeaders['User-Agent'] = 'opencode/1.17.12';
             // opencode Zen free models KHÔNG cần Authorization (gửi key sai sẽ bị 401)
             if (selectedProvider === 'opencode') delete fetchHeaders['Authorization'];
+            // kilo KEYLESS — không gửi Authorization (Bearer rỗng/sai → 401 "token invalid")
+            if (selectedProvider === 'kilo') delete fetchHeaders['Authorization'];
+            // kilo giữ nguyên model ID đầy đủ (nvidia/...:free) — gateway cần full ID, KHÔNG strip prefix
 
             const response = await fetch(endpoint, {
               method: 'POST',
@@ -1295,8 +1306,8 @@ async function resolveProviderAndKey(req, provider, model_name, client_api_key) 
     keyToUse = process.env.GEMINI_API_KEY;
   }
 
-  if (!keyToUse && !['opencode'].includes(selectedProvider)) {
-    if (IS_OPENCODE_AVAILABLE) {
+  if (!keyToUse && !['opencode', 'kilo'].includes(selectedProvider)) {
+    if (IS_OPENCODE_AVAILABLE && selectedProvider !== 'kilo') {
       selectedProvider = 'opencode';
       selectedModel = 'nvidia/google/gemma-4-31b-it';
     } else {

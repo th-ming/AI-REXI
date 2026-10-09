@@ -470,6 +470,8 @@ function defaultBaseUrl(provider) {
     bai: 'https://api.b.ai/v1',
     kiosapi: 'https://router.kiosapi.com/v1',
     unorouter: 'https://api.unorouter.com/v1',
+    kilo: 'https://kilo.ai/api/openrouter',
+    kiro: 'https://kiroforge.cloud/v1',
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
     opencode: 'https://opencode.ai/zen/v1',
   };
