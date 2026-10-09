@@ -42,6 +42,7 @@ const PROVIDER_ENDPOINTS = {
   cohere:      { name: 'Cohere AI',         endpoint: 'https://api.cohere.ai/v2/models',                       auth: 'bearer' },
   openai:      { name: 'OpenAI',            endpoint: 'https://api.openai.com/v1/models',                      auth: 'bearer' },
   deepseek:    { name: 'DeepSeek',          endpoint: 'https://api.deepseek.com/models',                       auth: 'bearer' },
+  xkiro:       { name: 'xKiro',             endpoint: 'https://api.xkiro.com/v1/models',                       auth: 'bearer' },
   opencode:    { name: 'OpenCode',          endpoint: 'https://opencode.ai/api/v1/models',                     auth: 'bearer' },
   // github: XÓA khỏi map — GitHub Models retirement (catalog + inference trả 410
   // github_models_retirement_brownout, verify 9/2026). Giữ key trong DB, khi nào

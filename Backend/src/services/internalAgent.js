@@ -15,10 +15,11 @@ const TOTAL_DEADLINE_MS = 4 * 60 * 1000;
 // QA 17/9/2026: provider default (bai) hết credit → agent chết 400 không failover.
 // Chain failover: thử lần lượt các provider OpenAI-compatible CÓ key trong khoa_api.
 const FALLBACK_PROVIDERS = [
+  { provider: 'xkiro', model: 'mistralai/mistral-small-2603' },
+  { provider: 'kiosapi', model: 'sensenova-6.8-flash' },
   { provider: 'bai', model: 'qwen3.8-flash' },
   { provider: 'groq', model: 'openai/gpt-oss-120b' },
   { provider: 'mistral', model: 'mistral-small-latest' },
-  { provider: 'openrouter', model: 'google/gemma-2-9b-it:free' },
 ];
 
 async function getKey(provider) {
