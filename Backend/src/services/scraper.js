@@ -416,9 +416,17 @@ async function searchFetch(url) {
   return r.html;
 }
 
+// Fetch trực tiếp bằng IP của server (bỏ qua worker) — dùng làm lượt thử phụ khi
+// worker trả HTML rỗng/rác (vd IP nhà tạm bị engine chặn).
+async function directFetchHtml(url) {
+  const r = await fetchHtml(url);
+  return r.html;
+}
+
 // Web search (HTML, không cần API key). Thử nhiều engine theo thứ tự — DuckDuckGo
 // trước (theo chuẩn), rồi Bing (một số datacenter IP như Render chặn DDG nhưng tới
 // được Bing). platform != 'web' → scope `site:<host> <q>`; query scoped rỗng → thử thô.
+// Mỗi lượt thử: worker (IP nhà) trước; nếu rỗng → thử lại fetch trực tiếp (IP server).
 async function webSearch(q, limit, platform) {
   const p = String(platform || 'web').toLowerCase();
   const host = PLATFORM_SITE[p];
@@ -430,16 +438,18 @@ async function webSearch(q, limit, platform) {
     { name: 'bing', url: (x) => `https://www.bing.com/search?q=${encodeURIComponent(x)}&setlang=en`, parse: parseBingResults },
     { name: 'google-news-rss', url: (x) => `https://news.google.com/rss/search?q=${encodeURIComponent(x)}&hl=vi&gl=VN&ceid=VN:vi`, parse: parseGoogleNewsRss },
   ];
+  const runParse = async (eng, attempt, fetcher) => {
+    let out = eng.parse(await fetcher(eng.url(attempt)), limit);
+    if (scoped && domain) out = out.filter((it) => String(it.url).toLowerCase().includes(domain));
+    return out;
+  };
   let parsed = [];
   let usedEngine = 'web';
   for (const eng of engines) {
     for (const attempt of (scoped ? [query, q] : [q])) {
-      try {
-        parsed = eng.parse(await searchFetch(eng.url(attempt)), limit);
-        // Query scoped: chỉ nhận kết quả đúng domain nền tảng (bỏ rác engine trả kèm).
-        if (scoped && domain) parsed = parsed.filter((it) => String(it.url).toLowerCase().includes(domain));
-      } catch (e) {
-        parsed = [];
+      try { parsed = await runParse(eng, attempt, searchFetch); } catch (e) { parsed = []; }
+      if (!parsed.length) {
+        try { parsed = await runParse(eng, attempt, directFetchHtml); } catch (e) { parsed = []; }
       }
       if (parsed.length) break;
     }
@@ -548,6 +558,19 @@ async function findChannel(input) {
       else if (platform === 'youtube') ok = /youtube\.com\/(@|channel\/|c\/|user\/)/i.test(it.url);
       else if (platform === 'instagram') ok = /instagram\.com\//i.test(it.url);
       if (ok) push({ name: it.title || name, url: it.url, platform: it.platform, snippet: it.snippet });
+    }
+  }
+
+  // TikTok: nếu chưa ra ứng viên, thử thêm scope thẳng vào hồ sơ `site:tiktok.com/@ <name>`
+  // (một số engine xử lý scope này tốt hơn `site:tiktok.com <name>`).
+  if (!candidates.length && platform === 'tiktok') {
+    try {
+      const w2 = await webSearch(`site:tiktok.com/@ ${name}`, limit, 'web');
+      for (const it of w2.results) {
+        if (/tiktok\.com\/@/i.test(it.url)) push({ name: it.title || name, url: it.url, platform: 'tiktok', snippet: it.snippet });
+      }
+    } catch (e) {
+      console.log(`[scraper] findChannel tiktok /@ thất bại: ${e && e.message ? e.message : 'lỗi'}`);
     }
   }
 
