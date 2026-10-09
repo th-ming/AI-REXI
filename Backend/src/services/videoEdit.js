@@ -47,15 +47,57 @@ function runFfmpeg(args, { timeout = 120000 } = {}) {
   });
 }
 
+function isYouTubeUrl(u) {
+  return /(?:youtube\.com\/(?:watch|shorts|embed|live)|youtu\.be\/)/i.test(String(u || ''));
+}
+
+// Kiểm tra magic-bytes: file tải về có phải media thật (mp4/webm/mp3/wav/ogg/jpg/png)
+function sniffMedia(head) {
+  if (!head || head.length < 8) return false;
+  const sig4 = head.slice(4, 8).toString('latin1');           // 'ftyp' (MP4/MOV)
+  const s0 = head.slice(0, 4).toString('latin1');             // 'RIFF' (wav/avi/webp)
+  const h0 = head.slice(0, 4).toString('hex');                // webm/mkv = 1a45dfa3
+  const s3 = head.slice(0, 3).toString('latin1');             // 'ID3' (mp3)
+  if (sig4 === 'ftyp' || s0 === 'RIFF' || h0 === '1a45dfa3' || s3 === 'ID3') return true;
+  if (head[0] === 0xff && (head[1] & 0xe0) === 0xe0) return true;            // mp3/aac frame
+  if (head[0] === 0xff && head[1] === 0xd8) return true;                     // jpeg
+  if (head.slice(0, 8).toString('hex') === '89504e470d0a1a0a') return true;  // png
+  return false;
+}
+
 async function ensureLocal(input) {
   if (!input) throw new Error('Thiếu input');
   if (/^https?:\/\//i.test(input)) {
-    const res = await fetch(input, { redirect: 'follow' });
+    let url = input;
+    let extraHeaders = {};
+    // Link YouTube (trang watch/shorts/be) → phân giải ra URL stream trực tiếp
+    // (nếu fetch thẳng sẽ tải về HTML → ffmpeg exit 183 "Invalid data")
+    if (isYouTubeUrl(url)) {
+      const yt = require('./ytdlpService');
+      let info = null;
+      try { info = await yt.getVideoStream(url); } catch (e) { info = null; }
+      if (!info || !info.stream_url) {
+        throw new Error('Không tải được video YouTube (không lấy được luồng). Thử lại sau hoặc dán link file .mp4 trực tiếp.');
+      }
+      url = info.stream_url;
+      extraHeaders = { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/', 'Origin': 'https://www.youtube.com' };
+    }
+    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0', ...extraHeaders } });
     if (!res.ok) throw new Error('Tải input HTTP ' + res.status);
-    const ext = (input.match(/\.(mp4|webm|mov|mkv|mp3|wav|m4a|ogg|jpg|jpeg|png)\b/i) || [])[1] || 'mp4';
+    const ctype = String(res.headers.get('content-type') || '').toLowerCase();
+    if (/text\/html|text\/plain|application\/json|application\/xml/.test(ctype)) {
+      throw new Error('URL trả về ' + ctype.split(';')[0] + ' (không phải file media). Hãy dán LINK VIDEO trực tiếp (.mp4/.webm) hoặc link YouTube — đừng dán link trang web.');
+    }
+    const ext = (url.match(/\.(mp4|webm|mov|mkv|mp3|wav|m4a|ogg|jpg|jpeg|png)\b/i) || [])[1] || 'mp4';
     const p = path.join(ensureTemp(), 'in_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) + '.' + ext);
     // Stream thẳng xuống đĩa (không giữ cả file trong RAM → tránh OOM)
     await pipeline(Readable.fromWeb(res.body), fs.createWriteStream(p));
+    // Validate file tải về là media thật (chặn HTML/rỗng → lỗi ffmpeg khó hiểu)
+    const sz = fs.statSync(p).size;
+    if (sz < 1024) { try { fs.unlinkSync(p); } catch (e) {} throw new Error('File tải về quá nhỏ (' + sz + ' bytes) — URL có thể sai hoặc hết hạn.'); }
+    const head = Buffer.alloc(Math.min(16, sz));
+    const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, head.length, 0); } finally { fs.closeSync(fd); }
+    if (!sniffMedia(head)) { try { fs.unlinkSync(p); } catch (e) {} throw new Error('File tải về không phải video/audio/ảnh hợp lệ (URL có thể là trang web hoặc file hỏng).'); }
     return p;
   }
   if (!fs.existsSync(input)) throw new Error('Không thấy file input: ' + input);
