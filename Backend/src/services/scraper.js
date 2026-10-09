@@ -334,25 +334,82 @@ function parseDdgResults(html, limit) {
   return out.map((a, i) => ({ title: a.title, url: a.url, snippet: snippets[i] || undefined }));
 }
 
-// Web search (DuckDuckGo HTML) — platform != 'web' → scope `site:<host> <q>`.
-// Nếu query scoped không ra kết quả (DDG đôi khi trả trang rỗng) → thử lại query thô.
-async function ddgFetch(query) {
-  const r = await fetchHtml(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
-  return r.html;
+// Giải mã link redirect Bing: https://www.bing.com/ck/a?...&u=a1<base64url> → URL thật.
+function decodeBingUrl(href) {
+  const h = decodeEntities(String(href || '')).trim();
+  try {
+    const u = new URL(h, 'https://www.bing.com');
+    if (/(^|\.)bing\.com$/i.test(u.hostname)) {
+      const uu = u.searchParams.get('u');
+      if (uu && /^a1/i.test(uu)) {
+        const b64 = uu.slice(2).replace(/-/g, '+').replace(/_/g, '/');
+        try {
+          const dec = Buffer.from(b64, 'base64').toString('utf8');
+          if (/^https?:\/\//i.test(dec)) return dec;
+        } catch (e) { /* ignore */ }
+      }
+      if (u.pathname === '/' && !u.search) return '';
+    }
+    return u.toString();
+  } catch (e) { return h; }
 }
+
+// Parse trang kết quả Bing HTML (`<li class="b_algo">` → h2>a + p) → [{title,url,snippet}].
+function parseBingResults(html, limit) {
+  const h = String(html || '');
+  const out = [];
+  const parts = h.split(/<li[^>]*class=["'][^"']*\bb_algo\b[^"']*["'][^>]*>/i).slice(1);
+  for (const part of parts) {
+    const block = part.split(/<\/li>/i)[0];
+    const aM = block.match(/<h2[^>]*>[\s\S]*?<a\b[^>]*\bhref=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+    if (!aM) continue;
+    const url = decodeBingUrl(aM[1]);
+    if (!/^https?:\/\//i.test(url)) continue;
+    const title = stripTags(aM[2]).trim();
+    if (!title) continue;
+    const pM = block.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+    const snippet = pM ? stripTags(pM[1]).trim() : '';
+    out.push({ title, url, snippet: snippet || undefined });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// Web search (HTML, không cần API key). Thử nhiều engine theo thứ tự — DuckDuckGo
+// trước (theo chuẩn), rồi Bing (một số datacenter IP như Render chặn DDG nhưng tới
+// được Bing). platform != 'web' → scope `site:<host> <q>`; query scoped rỗng → thử thô.
 async function webSearch(q, limit, platform) {
   const p = String(platform || 'web').toLowerCase();
   const host = PLATFORM_SITE[p];
   const scoped = p !== 'web' && !!host;
   const query = scoped ? `site:${host} ${q}` : q;
-  let parsed = parseDdgResults(await ddgFetch(query), limit);
-  if (!parsed.length && scoped) parsed = parseDdgResults(await ddgFetch(q), limit);
-  return parsed.map((it) => ({
-    title: it.title,
-    url: it.url,
-    platform: p === 'web' ? (platformOf(it.url) || 'web') : p,
-    snippet: it.snippet,
-  }));
+  const engines = [
+    { name: 'duckduckgo', url: (x) => `https://html.duckduckgo.com/html/?q=${encodeURIComponent(x)}`, parse: parseDdgResults },
+    { name: 'bing', url: (x) => `https://www.bing.com/search?q=${encodeURIComponent(x)}&setlang=en`, parse: parseBingResults },
+  ];
+  let parsed = [];
+  let usedEngine = 'web';
+  for (const eng of engines) {
+    for (const attempt of (scoped ? [query, q] : [q])) {
+      try {
+        const r = await fetchHtml(eng.url(attempt));
+        parsed = eng.parse(r.html, limit);
+      } catch (e) {
+        parsed = [];
+      }
+      if (parsed.length) break;
+    }
+    if (parsed.length) { usedEngine = eng.name; break; }
+  }
+  return {
+    engine: usedEngine,
+    results: parsed.map((it) => ({
+      title: it.title,
+      url: it.url,
+      platform: p === 'web' ? (platformOf(it.url) || 'web') : p,
+      snippet: it.snippet,
+    })),
+  };
 }
 
 // YouTube search qua worker ytsearch.
@@ -379,23 +436,29 @@ async function search(input) {
   const platform = String(inp.platform || 'web').toLowerCase();
   let results = [];
   let source = 'web';
+  let engine = null;
 
   if (platform === 'youtube') {
     if (workerEnabled()) {
       try {
         results = await workerSearch(q, limit);
         source = 'ytdlp';
+        engine = 'ytdlp';
       } catch (e) {
         console.log(`[scraper] workerSearch thất bại: ${e && e.message ? e.message : 'lỗi'}`);
         results = [];
       }
     }
-    if (!results.length) { results = await webSearch(q, limit, 'youtube'); source = 'web'; }
+    if (!results.length) {
+      const w = await webSearch(q, limit, 'youtube');
+      results = w.results; engine = w.engine; source = 'web';
+    }
   } else {
-    results = await webSearch(q, limit, platform);
+    const w = await webSearch(q, limit, platform);
+    results = w.results; engine = w.engine; source = 'web';
   }
 
-  return { ok: true, source, query: q, platform, count: results.length, results };
+  return { ok: true, source, engine, query: q, platform, count: results.length, results };
 }
 
 // findChannel({name, platform?}) → { ok, name, platform, count, candidates:[{name,url,platform}] }.
@@ -430,8 +493,8 @@ async function findChannel(input) {
   if (!candidates.length) {
     const host = PLATFORM_SITE[platform];
     const query = host ? `site:${host} ${name}` : name;
-    const r = await webSearch(query, limit, platform || 'web');
-    for (const it of r) {
+    const w = await webSearch(query, limit, platform || 'web');
+    for (const it of w.results) {
       let ok = true;
       if (platform === 'tiktok') ok = /tiktok\.com\/@/i.test(it.url);
       else if (platform === 'youtube') ok = /youtube\.com\/(@|channel\/|c\/|user\/)/i.test(it.url);
