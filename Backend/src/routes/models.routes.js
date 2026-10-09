@@ -416,17 +416,6 @@ async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
     } else {
       return { success: false, error: 'Kilo: API trả về định dạng không hợp lệ' };
     }
-  } else if (provider === 'kiro') {
-    // KiroForge — /v1/models trả EMPTY → hardcode 23-model list (từ /api/pricing, 10/2026)
-    const KIRO_MODELS = [
-      'Claude_Opus_4.7', 'Claude_Opus_4.8_Anthropic', 'Claude_Opus_4.6_Anthropic',
-      'Claude_Sonnet_4.6_Anthropic', 'Claude_Fable_5_Anthropic', 'GPT_6_Sol',
-      'DeepSeek_V4_Flash', 'Claude_Opus_4.8', 'Codex_Auto_Review', 'GPT_5.6_Sol',
-      'Claude_Sonnet_4.6', 'DeepSeek_V4_Pro', 'BAAI/bge-m3', 'Claude_Opus_4.7_Anthropic',
-      'Claude_Opus_5_Anthropic', 'Claude_Fable_5', 'GPT_5.5', 'GPT_5.6_Terra',
-      'GPT_Image_2', 'GPT_5.6_Luna', 'GPT_6_Astra', 'GPT_6.1_Sol', 'Claude_Opus_4.6',
-    ];
-    modelsList = [...KIRO_MODELS];
   } else if (provider === 'agentrouter') {
     const resp = await fetch('https://agentrouter.org/v1/models', { headers: { 'Authorization': 'Bearer ' + apiKey, 'User-Agent': 'opencode/1.17.12' } });
     const data = await resp.json();
@@ -650,7 +639,7 @@ async function verifyModelHealth(provider, apiKey, baseUrl, modelId) {
       }
     }
 
-    if (['openai', 'groq', 'grok', 'deepseek', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'kilo', 'kiro'].includes(provider)) {
+    if (['openai', 'groq', 'grok', 'deepseek', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'kilo',].includes(provider)) {
       let endpoint = 'https://api.openai.com/v1/chat/completions';
       if (provider === 'groq') endpoint = 'https://api.groq.com/openai/v1/chat/completions';
       if (provider === 'grok') endpoint = 'https://api.x.ai/v1/chat/completions';
@@ -666,10 +655,6 @@ async function verifyModelHealth(provider, apiKey, baseUrl, modelId) {
       }
       if (provider === 'kilo') {
         const base = cleanBase || 'https://kilo.ai/api/openrouter';
-        endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
-      }
-      if (provider === 'kiro') {
-        const base = cleanBase || 'https://kiroforge.cloud/v1';
         endpoint = base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
       }
       if (provider === 'agentrouter') {

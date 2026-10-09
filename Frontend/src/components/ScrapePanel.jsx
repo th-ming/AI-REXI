@@ -14,13 +14,22 @@ export default function ScrapePanel({ open, onClose, token }) {
 
   // ── Tab "Cào link" (giữ nguyên) ──
   const [input, setInput] = useState('');
-  const [maxComments, setMaxComments] = useState(30);
+  const [maxComments, setMaxComments] = useState(100);
   const [loading, setLoading] = useState('');
   const [result, setResult] = useState(null);
   const [meta, setMeta] = useState(null); // { action, source, count }
   const [error, setError] = useState('');
   const [status, setStatus] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  // ── Tab "Cào link" — Tóm tắt bình luận + Hỏi về bình luận ──
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [commentSummary, setCommentSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState('');
+  const [cq, setCq] = useState('');
+  const [cqLoading, setCqLoading] = useState(false);
+  const [cqResult, setCqResult] = useState(null);
+  const [cqError, setCqError] = useState('');
 
   // ── Tab "Kênh / Hôm nay" ──
   const [channelUrl, setChannelUrl] = useState('');
@@ -94,7 +103,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       body.urls = urlList();
       delete body.url;
     }
-    if (action === 'comments') body.max = Number(maxComments) || 30;
+    if (action === 'comments') body.max = Number(maxComments) || 100;
 
     if (action === 'batch') {
       if (!body.urls.length) { setError('Dán ít nhất 1 link (mỗi dòng 1 link).'); return; }
@@ -120,6 +129,53 @@ export default function ScrapePanel({ open, onClose, token }) {
       setError(e.message || 'Lỗi không xác định.');
     } finally {
       setLoading('');
+    }
+  };
+
+  // Tóm tắt chủ đề + sắc thái bình luận của link ở ô trên.
+  const runCommentSummary = async () => {
+    if (summaryLoading) return;
+    setSummaryError(''); setCommentSummary(null);
+    const u = firstUrl();
+    if (!u) { setSummaryError('Dán 1 link video (bắt đầu bằng http).'); return; }
+    setSummaryLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/scrape/comments/summary`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ url: u, max: Number(maxComments) || 100 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setCommentSummary(data);
+    } catch (e) {
+      setSummaryError(e.message || 'Lỗi không xác định.');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  // Hỏi về bình luận (crawl + RAG + trả lời).
+  const askComment = async () => {
+    if (cqLoading) return;
+    setCqError(''); setCqResult(null);
+    const u = firstUrl();
+    if (!u) { setCqError('Dán 1 link video (bắt đầu bằng http).'); return; }
+    if (!cq.trim()) { setCqError('Nhập câu hỏi về bình luận.'); return; }
+    setCqLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/scrape/comments/answer`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ url: u, question: cq.trim(), max: Number(maxComments) || 100 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setCqResult(data);
+    } catch (e) {
+      setCqError(e.message || 'Lỗi không xác định.');
+    } finally {
+      setCqLoading(false);
     }
   };
 
@@ -424,10 +480,10 @@ export default function ScrapePanel({ open, onClose, token }) {
                 <input
                   type="number"
                   min={1}
-                  max={100}
+                  max={2000}
                   value={maxComments}
                   onChange={(e) => setMaxComments(e.target.value)}
-                  className="w-16 bg-[#131417] border border-white/10 rounded-lg px-2 py-0.5 text-slate-200 outline-none"
+                  className="w-20 bg-[#131417] border border-white/10 rounded-lg px-2 py-0.5 text-slate-200 outline-none"
                 />
               </div>
             </div>
@@ -438,6 +494,141 @@ export default function ScrapePanel({ open, onClose, token }) {
               <Btn action="comments" icon={<MessageSquare size={13} />} label="Lấy bình luận" accent="bg-indigo-600 hover:bg-indigo-500" />
               <Btn action="batch" icon={<Layers size={13} />} label="Hàng loạt" accent="bg-violet-600 hover:bg-violet-500" />
               <Btn action="download" icon={<Download size={13} />} label="Link tải" accent="bg-teal-600 hover:bg-teal-500" />
+            </div>
+
+            {/* Tóm tắt bình luận + Hỏi về bình luận (dùng link ở ô trên) */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={runCommentSummary}
+                  disabled={summaryLoading || !!loading}
+                  title="Crawl bình luận → tóm tắt chủ đề, sắc thái, top bình luận"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50"
+                >
+                  {summaryLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                  Tóm tắt bình luận
+                </button>
+                <span className="text-[10px] text-slate-500">Link ở ô trên · tối đa {maxComments || 100} bình luận</span>
+              </div>
+
+              {summaryError && (
+                <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>{summaryError}</span>
+                </div>
+              )}
+
+              {commentSummary && (
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-3 text-[11px] text-slate-400">
+                    <span>Bình luận: <span className="text-slate-200">{commentSummary.count}</span></span>
+                    {commentSummary.stats?.avg_likes != null ? <span>Like TB: <span className="text-slate-200">{commentSummary.stats.avg_likes}</span></span> : null}
+                    {commentSummary.stats?.top_author ? <span>Top author: <span className="text-slate-200">{commentSummary.stats.top_author}</span></span> : null}
+                  </div>
+
+                  {commentSummary.summary ? (
+                    <p className="text-[11px] text-slate-200 bg-black/30 rounded-lg px-2.5 py-2 whitespace-pre-wrap">{commentSummary.summary}</p>
+                  ) : null}
+
+                  {commentSummary.sentiment && commentSummary.sentiment.total ? (() => {
+                    const s = commentSummary.sentiment;
+                    const tot = s.total || 1;
+                    const pct = (n) => Math.round((n / tot) * 100);
+                    return (
+                      <div className="space-y-1">
+                        <div className="flex h-2 rounded-full overflow-hidden bg-white/10">
+                          <div className="bg-emerald-500" style={{ width: `${pct(s.positive)}%` }} />
+                          <div className="bg-rose-500" style={{ width: `${pct(s.negative)}%` }} />
+                          <div className="bg-slate-500" style={{ width: `${pct(s.neutral)}%` }} />
+                        </div>
+                        <div className="flex gap-3 text-[10px]">
+                          <span className="text-emerald-300">Tích cực {s.positive}</span>
+                          <span className="text-rose-300">Tiêu cực {s.negative}</span>
+                          <span className="text-slate-400">Trung tính {s.neutral}</span>
+                        </div>
+                      </div>
+                    );
+                  })() : null}
+
+                  {(commentSummary.topics?.keywords || []).length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {commentSummary.topics.keywords.slice(0, 12).map((k, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-200 border border-cyan-500/25">{k.word} <span className="text-slate-500">{k.count}</span></span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {(commentSummary.topics?.hashtags || []).length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {commentSummary.topics.hashtags.slice(0, 10).map((h, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-200 border border-violet-500/25">#{h.tag} <span className="text-slate-500">{h.count}</span></span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {(commentSummary.notable || []).length ? (
+                    <div className="rounded-lg border border-white/10 divide-y divide-white/5">
+                      <div className="px-2 py-1 text-[10px] text-slate-500">Bình luận nổi bật (nhiều like nhất)</div>
+                      {commentSummary.notable.map((c, i) => (
+                        <div key={i} className="px-2 py-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="text-cyan-300">{c.author}</span>
+                            <span>{c.like_count} like{c.published ? ` · ${c.published}` : ''}</span>
+                          </div>
+                          <div className="text-slate-300">{c.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {/* Hỏi về bình luận */}
+              <div className="space-y-1 pt-1 border-t border-white/5">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={cq}
+                    onChange={(e) => setCq(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') askComment(); }}
+                    placeholder="Hỏi về bình luận (vd: mọi người nói gì về...)"
+                    className="flex-1 bg-[#131417] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40"
+                  />
+                  <button
+                    onClick={askComment}
+                    disabled={cqLoading || !!loading}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
+                  >
+                    {cqLoading ? <Loader2 size={13} className="animate-spin" /> : <MessageSquare size={13} />}
+                    Hỏi
+                  </button>
+                </div>
+                {cqError && (
+                  <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2">
+                    <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                    <span>{cqError}</span>
+                  </div>
+                )}
+                {cqResult && (
+                  <div className="space-y-1">
+                    {cqResult.answer ? (
+                      <p className="text-[11px] text-emerald-200 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-2 whitespace-pre-wrap">{cqResult.answer}</p>
+                    ) : null}
+                    <div className="overflow-auto rounded-lg border border-white/10 divide-y divide-white/5 max-h-[30vh]">
+                      {(cqResult.chunks || []).map((c, i) => (
+                        <div key={i} className="px-2 py-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span className="font-mono truncate">{c.doc}</span><span className="text-cyan-400">score {c.score}</span>
+                          </div>
+                          <div className="text-slate-300 whitespace-pre-wrap">{c.text}</div>
+                        </div>
+                      ))}
+                      {!(cqResult.chunks || []).length && (
+                        <div className="px-2 py-2 text-center text-slate-500 text-[11px]">Không tìm thấy chunk liên quan.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {error && (

@@ -12,8 +12,7 @@ const { decryptKey } = require('../utils/cryptoKeys');
 
 // ─── Định nghĩa capability của từng provider (đã test thật) ───
 const PROVIDER_CAPS = {
-  xkiro:       { free: true,  vision: true,  fast: true,  strong: true,  vi: true },
-  nvidia:      { free: true,  vision: true,  fast: false, strong: true,  vi: true },
+  xnvidia:      { free: true,  vision: true,  fast: false, strong: true,  vi: true },
   mistral:     { free: true,  vision: false, fast: true,  strong: true,  vi: true },
   gemini:      { free: true,  vision: true,  fast: true,  strong: true,  vi: true },
   groq:        { free: true,  vision: false, fast: true,  strong: true,  vi: true },
@@ -458,8 +457,7 @@ async function resolveProvider(provider) {
 
 function defaultBaseUrl(provider) {
   const map = {
-    xkiro: 'https://api.xkiro.com/v1',
-    nvidia: 'https://integrate.api.nvidia.com/v1',
+    xnvidia: 'https://integrate.api.nvidia.com/v1',
     mistral: 'https://api.mistral.ai/v1',
     groq: 'https://api.groq.com/openai/v1',
     cerebras: 'https://api.cerebras.ai/v1',
@@ -471,7 +469,6 @@ function defaultBaseUrl(provider) {
     kiosapi: 'https://router.kiosapi.com/v1',
     unorouter: 'https://api.unorouter.com/v1',
     kilo: 'https://kilo.ai/api/openrouter',
-    kiro: 'https://kiroforge.cloud/v1',
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
     opencode: 'https://opencode.ai/zen/v1',
   };

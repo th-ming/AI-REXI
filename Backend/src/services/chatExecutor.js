@@ -9,7 +9,7 @@ const { resolveProvider, recordLatency } = require('./modelRouter');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const quota = require('./quotaManager');
 
-const OPENAI_COMPAT = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kilo', 'kiro'];
+const OPENAI_COMPAT = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kilo',];
 
 function stripProviderPrefix(provider, model) {
   let m = String(model || '');
@@ -33,8 +33,7 @@ function endpointFor(provider, baseUrl) {
 
 function defaultBase(provider) {
   const map = {
-    xkiro: 'https://api.xkiro.com/v1',
-    nvidia: 'https://integrate.api.nvidia.com/v1',
+    xnvidia: 'https://integrate.api.nvidia.com/v1',
     mistral: 'https://api.mistral.ai/v1',
     groq: 'https://api.groq.com/openai/v1',
     cerebras: 'https://api.cerebras.ai/v1',
@@ -46,7 +45,6 @@ function defaultBase(provider) {
     kiosapi: 'https://router.kiosapi.com/v1',
     unorouter: 'https://api.unorouter.com/v1',
     kilo: 'https://kilo.ai/api/openrouter',
-    kiro: 'https://kiroforge.cloud/v1',
     gemini: 'https://generativelanguage.googleapis.com/v1beta',
   };
   return map[provider] || 'https://api.openai.com/v1';

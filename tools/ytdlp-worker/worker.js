@@ -207,28 +207,46 @@ async function proxyDirect(req, res, url) {
   } else { res.end(); }
 }
 
-// Lấy bình luận (yt-dlp -J --write-comments) — chậm 10-30s, chạy qua IP nhà
-async function resolveComments(idOrUrl) {
+// Số bình luận: mặc định 100, kẹp tối đa 2000 (tránh lạm dụng).
+const DEFAULT_MAX_COMMENTS = 100;
+const HARD_CAP_COMMENTS = 2000;
+function normMaxComments(max) {
+  const n = parseInt(max, 10);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_MAX_COMMENTS;
+  return Math.max(1, Math.min(n, HARD_CAP_COMMENTS));
+}
+
+// Lấy bình luận (yt-dlp -J --write-comments) — chậm, chạy qua IP nhà.
+// max cấu hình được: youtube:max_comments=<max>,all;max_replies=0,all (mặc định 100, cap 2000).
+// Site KHÔNG phải YouTube (tiktok...) giữ nguyên những gì yt-dlp trả về.
+async function resolveComments(idOrUrl, max) {
   const url = watchUrl(idOrUrl);
+  const limit = normMaxComments(max);
   const hasCookies = fs.existsSync(COOKIES_FILE);
   const args = ['-J', '--no-warnings', '--no-playlist', '--socket-timeout', '20',
-    '--write-comments', '--extractor-args', 'youtube:max_comments=30,all;max_replies=0,all'];
+    '--write-comments', '--extractor-args', `youtube:max_comments=${limit},all;max_replies=0,all`];
   if (hasCookies) args.push('--cookies', COOKIES_FILE);
   args.push(url);
-  const out = await run(YTDLP, args, 90000);
+  const out = await run(YTDLP, args, 180000);
   const data = JSON.parse(out);
   const comments = (data.comments || [])
     .filter(c => c && c.text)
     .sort((a, b) => (b.like_count || 0) - (a.like_count || 0))
-    .slice(0, 30)
-    .map(c => ({
-      author: c.author || 'Ẩn danh',
-      text: c.text,
-      likes: c.like_count || 0,
-      time: c.timestamp ? new Date(c.timestamp * 1000).toISOString().substring(0, 10) : '',
-      avatar: c.author_thumbnail || null,
-    }));
-  return { comments, count: data.comment_count || comments.length };
+    .slice(0, limit)
+    .map(c => {
+      const date = c.timestamp ? new Date(c.timestamp * 1000).toISOString().substring(0, 10) : '';
+      return {
+        author: c.author || 'Ẩn danh',
+        text: c.text,
+        like_count: c.like_count || 0,
+        likes: c.like_count || 0,
+        published: date,
+        time: date,
+        is_reply: !!(c.parent || c.parent_id),
+        avatar: c.author_thumbnail || null,
+      };
+    });
+  return { comments, count: comments.length, max: limit };
 }
 
 // Lấy avatar kênh: yt-dlp -J trang channel → thumbnails có id 'avatar_uncropped'.
@@ -381,11 +399,11 @@ async function channelAvatarHandler(req, res, id) {
   }
 }
 
-async function commentsHandler(req, res, idOrUrl) {
+async function commentsHandler(req, res, idOrUrl, max) {
   const started = Date.now();
   try {
-    const info = await resolveComments(idOrUrl);
-    console.log(`[worker] comments ok: ${info.count} comments, ${Date.now() - started}ms`);
+    const info = await resolveComments(idOrUrl, max);
+    console.log(`[worker] comments ok: ${info.count} comments (max=${info.max}), ${Date.now() - started}ms`);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     return res.end(JSON.stringify({ ok: true, ...info, ms: Date.now() - started }));
   } catch (e) {
@@ -437,7 +455,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (u.pathname === '/comments') {
       if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id/url' })); }
-      return await commentsHandler(req, res, id);
+      return await commentsHandler(req, res, id, u.searchParams.get('max'));
     }
     if (u.pathname === '/channel-avatar') {
       if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id (channel_id)' })); }

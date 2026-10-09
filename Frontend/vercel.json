@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://ai-rexi-backend-nmue.onrender.com/api/$1" },
-    { "source": "/ws/(.*)", "destination": "https://ai-rexi-backend-nmue.onrender.com/ws/$1" }
+    { "source": "/api/(.*)", "destination": "https://rexiai.bot.cd/api/$1" },
+    { "source": "/ws/(.*)", "destination": "https://rexiai.bot.cd/ws/$1" }
   ]
 }

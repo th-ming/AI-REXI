@@ -49,7 +49,7 @@ function EnsureVideoWorker {
     if (PortUp 8099) { return }
     Log 'video worker: not listening -> starting'
     $env:WORKER_PORT = '8099'; $env:WORKER_TOKEN = 'rexi-video-2026'
-    Start-Process -FilePath $nodeexe -ArgumentList (Join-Path $base 'Backend\video-worker.js') -WorkingDirectory (Join-Path $base 'Backend') -WindowStyle Hidden `
+    Start-Process -FilePath $nodeexe -ArgumentList ('"' + (Join-Path $base 'Backend\video-worker.js') + '"') -WorkingDirectory (Join-Path $base 'Backend') -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $tundir 'video.out.log') -RedirectStandardError (Join-Path $tundir 'video.err.log')
     for ($i=0; $i -lt 25; $i++) { if (PortUp 8099) { Log 'video worker: up'; return }; Start-Sleep 2 }
     Log 'video worker: FAILED to start'

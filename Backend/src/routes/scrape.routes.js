@@ -8,6 +8,8 @@
  *   POST /api/scrape/info  {url}     → metadata (worker yt-dlp → fallback web)
  *   POST /api/scrape/page  {url}     → readable text
  *   POST /api/scrape/comments {url,max} → bình luận (worker)
+ *   POST /api/scrape/comments/summary {url|comments|text,max?} → tóm tắt chủ đề + sắc thái bình luận
+ *   POST /api/scrape/comments/answer {url,question,max?} → hỏi đáp dựa trên bình luận (RAG)
  *   POST /api/scrape/batch {urls[]}  → tuần tự tối đa 10 url
  *   POST /api/scrape/download {url}  → URL media trực tiếp + headers (không proxy bytes)
  *   POST /api/scrape/channel {url,limit,today} → liệt kê video kênh/playlist (worker /list)
@@ -99,7 +101,36 @@ router.post('/comments', rateLimit({ windowMs: 60000, max: 15 }), async (req, re
     const { url, max } = req.body || {};
     if (!url) return fail(res, 400, 'Thiếu url.');
     const r = await scraper.comments(url, max);
-    res.json({ ok: true, source: r.source, count: r.count, data: r.data });
+    res.json({ ok: true, source: r.source, count: r.count, stats: r.stats, data: r.data });
+  } catch (e) {
+    fail(res, 400, e.message);
+  }
+});
+
+// POST /comments/summary — crawl (url) hoặc dùng comments/text → tóm tắt chủ đề + sắc thái.
+// Body {url?|comments?|text?, max?, lang?}. Trả {ok,count,topics,sentiment,notable,summary,source}.
+router.post('/comments/summary', rateLimit({ windowMs: 60000, max: 10 }), optionalAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.url && !(Array.isArray(body.comments) && body.comments.length) && !(body.text && String(body.text).trim())) {
+      return fail(res, 400, 'Cần "url", hoặc "comments"/"text".');
+    }
+    const r = await scraper.commentSummary(body, scopeOf(req));
+    res.json(r);
+  } catch (e) {
+    fail(res, 400, e.message);
+  }
+});
+
+// POST /comments/answer — crawl+ingest bình luận → truy vấn RAG → top chunks (+Gemini answer).
+// Body {url, question, max?, limit?}. Trả {ok,question,count,chunks,answer,source}.
+router.post('/comments/answer', rateLimit({ windowMs: 60000, max: 15 }), optionalAuth, async (req, res) => {
+  try {
+    const { url, question, max, limit } = req.body || {};
+    if (!url) return fail(res, 400, 'Thiếu url.');
+    if (!question) return fail(res, 400, 'Thiếu question.');
+    const r = await scraper.commentAnswer({ url, question, max, limit }, scopeOf(req));
+    res.json(r);
   } catch (e) {
     fail(res, 400, e.message);
   }

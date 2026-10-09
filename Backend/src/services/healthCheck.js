@@ -21,8 +21,7 @@ function queryDb(sql, params = []) {
 
 // Endpoint + model test nhanh cho từng provider
 const TEST_PLAN = {
-  xkiro:       { url: 'https://api.xkiro.com/v1/chat/completions',          model: 'mistralai/mistral-small-2603', auth: 'bearer' },
-  nvidia:      { url: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'nvidia/nemotron-mini-4b-instruct', auth: 'bearer' },
+  xnvidia:      { url: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'nvidia/nemotron-mini-4b-instruct', auth: 'bearer' },
   mistral:     { url: 'https://api.mistral.ai/v1/chat/completions',         model: 'mistral-small-latest',       auth: 'bearer' },
   groq:        { url: 'https://api.groq.com/openai/v1/chat/completions',    model: 'openai/gpt-oss-120b',        auth: 'bearer' },
   openrouter:  { url: 'https://openrouter.ai/api/v1/chat/completions',      model: 'nvidia/nemotron-3.5-lightning:free', auth: 'bearer' },
@@ -33,7 +32,6 @@ const TEST_PLAN = {
   gemini:      { url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent', model: null, auth: 'query' },
   // kilo: KEYLESS — không cần key; nếu test không có key thì gửi không Authorization
   kilo:        { url: 'https://kilo.ai/api/openrouter/chat/completions', model: 'nvidia/nemotron-3.5-lightning:free', auth: 'bearer' },
-  kiro:        { url: 'https://kiroforge.cloud/v1/chat/completions', model: 'GPT_5.5', auth: 'bearer' },
 };
 
 // Lấy toàn bộ key từ DB (đã decrypt)

@@ -50,8 +50,7 @@ const PROVIDER_ENDPOINTS = {
   claude:      { name: 'Anthropic Claude',  endpoint: 'https://api.anthropic.com/v1/models',                   auth: 'anthropic' },
   // P0-fix: xkiro từng vắng mặt ở đây → 21 model chết nằm lì trong DB, scanner không bao giờ đụng tới.
   // Chỉ thêm provider CÓ key (kiraai/bazaarlink chưa có key → thêm vào sẽ bị cleanupStaleModels xóa rows).
-  xkiro:       { name: 'xKiro Free',         endpoint: 'https://api.xkiro.com/v1/models',                      auth: 'bearer' },
-  agentrouter: { name: 'AgentRouter',        endpoint: 'https://agentrouter.org/v1/models',                    auth: 'bearer' },
+  xagentrouter: { name: 'AgentRouter',        endpoint: 'https://agentrouter.org/v1/models',                    auth: 'bearer' },
   // 3 router mới (key lấy từ opencode config của user, 9/2026 — opencode dùng hằng ngày):
   bai:         { name: 'B.AI',               endpoint: 'https://api.b.ai/v1/models',                           auth: 'bearer' },
   kiosapi:     { name: 'KiosAPI Free',       endpoint: 'https://router.kiosapi.com/v1/models',                 auth: 'bearer' },
@@ -65,8 +64,7 @@ const PROVIDER_ENDPOINTS = {
   kilo:        { name: 'Kilo Code',          endpoint: 'https://kilo.ai/api/gateway/models',                   auth: 'bearer' },
   // kiro: KiroForge (kiroforge.cloud) — New API instance, CÓ key (lưu khoa_api encrypted).
   // /v1/models trả EMPTY {"data":[]} → fetchModels hardcode 23-model list (từ /api/pricing, 10/2026).
-  kiro:        { name: 'KiroForge',          endpoint: 'https://kiroforge.cloud/v1/models',                    auth: 'bearer' },
-};
+  };
 
 // Lấy API key từ CSDL cho một provider (key lưu mã hóa — phải decryptKey)
 async function getKeyForProvider(providerId) {
@@ -84,21 +82,6 @@ async function getKeyForProvider(providerId) {
 // Fetch danh sách model từ endpoint
 async function fetchModels(providerId, apiKey, endpoint, authType) {
 try {
-    // KiroForge: /v1/models trả EMPTY (New API không expose listing) → hardcode 23-model
-    // list từ /api/pricing (verify 10/2026, group All_Models). bge-m3 embed + GPT_Image_2
-    // image → scanner tự phân loại non-chat (catalog only).
-    if (providerId === 'kiro') {
-      const KIRO_MODELS = [
-        'Claude_Opus_4.7', 'Claude_Opus_4.8_Anthropic', 'Claude_Opus_4.6_Anthropic',
-        'Claude_Sonnet_4.6_Anthropic', 'Claude_Fable_5_Anthropic', 'GPT_6_Sol',
-        'DeepSeek_V4_Flash', 'Claude_Opus_4.8', 'Codex_Auto_Review', 'GPT_5.6_Sol',
-        'Claude_Sonnet_4.6', 'DeepSeek_V4_Pro', 'BAAI/bge-m3', 'Claude_Opus_4.7_Anthropic',
-        'Claude_Opus_5_Anthropic', 'Claude_Fable_5', 'GPT_5.5', 'GPT_5.6_Terra',
-        'GPT_Image_2', 'GPT_5.6_Luna', 'GPT_6_Astra', 'GPT_6.1_Sol', 'Claude_Opus_4.6',
-      ];
-      return { success: true, models: KIRO_MODELS, tiers: {} };
-    }
-
     // OpenCode là CLI local (opencode.exe) — gọi opencode models để lấy danh sách động
     if (providerId === 'opencode') {
       const { spawn } = require('child_process');
@@ -209,13 +192,11 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
       grok: 'https://api.x.ai/v1/chat/completions',
       claude: 'https://api.anthropic.com/v1/messages',
       // xkiro/agentrouter OpenAI-compatible → dùng block generic bên dưới
-      xkiro: 'https://api.xkiro.com/v1/chat/completions',
-      agentrouter: 'https://agentrouter.org/v1/chat/completions',
+      xagentrouter: 'https://agentrouter.org/v1/chat/completions',
       bai: 'https://api.b.ai/v1/chat/completions',
       kiosapi: 'https://router.kiosapi.com/v1/chat/completions',
       unorouter: 'https://api.unorouter.com/v1/chat/completions',
       kilo: 'https://kilo.ai/api/openrouter/chat/completions',
-      kiro: 'https://kiroforge.cloud/v1/chat/completions',
     };
 
     const endpoint = CHAT_ENDPOINTS[providerId];

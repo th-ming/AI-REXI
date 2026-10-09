@@ -151,6 +151,7 @@ module.exports = {
   cosineSimilarity,
   saveMemoryEmbedding,
   deleteMemoryEmbedding,
+  getGeminiKey,
   GEMINI_EMBED_MODEL,
   EMBED_DIM,
 };

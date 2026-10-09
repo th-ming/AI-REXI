@@ -1060,7 +1060,7 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               }
             }
 
-          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode', 'kilo', 'kiro'].includes(selectedProvider)) {
+          } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode', 'kilo',].includes(selectedProvider)) {
             let endpoint = "https://api.openai.com/v1/chat/completions";
             if (selectedProvider === 'deepseek') endpoint = "https://api.deepseek.com/chat/completions";
             else if (selectedProvider === 'groq') endpoint = "https://api.groq.com/openai/v1/chat/completions";
@@ -1074,9 +1074,6 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
             } else if (selectedProvider === 'kilo') {
               // kilo keyless (10/2026): base 2 segment KHÔNG /v1; model ID đầy đủ kiểu OpenRouter
               const cleanedBase = (baseUrl || "https://kilo.ai/api/openrouter").replace(/\/+$/, '');
-              endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
-            } else if (selectedProvider === 'kiro') {
-              const cleanedBase = (baseUrl || "https://kiroforge.cloud/v1").replace(/\/+$/, '');
               endpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : `${cleanedBase}/chat/completions`;
             } else if (['bai', 'kiosapi', 'unorouter'].includes(selectedProvider)) {
               const NEW_BASES = { bai: 'https://api.b.ai/v1', kiosapi: 'https://router.kiosapi.com/v1', unorouter: 'https://api.unorouter.com/v1' };

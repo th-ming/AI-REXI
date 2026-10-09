@@ -21,7 +21,7 @@ const { assertPublicUrlAsync } = require('../utils/urlSafety');
 const WORKER_URL = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/+$/, '');
 const WORKER_TOKEN = (process.env.YTDLP_WORKER_TOKEN || '').trim();
 const WORKER_INFO_TIMEOUT_MS = 45000;
-const WORKER_COMMENTS_TIMEOUT_MS = 100000;
+const WORKER_COMMENTS_TIMEOUT_MS = 190000;
 const WORKER_LIST_TIMEOUT_MS = 100000;
 const WEB_TIMEOUT_MS = 15000;
 const MAX_HTML_CHARS = 1500000;
@@ -252,8 +252,8 @@ async function workerInfo(url) {
 }
 
 async function workerComments(url, max) {
-  const limit = Math.max(1, Math.min(parseInt(max, 10) || 30, 100));
-  const j = await workerGet(`/comments?${workerQ({ url })}`, WORKER_COMMENTS_TIMEOUT_MS);
+  const limit = Math.max(1, Math.min(parseInt(max, 10) || 100, 2000));
+  const j = await workerGet(`/comments?${workerQ({ url, max: String(limit) })}`, WORKER_COMMENTS_TIMEOUT_MS);
   const arr = Array.isArray(j.comments) ? j.comments : [];
   return arr.slice(0, limit).map((c) => ({
     author: c.author || 'Ẩn danh',
@@ -931,7 +931,260 @@ async function comments(rawUrl, max) {
   if (!n.ok) throw new Error(n.error);
   if (!workerEnabled()) throw new Error('Chưa cấu hình yt-dlp worker (YTDLP_WORKER_URL) — không lấy được bình luận.');
   const data = await workerComments(n.url, max);
-  return { ok: true, source: 'ytdlp', count: data.length, data };
+  return { ok: true, source: 'ytdlp', count: data.length, stats: commentStats(data), data };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMENTS SUMMARY / ANSWER (ADDITIVE) — tóm tắt chủ đề + sắc thái bình luận,
+// hỏi đáp dựa trên bình luận (crawl → ingest RAG → ask). Không bao giờ crash.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Thống kê cơ bản cho danh sách bình luận: {count, avg_likes, top_author?}.
+function commentStats(list) {
+  const arr = Array.isArray(list) ? list : [];
+  const count = arr.length;
+  if (!count) return { count: 0, avg_likes: 0, top_author: null };
+  let sum = 0;
+  const byAuthor = new Map();
+  for (const c of arr) {
+    const likes = Number(c && c.like_count) || 0;
+    sum += likes;
+    const a = String((c && c.author) || 'Ẩn danh').trim() || 'Ẩn danh';
+    byAuthor.set(a, (byAuthor.get(a) || 0) + 1);
+  }
+  let top_author = null;
+  let top_n = -1;
+  for (const [a, n] of byAuthor.entries()) {
+    if (n > top_n) { top_n = n; top_author = a; }
+  }
+  return { count, avg_likes: Math.round((sum / count) * 10) / 10, top_author };
+}
+
+// Rút id video từ URL (dùng làm source RAG `comments:<videoId>`).
+function videoIdOf(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+    if (host === 'youtu.be') return u.pathname.replace(/^\//, '').split('/')[0] || 'unknown';
+    if (host.endsWith('youtube.com')) {
+      const v = u.searchParams.get('v');
+      if (v) return v;
+      const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]+)/);
+      if (m) return m[2];
+    }
+    const seg = u.pathname.split('/').filter(Boolean).pop();
+    return seg || host || 'unknown';
+  } catch (e) { return 'unknown'; }
+}
+
+// Lexicon cảm xúc thô (EN + VN, đã bỏ dấu) + emoji — đủ để tally sắc thái.
+const SENT_POS = new Set((
+  'good,great,awesome,amazing,love,loved,lol,lmao,haha,hahaha,hihi,funny,best,perfect,thanks,thank,thankyou,beautiful,nice,cool,wow,epic,legend,legendary,goat,fire,excellent,bravo,respect,win,winner,happy,fun,favorite,favourite,like,enjoy,helpful,brilliant,sweet,king,queen,gold,golden,accurate,true,real,peak,banger,classic,iconic,nostalgia,goated,gigachad,chad,masterpiece,underrated,beautifully,amazingly,dope,sick,stunning,gorgeous,lovely,lov' +
+  ',tot,tuyet,tuyetvoi,dep,thich,hay,hayqua,dinh,dinhtop,ngon,chat,kool,cute,xin,dinhcao,uy,tin,chuan,hoanhao,yeu,thuong,gioi,gioiqua,phuc,nguongmo,anhunghung,quyetdinh,canphai,haynhi'
+).split(',').map((w) => w.trim()).filter(Boolean));
+
+const SENT_NEG = new Set((
+  'bad,worst,terrible,awful,hate,hated,boring,sucks,suck,trash,garbage,useless,fail,failed,stupid,dumb,annoying,scam,fake,dislike,disappointed,disappointing,sad,angry,ugly,broken,error,problem,issue,cringe,overrated,waste,refund,banned,report,toxic,lies,fraud,lame' +
+  ',te,toi,chan,kem,do,dot,ngu,xau,ghet,thatvong,nham,buon,gia,luadao,daobo,lua,harm,ghichu,tetc'
+).split(',').map((w) => w.trim()).filter(Boolean));
+
+const EMOJI_POS = ['😂', '🤣', '😍', '🥰', '😊', '😎', '🤩', '🥳', '👍', '❤️', '🔥', '💯', '🎉', '✨', '🙌', '👏', '😆', '😁', '🤗', '💪', '😀', '😃', '😄', '😹', '👌', '😜', '🤪'];
+const EMOJI_NEG = ['😢', '😭', '😡', '😠', '👎', '💔', '😞', '😔', '🤬', '😤', '😨', '😰', '😱', '😩', '😫'];
+
+// Tally sắc thái cho corpus bình luận → {positive, negative, neutral, total}.
+function commentSentiment(texts) {
+  const arr = Array.isArray(texts) ? texts : [];
+  let positive = 0, negative = 0, neutral = 0;
+  for (const raw of arr) {
+    const t = String(raw || '');
+    if (!t.trim()) continue;
+    const flat = t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    let pos = 0, neg = 0;
+    const toks = flat.match(/[a-z0-9]+/g) || [];
+    for (const w of toks) { if (SENT_POS.has(w)) pos++; if (SENT_NEG.has(w)) neg++; }
+    for (const e of EMOJI_POS) if (t.includes(e)) pos++;
+    for (const e of EMOJI_NEG) if (t.includes(e)) neg++;
+    if (pos > neg) positive++;
+    else if (neg > pos) negative++;
+    else neutral++;
+  }
+  return { positive, negative, neutral, total: arr.length };
+}
+
+// Tóm tắt tần suất (khi không có Gemini).
+function freqCommentSummary(keywords, hashtags, sentiment) {
+  const kw = (keywords || []).slice(0, 6).map((x) => (x && x.word) || x[0]);
+  const tags = (hashtags || []).slice(0, 5).map((x) => '#' + ((x && x.tag) || x[0]));
+  const parts = [];
+  if (kw.length) parts.push(`Người xem bình luận nhiều về: ${kw.join(', ')}`);
+  if (sentiment && sentiment.total) parts.push(`Sắc thái chung: ${sentiment.positive} tích cực / ${sentiment.negative} tiêu cực / ${sentiment.neutral} trung tính`);
+  if (tags.length) parts.push(`Hashtag nổi bật: ${tags.join(' ')}`);
+  if (!parts.length) return 'Chưa đủ dữ liệu để tóm tắt bình luận.';
+  return parts.join('. ') + '.';
+}
+
+// Lấy key Gemini (env trước, rồi key trong DB khoa_api qua embedding-service).
+async function geminiKey() {
+  const env = String(process.env.GEMINI_API_KEY || '').trim();
+  if (env && env !== 'YOUR_GEMINI_API_KEY_HERE') return env;
+  try {
+    const emb = require('./brain/memory/embedding-service');
+    if (typeof emb.getGeminiKey === 'function') {
+      const k = await emb.getGeminiKey();
+      if (k) return String(k).trim();
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+// (Tuỳ chọn) 1 câu trả lời/sinh văn bản bằng Gemini — lỗi/không key → null.
+async function geminiGenerate(prompt, maxOutputTokens, timeoutMs) {
+  const key = await geminiKey();
+  if (!key) return null;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: maxOutputTokens || 220 } }),
+        signal: AbortSignal.timeout(timeoutMs || 15000),
+      }
+    );
+    if (!res.ok) return null;
+    const j = await res.json().catch(() => null);
+    const txt = j && j.candidates && j.candidates[0] && j.candidates[0].content
+      && j.candidates[0].content.parts && j.candidates[0].content.parts[0]
+      && j.candidates[0].content.parts[0].text;
+    const out = String(txt || '').trim();
+    return out ? out.slice(0, 900) : null;
+  } catch (e) { return null; }
+}
+
+// Tóm tắt chủ đề bình luận bằng Gemini (2-4 câu tiếng Việt) — null nếu không có key.
+async function geminiCommentSummary(ctx) {
+  const kw = (ctx.keywords || []).slice(0, 12).map((k) => k.word).join(', ');
+  const tags = (ctx.hashtags || []).slice(0, 8).map((h) => '#' + h.tag).join(' ');
+  const top = (ctx.notable || []).slice(0, 10).map((c) => `- (${c.like_count || 0} like) ${c.text}`).join('\n');
+  const sent = ctx.sentiment ? `${ctx.sentiment.positive} tích cực, ${ctx.sentiment.negative} tiêu cực, ${ctx.sentiment.neutral} trung tính` : '';
+  const prompt = `Dưới đây là bình luận của người xem cho một video (xếp theo lượt thích). Viết 2-4 câu tiếng Việt mô tả ngắn gọn: mọi người đang bàn luận về chủ đề gì và thái độ/sắc thái chung (đùa cợt, khen, chê, tranh luận...). Chỉ trả về đoạn tóm tắt, không thêm gì khác.\n\nTừ khoá phổ biến: ${kw}\nHashtag: ${tags}\nSắc thái: ${sent}\nBình luận nổi bật:\n${top}`;
+  return geminiGenerate(prompt, 260, 15000);
+}
+
+// Trả lời câu hỏi dựa trên các chunk bình luận (Gemini) — null nếu không có key.
+async function geminiAnswerFromChunks(question, chunks) {
+  const ctx = (chunks || []).map((c, i) => `[${i + 1}] ${c.text}`).join('\n\n');
+  if (!ctx) return null;
+  const prompt = `Dựa CHỈ trên các trích đoạn bình luận dưới đây, trả lời ngắn gọn bằng tiếng Việt cho câu hỏi. Nếu không đủ dữ liệu thì nói rõ không đủ dữ liệu. Chỉ trả về câu trả lời.\n\nCâu hỏi: ${question}\n\nTrích đoạn bình luận:\n${ctx}`;
+  return geminiGenerate(prompt, 320, 15000);
+}
+
+// Chuẩn hoá 1 bình luận đầu vào (đã có sẵn) về schema thống nhất.
+function normComment(c) {
+  if (typeof c === 'string') return { author: 'Ẩn danh', text: c, like_count: 0, published: null };
+  const o = c || {};
+  return {
+    author: o.author || 'Ẩn danh',
+    text: String(o.text || o.noi_dung || '').trim(),
+    like_count: Number(o.like_count != null ? o.like_count : (o.likes != null ? o.likes : 0)) || 0,
+    published: o.published || o.time || null,
+  };
+}
+
+// Lấy comments cho summary/answer: crawl từ url, hoặc dùng comments/text có sẵn.
+async function collectComments(inp) {
+  const i = inp || {};
+  if (Array.isArray(i.comments) && i.comments.length) {
+    return { list: i.comments.map(normComment).filter((c) => c.text), source: String(i.source || 'comments:manual') };
+  }
+  if (typeof i.text === 'string' && i.text.trim()) {
+    const list = i.text.split(/\r?\n/).map((t) => normComment(t)).filter((c) => c.text);
+    return { list, source: String(i.source || 'comments:text') };
+  }
+  if (i.url) {
+    const n = normalizeUrl(i.url);
+    if (!n.ok) throw new Error(n.error);
+    if (!workerEnabled()) throw new Error('Chưa cấu hình yt-dlp worker (YTDLP_WORKER_URL) — không lấy được bình luận.');
+    const list = await workerComments(n.url, i.max);
+    return { list, source: `comments:${videoIdOf(n.url)}`, url: n.url };
+  }
+  throw new Error('Cần "url", hoặc "comments"/"text".');
+}
+
+// commentSummary({url|comments|text, max?, lang?}) →
+// {ok, count, topics:{keywords,hashtags}, sentiment, notable, summary, source}
+async function commentSummary(input, userId) {
+  const inp = input || {};
+  const { list, source, url } = await collectComments(inp);
+  if (!list.length) throw new Error('Không có bình luận để tóm tắt.');
+
+  const corpusText = list.map((c) => `[${c.author || 'Ẩn danh'}] ${c.text}`).join('\n');
+
+  // Ingest vào RAG (guarded — lỗi không chặn kết quả).
+  let ingested = null;
+  try {
+    const r = await ingest({ source, title: `Bình luận ${source}`, text: corpusText }, userId);
+    ingested = { doc_id: r.doc_id, chunks: r.chunks };
+  } catch (e) {
+    ingested = { error: e && e.message ? e.message : 'lỗi ingest' };
+  }
+
+  const texts = list.map((c) => c.text);
+  const keywords = topCounts(texts, 'keyword').slice(0, 15).map(([word, count]) => ({ word, count }));
+  const hashtags = topCounts(texts, 'hashtag').slice(0, 15).map(([tag, count]) => ({ tag, count }));
+  const sentiment = commentSentiment(texts);
+  const notable = [...list]
+    .sort((a, b) => (b.like_count || 0) - (a.like_count || 0))
+    .slice(0, 5)
+    .map((c) => ({ author: c.author, text: c.text, like_count: c.like_count, published: c.published }));
+
+  let summary = freqCommentSummary(keywords, hashtags, sentiment);
+  const g = await geminiCommentSummary({ keywords, hashtags, sentiment, notable, count: list.length });
+  if (g) summary = g;
+
+  return {
+    ok: true,
+    count: list.length,
+    topics: { keywords, hashtags },
+    sentiment,
+    notable,
+    summary,
+    source,
+    stats: commentStats(list),
+    url: url || null,
+    ingested,
+  };
+}
+
+// commentAnswer({url, question, max?, limit?}) → crawl+ingest → RAG ask → top chunks (+Gemini answer).
+async function commentAnswer(input, userId) {
+  const inp = input || {};
+  const q = String(inp.question || '').trim();
+  if (!q) throw new Error('Thiếu question.');
+  if (!inp.url) throw new Error('Thiếu url (video có bình luận).');
+  const n = normalizeUrl(inp.url);
+  if (!n.ok) throw new Error(n.error);
+  if (!workerEnabled()) throw new Error('Chưa cấu hình yt-dlp worker (YTDLP_WORKER_URL) — không lấy được bình luận.');
+
+  const list = await workerComments(n.url, inp.max);
+  if (!list.length) throw new Error('Không có bình luận để hỏi.');
+  const source = `comments:${videoIdOf(n.url)}`;
+  const corpusText = list.map((c) => `[${c.author || 'Ẩn danh'}] ${c.text}`).join('\n');
+
+  let ingested = null;
+  try {
+    const r = await ingest({ source, title: `Bình luận ${source}`, text: corpusText }, userId);
+    ingested = { doc_id: r.doc_id, chunks: r.chunks };
+  } catch (e) {
+    ingested = { error: e && e.message ? e.message : 'lỗi ingest' };
+  }
+
+  const a = await ask({ question: q, source, limit: Math.max(1, Math.min(parseInt(inp.limit, 10) || 5, 20)) }, userId);
+  let answer = null;
+  const g = await geminiAnswerFromChunks(q, a.chunks);
+  if (g) answer = g;
+
+  return { ok: true, question: q, count: a.count, chunks: a.chunks, answer, source, ingested };
 }
 
 async function batch(urls) {
@@ -1208,6 +1461,8 @@ module.exports = {
   info,
   page: pageExtract,
   comments,
+  commentSummary,
+  commentAnswer,
   batch,
   download,
   channel,
