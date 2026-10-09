@@ -10,7 +10,8 @@ const { PROVIDER_ENDPOINTS } = require('../model-scanner.scheduler');
 const AGENT_PROVIDER = (process.env.AGENT_PROVIDER || 'bai').toLowerCase();
 const AGENT_MODEL = process.env.AGENT_MODEL || 'qwen3.8-flash';
 const MAX_STEPS = parseInt(process.env.AGENT_MAX_STEPS || '6');
-const TOTAL_DEADLINE_MS = 4 * 60 * 1000;
+const TOTAL_DEADLINE_MS = parseInt(process.env.AGENT_DEADLINE_MS || '120000'); // 2 phút: luôn trả lời trước khi proxy timeout
+const TOOL_TIMEOUT_MS = parseInt(process.env.AGENT_TOOL_TIMEOUT_MS || '40000'); // tool nặng (browser) fail nhanh
 
 // QA 17/9/2026: provider default (bai) hết credit → agent chết 400 không failover.
 // Chain failover: thử lần lượt các provider OpenAI-compatible CÓ key trong khoa_api.
@@ -144,7 +145,7 @@ async function runAgentLoop(prompt, provider, model, onEvent, allowedTools) {
         try {
           toolResult = await Promise.race([
             executeTool(act.tool, act.args || {}),
-            new Promise((_, rej) => setTimeout(() => rej(new Error(`tool ${act.tool} timeout`)), 90000)),
+            new Promise((_, rej) => setTimeout(() => rej(new Error(`tool ${act.tool} timeout`)), TOOL_TIMEOUT_MS)),
           ]);
         } catch (e) { toolResult = { error: String(e && e.message || e) }; }
       }
