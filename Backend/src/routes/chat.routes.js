@@ -1549,10 +1549,31 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
     const requestedEngine = String(req.body.agent_engine || 'auto').trim().toLowerCase();
     const agentEngineName = agentEngine.pickEngine(noi_dung, requestedEngine);
     if (!agentEngine.isEngineAvailable(agentEngineName)) {
-      sendSSE({ type: 'error', message: agentEngineName === 'dsh'
-        ? "⛔ **Lỗi hệ thống:** DeepSeek Harness (dsh) chưa được cài đặt. Vui lòng kiểm tra lại."
-        : "⛔ **Lỗi hệ thống:** Không tìm thấy `opencode.exe`. Vui lòng kiểm tra lại đường dẫn cài đặt." });
-      return endStream();
+      // Cloud (Render) KHÔNG có opencode.exe/dsh → chạy AGENT NỘI BỘ (ReAct qua API provider).
+      // Trước đây báo lỗi "không tìm thấy opencode.exe" → nay chạy thật, không chặn user.
+      if (!noi_dung || !noi_dung.trim()) {
+        sendSSE({ type: 'error', message: '⚠️ **Lỗi:** Nội dung tin nhắn trống.' });
+        return endStream();
+      }
+      sendSSE({ type: 'status', message: '🤖 Agent đang làm việc (tự gọi tool: đọc web, tìm kiếm, chạy code...)...' });
+      (async () => {
+        try {
+          const { runInternalAgent } = require('../services/internalAgent');
+          const result = await runInternalAgent(noi_dung, {});
+          if (result && result.success && result.answer) {
+            sendSSE({ type: 'token', text: result.answer });
+            sendSSE({ type: 'done', ma_tin_nhan: crypto.randomUUID(), noi_dung: result.answer });
+          } else {
+            const steps = (result && result.steps) || [];
+            const detail = steps.map(s => `• ${s.tool}${s.args ? '(' + JSON.stringify(s.args).slice(0, 80) + ')' : ''}: ${String(s.result || '').slice(0, 140)}`).join('\n');
+            sendSSE({ type: 'error', message: `⛔ Agent chưa hoàn thành: ${(result && result.error) || 'không có câu trả lời'}\n${detail}` });
+          }
+        } catch (e) {
+          sendSSE({ type: 'error', message: '⛔ Agent lỗi: ' + e.message });
+        }
+        return endStream();
+      })();
+      return;
     }
     if (!noi_dung || !noi_dung.trim()) {
       sendSSE({ type: 'error', message: "⚠️ **Lỗi:** Nội dung tin nhắn trống. Vui lòng nhập yêu cầu trước khi chạy Agent Mode." });
