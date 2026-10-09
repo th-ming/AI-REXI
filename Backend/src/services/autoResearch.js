@@ -37,7 +37,11 @@ async function gather(text) {
   }
 
   // 2) Câu hỏi cần thông tin -> search web.
-  if (INFO_HINT.test(q)) {
+  //    Ưu tiên "biết hết": search khi có dấu hiệu hỏi thông tin, HOẶC có dấu "?",
+  //    HOẶC tin nhắn đủ dài (>25 ký tự). Bỏ qua lời chào/ack ngắn. Có cache.
+  const isGreeting = /^\s*(hi|hello|hey|chào|chao|xin chào|xin chao|thanks|cảm ơn|cam on|ok|oke|okay|ừ|uhm|uk)\b/i.test(q);
+  const shouldSearch = !isGreeting && (INFO_HINT.test(q) || /\?/.test(q) || q.length >= 25);
+  if (shouldSearch) {
     const key = q.toLowerCase().slice(0, 140);
     const c = CACHE.get(key);
     if (c && (Date.now() - c.t) < TTL_MS) return c.v;
