@@ -22,6 +22,7 @@ const WORKER_URL = (process.env.YTDLP_WORKER_URL || '').trim().replace(/\/+$/, '
 const WORKER_TOKEN = (process.env.YTDLP_WORKER_TOKEN || '').trim();
 const WORKER_INFO_TIMEOUT_MS = 45000;
 const WORKER_COMMENTS_TIMEOUT_MS = 100000;
+const WORKER_LIST_TIMEOUT_MS = 100000;
 const WEB_TIMEOUT_MS = 15000;
 const MAX_HTML_CHARS = 1500000;
 const PAGE_TEXT_LIMIT = 20000;
@@ -36,7 +37,9 @@ const BROWSER_UA =
 const SUPPORTS = [
   'youtube', 'tiktok', 'instagram', 'twitter/x', 'facebook', 'vimeo', 'dailymotion',
   'twitch', 'reddit', 'soundcloud', 'pinterest', 'linkedin', 'bilibili',
-  'douyin', 'xiaohongshu', 'generic-web',
+  'douyin', 'xiaohongshu', 'snapchat', 'tumblr', 'telegram', 'bandcamp', 'mixcloud',
+  'streamable', 'rumble', 'odysee', 'kick', 'likee', 'threads', 'weibo', 'youku',
+  'iqiyi', 'pornhub', 'xvideos', 'generic-web',
 ];
 
 function workerEnabled() {
@@ -260,6 +263,13 @@ async function workerComments(url, max) {
   }));
 }
 
+// Liệt kê video của kênh/playlist qua worker /list (flat-playlist).
+async function workerList(url, limit) {
+  const j = await workerGet(`/list?${workerQ({ url, limit: String(limit) })}`, WORKER_LIST_TIMEOUT_MS);
+  const arr = Array.isArray(j.items) ? j.items : [];
+  return { platform: j.platform || null, items: arr };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
@@ -381,6 +391,198 @@ async function download(rawUrl) {
   return { ok: false, error: lastErr || 'Không lấy được URL media trực tiếp.' };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// KÊNH / PLAYLIST + RAG (nối vào ragService đang có — tiết kiệm token khi chat)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Ngày hôm nay theo giờ VN (UTC+7) → 'YYYY-MM-DD'.
+function vnToday() {
+  const vn = new Date(Date.now() + 7 * 3600 * 1000);
+  return vn.toISOString().slice(0, 10);
+}
+
+// timestamp (unix giây) → 'YYYY-MM-DD' giờ VN.
+function tsToVnDate(ts) {
+  const n = Number(ts);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return new Date(n * 1000 + 7 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// 'YYYYMMDD' → 'YYYY-MM-DD' (yt-dlp upload_date).
+function ymdToIso(s) {
+  const m = String(s || '').match(/^(\d{4})(\d{2})(\d{2})$/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : (s || null);
+}
+
+// Đoán platform từ hostname.
+function platformOf(url) {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
+    const map = [
+      ['youtube.com', 'youtube'], ['youtu.be', 'youtube'], ['tiktok.com', 'tiktok'],
+      ['instagram.com', 'instagram'], ['twitter.com', 'twitter/x'], ['x.com', 'twitter/x'],
+      ['facebook.com', 'facebook'], ['fb.watch', 'facebook'], ['vimeo.com', 'vimeo'],
+      ['dailymotion.com', 'dailymotion'], ['twitch.tv', 'twitch'], ['reddit.com', 'reddit'],
+      ['soundcloud.com', 'soundcloud'], ['pinterest.', 'pinterest'], ['linkedin.com', 'linkedin'],
+      ['bilibili.com', 'bilibili'], ['douyin.com', 'douyin'], ['xiaohongshu.com', 'xiaohongshu'],
+      ['weibo.', 'weibo'], ['kick.com', 'kick'], ['rumble.com', 'rumble'],
+    ];
+    for (const [d, name] of map) if (h === d || h.endsWith('.' + d) || h.includes(d)) return name;
+    return h;
+  } catch (e) { return null; }
+}
+
+// items → text (để nạp RAG): title + kênh + ngày + link + description.
+function itemsToText(items) {
+  const arr = Array.isArray(items) ? items : [];
+  return arr.map((it) => {
+    if (it == null) return '';
+    if (typeof it === 'string') return it;
+    const parts = [];
+    if (it.title) parts.push(`# ${it.title}`);
+    if (it.uploader) parts.push(`Kênh: ${it.uploader}`);
+    if (it.published) parts.push(`Ngày: ${it.published}`);
+    if (it.view_count != null) parts.push(`Lượt xem: ${it.view_count}`);
+    if (it.url) parts.push(`Link: ${it.url}`);
+    if (it.description) parts.push(String(it.description));
+    return parts.join('\n');
+  }).filter(Boolean).join('\n\n');
+}
+
+// channel(): liệt kê video kênh/playlist qua worker /list. Fallback /info (1 mục).
+async function channel(rawUrl, opts) {
+  const o = opts || {};
+  const n = normalizeUrl(rawUrl);
+  if (!n.ok) throw new Error(n.error);
+  const safe = await assertPublicUrlAsync(n.url);
+  if (!safe.ok) throw new Error(safe.reason);
+  const limit = Math.max(1, Math.min(parseInt(o.limit, 10) || 20, 100));
+  const today = o.today === true || o.today === 'true';
+
+  if (!workerEnabled()) {
+    throw new Error('Chưa cấu hình yt-dlp worker (YTDLP_WORKER_URL) — không liệt kê được kênh/playlist.');
+  }
+
+  let platform = platformOf(n.url);
+  let items = [];
+  let listErr = null;
+  try {
+    const r = await workerList(n.url, limit);
+    items = r.items || [];
+    platform = r.platform || platform;
+  } catch (e) {
+    listErr = e && e.message ? e.message : 'worker /list lỗi';
+  }
+
+  if (!items.length) {
+    try {
+      const inf = await workerInfo(n.url);
+      items = [{
+        id: inf.id || null, title: inf.title || null, url: n.url,
+        uploader: inf.uploader || null, duration: inf.duration != null ? inf.duration : null,
+        timestamp: null, upload_date: inf.upload_date || null,
+        view_count: inf.view_count != null ? inf.view_count : null,
+      }];
+    } catch (e) {
+      if (listErr) throw new Error(`Không liệt kê được kênh/playlist: ${listErr}`);
+      throw new Error('Không lấy được danh sách video (site có thể không hỗ trợ flat-playlist).');
+    }
+  }
+
+  const mapped = items.slice(0, limit).map((it) => ({
+    id: it.id || null,
+    title: it.title || null,
+    url: it.url || null,
+    uploader: it.uploader || null,
+    published: tsToVnDate(it.timestamp) || ymdToIso(it.upload_date) || null,
+    view_count: it.view_count != null ? it.view_count : null,
+  }));
+  const filtered = today ? mapped.filter((it) => it.published && it.published === vnToday()) : mapped;
+  return { ok: true, platform, count: filtered.length, items: filtered, today_filtered: today };
+}
+
+// ingest(): chunk text (hoặc items) → nạp vào RAG store đang có (ragService).
+async function ingest(input, userId) {
+  const rag = require('./ragService');
+  const inp = input || {};
+  const src = String(inp.source || '').trim() || 'scrape';
+  const title = String(inp.title || src).trim().slice(0, 300);
+  let text = '';
+  if (typeof inp.text === 'string' && inp.text.trim()) text = inp.text;
+  else if (Array.isArray(inp.items)) text = itemsToText(inp.items);
+  if (!text || text.trim().length < 10) throw new Error('Thiếu nội dung để nạp (text hoặc items).');
+  const scope = userId || 'scrape-public';
+  const res = await rag.saveTextDocument(scope, title, text, { source: src });
+  if (res && res.error) throw new Error(res.error);
+  return { ok: true, doc_id: res.ma_tai_lieu, chunks: res.so_chunk, chars: res.so_ky_tu, source: src, title };
+}
+
+// ask(): truy vấn RAG store → trả về các chunk liên quan (chỉ feed chunk đó cho model).
+async function ask(input, userId) {
+  const rag = require('./ragService');
+  const inp = input || {};
+  const q = String(inp.question || '').trim();
+  if (!q) throw new Error('Thiếu question.');
+  const src = String(inp.source || '').trim();
+  const limit = Math.max(1, Math.min(parseInt(inp.limit, 10) || 5, 20));
+  const scope = userId || 'scrape-public';
+  const rows = await rag.searchDocuments(scope, q, src ? Math.min(limit * 4, 40) : limit);
+  let chunks = (rows || []).map((r) => ({ text: r.noi_dung, score: r.do_tuong_dong, doc: r.ten_file }));
+  if (src) {
+    const filtered = chunks.filter((c) => String(c.doc || '').toLowerCase().includes(src.toLowerCase()));
+    if (filtered.length) chunks = filtered;
+  }
+  chunks = chunks.slice(0, limit);
+  return { ok: true, count: chunks.length, chunks };
+}
+
+// pipeline(): crawl (urls/channel) → nạp RAG → trả chunk (hoặc top chunks khi có question).
+async function pipeline(input, userId) {
+  const inp = input || {};
+  const urls = Array.isArray(inp.urls) ? inp.urls.slice(0, 10) : [];
+  const question = inp.question ? String(inp.question) : '';
+  const ingested = [];
+
+  if (inp.channel) {
+    try {
+      const ch = await channel(inp.channel, { limit: inp.limit || 20, today: !!inp.today });
+      const src = `channel:${platformOf(inp.channel) || 'site'}:${String(inp.channel).slice(0, 60)}`;
+      const text = itemsToText(ch.items) || `Kênh ${inp.channel} — ${ch.count} video.`;
+      const r = await ingest({ source: src, title: src, text }, userId);
+      ingested.push({ type: 'channel', ok: true, count: ch.count, ...r });
+    } catch (e) {
+      ingested.push({ type: 'channel', ok: false, error: e.message || 'lỗi' });
+    }
+  }
+
+  for (const u of urls) {
+    try {
+      const r0 = await info(u);
+      const d = r0.data || {};
+      const text = [
+        d.title && `# ${d.title}`,
+        d.uploader && `Kênh: ${d.uploader}`,
+        d.description && String(d.description),
+        (r0.source === 'web' && d.text) ? String(d.text) : '',
+      ].filter(Boolean).join('\n');
+      const src = `url:${platformOf(u) || 'web'}:${String(u).slice(0, 60)}`;
+      const r = await ingest({ source: src, title: d.title || src, text: text || d.title || u }, userId);
+      ingested.push({ type: 'url', ok: true, url: u, ...r });
+    } catch (e) {
+      ingested.push({ type: 'url', ok: false, url: u, error: e.message || 'lỗi' });
+    }
+  }
+
+  if (!ingested.length) throw new Error('Thiếu urls hoặc channel để crawl.');
+  const out = { ok: true, ingested };
+  if (question) {
+    const a = await ask({ question, limit: 5 }, userId);
+    out.question = question;
+    out.chunks = a.chunks;
+  }
+  return out;
+}
+
 module.exports = {
   status,
   info,
@@ -388,6 +590,10 @@ module.exports = {
   comments,
   batch,
   download,
+  channel,
+  ingest,
+  ask,
+  pipeline,
   normalizeUrl,
   workerStatus,
   workerEnabled,

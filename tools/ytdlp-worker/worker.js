@@ -12,6 +12,7 @@
  *   GET /info?id=<videoId>      -> { title, author, duration, stream_url } (stream_url = worker /stream)
  *   GET /stream?id=<id>         -> proxy bytes video (hỗ trợ Range)
  *   GET /stream?url=<watchUrl>  -> như trên với URL đầy đủ
+ *   GET /list?url=<chan/playlist>&limit=<n> -> liệt kê video (flat-playlist)
  *
  * Không phụ thuộc npm. Node >= 18 (dùng fetch/stream).
  */
@@ -245,6 +246,76 @@ async function resolveChannelAvatar(channelId) {
   return { avatar_url: pick.url, channel: data.channel || data.uploader || '', channel_id: id };
 }
 
+// Liệt kê video của kênh/playlist (flat-playlist) — nhanh, không tải.
+// Trả [{ id, title, url, uploader, duration, timestamp, upload_date, view_count, platform }].
+// Best-effort: nhiều site (YouTube tốt nhất) hỗ trợ; site không hỗ trợ → mảng rỗng/lỗi.
+async function resolveList(idOrUrl, limit) {
+  const target = String(idOrUrl || '').trim();
+  if (!target) throw new Error('missing url');
+  const url = /^https?:\/\//.test(target) ? target : watchUrl(target);
+  const n = Math.max(1, Math.min(parseInt(limit, 10) || 20, 200));
+  const hasCookies = fs.existsSync(COOKIES_FILE);
+  const args = ['--flat-playlist', '--dump-json', '--ignore-errors', '--no-warnings',
+    '--skip-download', '--playlist-end', String(n), '--socket-timeout', '20'];
+  if (hasCookies) args.push('--cookies', COOKIES_FILE);
+  args.push(url);
+  const out = await run(YTDLP, args, 90000);
+
+  const mapEntry = (d) => {
+    if (!d || typeof d !== 'object') return null;
+    const id = d.id || null;
+    let vurl = d.webpage_url || null;
+    if (!vurl) {
+      const raw = d.url || '';
+      if (/^https?:\/\//.test(raw)) vurl = raw;
+      else if (id && /youtube/i.test(d.ie_key || d.extractor || '')) vurl = `https://www.youtube.com/watch?v=${id}`;
+      else if (id) vurl = raw || `https://www.youtube.com/watch?v=${id}`;
+    }
+    const ts = d.timestamp || d.release_timestamp || null;
+    return {
+      id,
+      title: d.title || null,
+      url: vurl || (id ? `https://www.youtube.com/watch?v=${id}` : null),
+      uploader: d.uploader || d.channel || d.uploader_id || null,
+      duration: d.duration != null ? d.duration : null,
+      timestamp: ts != null ? ts : null,
+      upload_date: d.upload_date || null,
+      view_count: d.view_count != null ? d.view_count : (d.view_count == null && d.views != null ? d.views : null),
+      platform: d.ie_key || d.extractor || null,
+    };
+  };
+
+  const items = [];
+  let platform = null;
+  for (const line of out.split('\n')) {
+    const t = line.trim();
+    if (!t || t[0] !== '{') continue;
+    let d;
+    try { d = JSON.parse(t); } catch (e) { continue; }
+    if (d && d._type === 'playlist' && Array.isArray(d.entries)) {
+      platform = platform || d.extractor || d.ie_key || null;
+      for (const e of d.entries) { const m = mapEntry(e); if (m && m.id) items.push(m); }
+    } else if (d && d.id) {
+      platform = platform || d.extractor || d.ie_key || null;
+      const m = mapEntry(d); if (m && m.id) items.push(m);
+    }
+  }
+  // Fallback: output là 1 JSON object duy nhất (một số phiên bản yt-dlp)
+  if (!items.length) {
+    try {
+      const d = JSON.parse(out);
+      if (d && d._type === 'playlist' && Array.isArray(d.entries)) {
+        platform = d.extractor || d.ie_key || platform;
+        for (const e of d.entries) { const m = mapEntry(e); if (m && m.id) items.push(m); }
+      } else if (d && d.id) {
+        platform = d.extractor || d.ie_key || platform;
+        const m = mapEntry(d); if (m && m.id) items.push(m);
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return { platform, count: items.slice(0, n).length, items: items.slice(0, n) };
+}
+
 async function channelAvatarHandler(req, res, id) {
   const started = Date.now();
   try {
@@ -320,6 +391,20 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/channel-avatar') {
       if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id (channel_id)' })); }
       return await channelAvatarHandler(req, res, id);
+    }
+    if (u.pathname === '/list') {
+      if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing url' })); }
+      const started = Date.now();
+      try {
+        const info = await resolveList(id, u.searchParams.get('limit'));
+        console.log(`[worker] list ok: ${info.count} items, ${Date.now() - started}ms`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: true, ...info, ms: Date.now() - started }));
+      } catch (e) {
+        console.log(`[worker] list fail: ${e.message}`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
     }
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'not found' }));

@@ -232,6 +232,47 @@ async function saveDocument(userId, filename, buffer) {
   return { ma_tai_lieu: maTaiLieu, ten_file: filename, so_ky_tu: noiDung.length, so_chunk: chunks.length };
 }
 
+// ─── Lưu tài liệu từ TEXT THÔ (dùng cho scraper ingest — không cần file) ──
+// Cùng cơ chế saveDocument: ghi tai_lieu_rag + chunk + vector hóa từng chunk.
+// meta: { source } — hiện chỉ dùng để ghi chú (loai_file = 'scrape').
+async function saveTextDocument(userId, filename, text, meta) {
+  const crypto = require('crypto');
+  const noiDung = String(text == null ? '' : text).trim();
+  if (!noiDung || noiDung.length < 10) {
+    return { error: 'Không có nội dung để nạp (text trống hoặc quá ngắn).' };
+  }
+  const maTaiLieu = crypto.randomUUID();
+  const tenFile = String(filename || (meta && meta.source) || 'scrape').slice(0, 300);
+  const loaiFile = (meta && meta.source) ? `scrape:${String(meta.source).slice(0, 60)}` : 'scrape';
+
+  await new Promise((resolve) => {
+    db.run(
+      "INSERT INTO tai_lieu_rag (ma_tai_lieu, ma_nguoi_dung, ten_file, loai_file, noi_dung) VALUES (?, ?, ?, ?, ?)",
+      [maTaiLieu, userId, tenFile, loaiFile, noiDung],
+      () => resolve()
+    );
+  });
+
+  const chunks = chunkText(noiDung);
+  (async () => {
+    let order = 0;
+    for (const chunk of chunks) {
+      const vec = await getEmbedding(chunk);
+      if (!vec) continue;
+      await new Promise((resolve) => {
+        db.run(
+          "INSERT INTO tai_lieu_rag_chunk (ma_chunk, ma_tai_lieu, vector, noi_dung, thu_tu) VALUES (?, ?, ?, ?, ?)",
+          [crypto.randomUUID(), maTaiLieu, JSON.stringify(vec), chunk, order],
+          () => resolve()
+        );
+      });
+      order++;
+    }
+  })().catch(() => {});
+
+  return { ma_tai_lieu: maTaiLieu, ten_file: tenFile, so_ky_tu: noiDung.length, so_chunk: chunks.length };
+}
+
 function listDocuments(userId) {
   return new Promise((resolve) => {
     db.all(
@@ -350,6 +391,7 @@ module.exports = {
   extractFileText,
   chunkText,
   saveDocument,
+  saveTextDocument,
   listDocuments,
   deleteDocument,
   searchDocuments,
