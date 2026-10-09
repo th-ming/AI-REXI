@@ -87,3 +87,9 @@ STATE-REXI.md
 
 .vercel
 .env*
+
+# Local heavy workers (binary/venv - KHONG commit; giu tools/*.ps1, tools/ytdlp-worker/worker.js)
+tools/VieNeu-TTS/
+tools/cloudflared/
+tools/social-worker/
+*-hidden.vbs

@@ -2,7 +2,7 @@
   "redirects": [
     {
       "source": "/(.*)",
-      "destination": "https://ai-rexi-backend-nmue.onrender.com/$1",
+      "destination": "https://rexiai.bot.cd/$1",
       "permanent": false
     }
   ],

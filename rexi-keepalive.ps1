@@ -1,4 +1,4 @@
-﻿# rexi-keepalive.ps1 - Giu backend Render cua Rexi AI luon tinh (chong sleep)
+# rexi-keepalive.ps1 - Giu backend Render cua Rexi AI luon tinh (chong sleep)
 # Render free tier ngu sau 15 phut idle, goi moi 60s de no khong bao gio ngu.
 # Chay nen: dang ky Windows Scheduled Task (xem rexi-keepalive-task.ps1)
 # ──────────────────────────────────────────────────────────────
@@ -7,7 +7,7 @@
 # ──────────────────────────────────────────────────────────────
 
 $urls = @(
-    "https://ai-rexi-backend-nmue.onrender.com/api/health"
+    "https://rexiai.bot.cd/api/health"
 )
 
 $failCount = 0        # Dem so lan fail lien tiep

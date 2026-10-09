@@ -1,7 +1,7 @@
 # rexi-healthcheck.ps1 - Kiem tra nhanh trang thai backend Rexi AI tren Render
 # Chay: powershell -ExecutionPolicy Bypass -File D:\Rexi AI\rexi-healthcheck.ps1
 
-$url = "https://ai-rexi-backend-nmue.onrender.com"
+$url = "https://rexiai.bot.cd"
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -12,7 +12,7 @@ Write-Host ""
 # 1. Kiem tra DNS + Connection
 Write-Host "[1/5] Kiem tra DNS & Connection..." -ForegroundColor Yellow
 try {
-    $dns = Resolve-DnsName "ai-rexi-backend-nmue.onrender.com" -ErrorAction Stop
+    $dns = Resolve-DnsName "rexiai.bot.cd" -ErrorAction Stop
     $dnsIp = $dns[0].IPAddress
     Write-Host "  OK DNS: $dnsIp" -ForegroundColor Green
 } catch {
@@ -23,7 +23,7 @@ try {
 # 2. Ping server
 Write-Host "[2/5] Ping server..." -ForegroundColor Yellow
 try {
-    $ping = Test-Connection "ai-rexi-backend-nmue.onrender.com" -Count 1 -TimeoutSeconds 5 -ErrorAction Stop
+    $ping = Test-Connection "rexiai.bot.cd" -Count 1 -TimeoutSeconds 5 -ErrorAction Stop
     $pingMs = $ping.ResponseTime
     Write-Host "  OK Ping: ${pingMs}ms" -ForegroundColor Green
 } catch {

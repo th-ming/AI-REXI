@@ -78,11 +78,38 @@ Chỉ đọc nội dung text.
 { "ok": true, "source": "web", "data": { "title": "...", "text": "…", "lang": "en" } }
 ```
 
-### `POST /api/scrape/comments` — `{ "url": "...", "max": 30 }`
-Bình luận qua worker (yt-dlp `--write-comments`). Cần worker.
+### `POST /api/scrape/comments` — `{ "url": "...", "max": 100 }`
+Bình luận qua worker (yt-dlp `--write-comments`). Cần worker. `max` mặc định **100**, kẹp trong
+`[1, 2000]` (worker dùng `youtube:max_comments=<max>,all;max_replies=0,all`; site ngoài YouTube
+giữ nguyên những gì yt-dlp trả về). Kèm `stats`.
 ```json
-{ "ok": true, "source": "ytdlp", "count": 30,
+{ "ok": true, "source": "ytdlp", "count": 200,
+  "stats": { "count": 200, "avg_likes": 41.3, "top_author": "@someone" },
   "data": [{ "author": "...", "text": "...", "like_count": 12, "published": "2025-01-01" }] }
+```
+
+### `POST /api/scrape/comments/summary` — `{ "url": "...", "max": 100 }` (hoặc `{ "comments": [...] }` / `{ "text": "..." }`)
+Lấy bình luận (crawl nếu có `url`, else dùng `comments`/`text`) → **nạp vào RAG**
+(`source = comments:<videoId>`) → tính `top_keywords` (tần suất, bỏ stopwords VI+EN),
+`top_hashtags`, **tally sắc thái** (positive/negative/neutral bằng lexicon + emoji) và `notable`
+(5 bình luận nhiều like nhất) → `summary` 2–4 câu tiếng Việt (Gemini nếu có key — env
+`GEMINI_API_KEY` hoặc key Gemini trong `khoa_api`; else tóm tắt theo tần suất).
+```json
+{ "ok": true, "count": 200,
+  "topics": { "keywords": [{ "word": "never", "count": 42 }], "hashtags": [{ "tag": "rickroll", "count": 9 }] },
+  "sentiment": { "positive": 120, "negative": 15, "neutral": 65, "total": 200 },
+  "notable": [{ "author": "...", "text": "...", "like_count": 5200, "published": "2024-03-02" }],
+  "summary": "Người xem chủ yếu đùa rằng...",
+  "source": "comments:dQw4w9WgXcQ" }
+```
+
+### `POST /api/scrape/comments/answer` — `{ "url": "...", "question": "...", "max": 100, "limit": 5 }`
+Crawl bình luận → **nạp vào RAG** → truy vấn RAG (`ask`) → trả **top chunk** liên quan; nếu có
+Gemini key thì kèm `answer` ngắn gọn.
+```json
+{ "ok": true, "question": "mọi người nói gì về bài hát?", "count": 5,
+  "chunks": [{ "text": "...", "score": 0.72, "doc": "Bình luận comments:dQw4w9WgXcQ" }],
+  "answer": "Phần lớn bình luận đùa về...", "source": "comments:dQw4w9WgXcQ" }
 ```
 
 ### `POST /api/scrape/batch` — `{ "urls": ["...", "..."] }`
@@ -194,6 +221,8 @@ vào RAG** → nếu có `question` thì trả luôn **top chunks**. `urls` tố
 | `/status` | 120 |
 | `/info`, `/page` | 30 |
 | `/comments` | 15 |
+| `/comments/summary` | 10 |
+| `/comments/answer` | 15 |
 | `/batch` | 10 |
 | `/download` | 20 |
 | `/channel` | 15 |
@@ -205,8 +234,8 @@ vào RAG** → nếu có `question` thì trả luôn **top chunks**. `urls` tố
 | `/pipeline` | 10 |
 
 - `batch` tối đa 10 url, chạy tuần tự (1 worker call 1 lúc).
-- `comments.max` kẹp trong `[1, 100]`; `channel.limit` kẹp trong `[1, 100]`; `ask.limit` `[1, 20]`.
-- Web fetch timeout **15s**; worker info **45s**; worker comments **100s**; worker list **100s**.
+- `comments.max` kẹp trong `[1, 2000]` (mặc định 100); `channel.limit` kẹp trong `[1, 100]`; `ask.limit` `[1, 20]`.
+- Web fetch timeout **15s**; worker info **45s**; worker comments **190s**; worker list **100s**.
 - URL phải bắt đầu bằng `http(s)://`; chặn SSRF (không cho trỏ vào IP/host nội bộ).
 
 ## CÁI GÌ CÀO ĐƯỢC / CÁI GÌ KHÔNG (nói thẳng)
