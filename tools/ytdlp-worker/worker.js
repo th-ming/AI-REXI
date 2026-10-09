@@ -14,6 +14,7 @@
  *   GET /stream?url=<watchUrl>  -> như trên với URL đầy đủ
  *   GET /list?url=<chan/playlist>&limit=<n> -> liệt kê video (flat-playlist)
  *   GET /search?q=<query>&limit=<n> -> tìm kiếm YouTube (pseudo-url ytsearch<n>:q)
+ *   GET /fetch?url=<encoded>   -> GET HTML qua IP nhà (whitelist engine tìm kiếm)
  *
  * Không phụ thuộc npm. Node >= 18 (dùng fetch/stream).
  */
@@ -325,6 +326,31 @@ async function resolveList(idOrUrl, limit) {
   return { platform, count: items.length, items };
 }
 
+// Host được phép qua /fetch (proxy GET HTML cho backend tìm kiếm web khi IP datacenter
+// của cloud bị engine chặn). Whitelist hẹp để tránh lạm dụng SSRF.
+const FETCH_HOSTS = ['html.duckduckgo.com', 'duckduckgo.com', 'lite.duckduckgo.com', 'www.bing.com', 'bing.com', 'news.google.com'];
+
+// GET 1 URL HTML qua IP nhà → { status, url, html }. Chỉ host trong whitelist.
+async function resolveFetch(rawUrl) {
+  const u = new URL(String(rawUrl || ''));
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error('bad protocol');
+  const host = u.hostname.toLowerCase();
+  if (!FETCH_HOSTS.some((h) => host === h || host.endsWith('.' + h))) throw new Error('host not allowed');
+  const res = await fetch(u.toString(), {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'vi,en-US;q=0.8,en;q=0.7',
+    },
+    redirect: 'follow',
+    signal: AbortSignal.timeout(20000),
+  });
+  let html = '';
+  try { html = await res.text(); } catch (e) { html = ''; }
+  if (html.length > 1500000) html = html.slice(0, 1500000);
+  return { status: res.status, url: res.url || u.toString(), html };
+}
+
 // Tìm kiếm YouTube qua pseudo-url `ytsearch<n>:<q>` (flat-playlist, không tải).
 // Trả { platform, count, items } cùng schema với /list (kèm channel_id/uploader_url).
 async function resolveSearch(query, limit) {
@@ -427,6 +453,21 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ ok: true, ...info, ms: Date.now() - started }));
       } catch (e) {
         console.log(`[worker] list fail: ${e.message}`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    }
+    if (u.pathname === '/fetch') {
+      const target = u.searchParams.get('url') || '';
+      if (!target) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing url' })); }
+      const started = Date.now();
+      try {
+        const out = await resolveFetch(target);
+        console.log(`[worker] fetch ok: ${out.status} ${Date.now() - started}ms`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: true, ...out, ms: Date.now() - started }));
+      } catch (e) {
+        console.log(`[worker] fetch fail: ${e.message}`);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         return res.end(JSON.stringify({ ok: false, error: e.message }));
       }

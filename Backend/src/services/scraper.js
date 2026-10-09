@@ -375,6 +375,47 @@ function parseBingResults(html, limit) {
   return out;
 }
 
+// Parse Google News RSS (<item><title><link><description>) → [{title,url,snippet}].
+// Đây là nguồn gần như không chặn IP datacenter (dùng làm fallback cuối cho web search).
+function parseGoogleNewsRss(xml, limit) {
+  const out = [];
+  const re = /<item>([\s\S]*?)<\/item>/gi;
+  let m;
+  while ((m = re.exec(String(xml || ''))) !== null) {
+    const it = m[1];
+    const t = (it.match(/<title>([\s\S]*?)<\/title>/i) || [])[1] || '';
+    const l = (it.match(/<link>([\s\S]*?)<\/link>/i) || [])[1] || '';
+    const d = (it.match(/<description>([\s\S]*?)<\/description>/i) || [])[1] || '';
+    const url = decodeEntities(String(l).replace(/<!\[CDATA\[|\]\]>/g, '')).trim();
+    if (!url) continue;
+    out.push({
+      title: decodeEntities(stripTags(t)).trim() || url,
+      url,
+      snippet: stripTags(d).slice(0, 300) || undefined,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// GET HTML 1 URL qua worker (IP nhà) — dùng khi có worker, vì datacenter IP của cloud
+// hay bị engine chặn/kết quả rác. Fallback fetch trực tiếp nếu worker lỗi/không có.
+async function workerFetchHtml(url) {
+  const j = await workerGet(`/fetch?${workerQ({ url })}`, 30000);
+  if (!j || typeof j.html !== 'string') throw new Error('worker /fetch không trả html');
+  return j.html;
+}
+
+// Lấy HTML 1 URL tìm kiếm: ưu tiên worker (IP nhà) → fallback fetch trực tiếp.
+async function searchFetch(url) {
+  if (workerEnabled()) {
+    try { return await workerFetchHtml(url); }
+    catch (e) { console.log(`[scraper] workerFetchHtml thất bại: ${e && e.message ? e.message : 'lỗi'}`); }
+  }
+  const r = await fetchHtml(url);
+  return r.html;
+}
+
 // Web search (HTML, không cần API key). Thử nhiều engine theo thứ tự — DuckDuckGo
 // trước (theo chuẩn), rồi Bing (một số datacenter IP như Render chặn DDG nhưng tới
 // được Bing). platform != 'web' → scope `site:<host> <q>`; query scoped rỗng → thử thô.
@@ -383,17 +424,20 @@ async function webSearch(q, limit, platform) {
   const host = PLATFORM_SITE[p];
   const scoped = p !== 'web' && !!host;
   const query = scoped ? `site:${host} ${q}` : q;
+  const domain = host ? host.replace(/^www\./i, '').toLowerCase() : null;
   const engines = [
     { name: 'duckduckgo', url: (x) => `https://html.duckduckgo.com/html/?q=${encodeURIComponent(x)}`, parse: parseDdgResults },
     { name: 'bing', url: (x) => `https://www.bing.com/search?q=${encodeURIComponent(x)}&setlang=en`, parse: parseBingResults },
+    { name: 'google-news-rss', url: (x) => `https://news.google.com/rss/search?q=${encodeURIComponent(x)}&hl=vi&gl=VN&ceid=VN:vi`, parse: parseGoogleNewsRss },
   ];
   let parsed = [];
   let usedEngine = 'web';
   for (const eng of engines) {
     for (const attempt of (scoped ? [query, q] : [q])) {
       try {
-        const r = await fetchHtml(eng.url(attempt));
-        parsed = eng.parse(r.html, limit);
+        parsed = eng.parse(await searchFetch(eng.url(attempt)), limit);
+        // Query scoped: chỉ nhận kết quả đúng domain nền tảng (bỏ rác engine trả kèm).
+        if (scoped && domain) parsed = parsed.filter((it) => String(it.url).toLowerCase().includes(domain));
       } catch (e) {
         parsed = [];
       }
@@ -403,12 +447,16 @@ async function webSearch(q, limit, platform) {
   }
   return {
     engine: usedEngine,
-    results: parsed.map((it) => ({
-      title: it.title,
-      url: it.url,
-      platform: p === 'web' ? (platformOf(it.url) || 'web') : p,
-      snippet: it.snippet,
-    })),
+    results: parsed.map((it) => {
+      const real = platformOf(it.url) || 'web';
+      const onPlatform = domain ? String(it.url).toLowerCase().includes(domain) : false;
+      return {
+        title: it.title,
+        url: it.url,
+        platform: (p !== 'web' && (real === p || onPlatform)) ? p : real,
+        snippet: it.snippet,
+      };
+    }),
   };
 }
 
