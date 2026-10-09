@@ -436,7 +436,15 @@ class BrowserStreamService {
     }
 
     // 3) Lệnh điều khiển phức tạp → Groq LLM dịch thành hành động rồi thực thi bằng Playwright
-    return await this._executeWithGroq(instruction);
+    const r = await this._executeWithGroq(instruction).catch((e) => ({ success: false, error: String(e && e.message || e) }));
+    // Không dịch được hành động (Groq thiếu key/lỗi) → trả NỘI DUNG TRANG hiện tại để agent vẫn có dữ liệu dùng.
+    if (!r || r.success === false || /Không có hành động|không phù hợp/i.test(JSON.stringify(r.result || ''))) {
+      try {
+        const t = await this.readText(5000);
+        if (t && t.text) return { success: true, result: { message: 'Không dịch được hành động cụ thể; trả về NỘI DUNG TRANG hiện tại.', url: t.url, title: t.title, text: t.text } };
+      } catch (e) { /* ignore */ }
+    }
+    return r;
   }
 
   async click(x, y) {
