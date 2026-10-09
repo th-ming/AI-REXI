@@ -555,10 +555,323 @@ async function findChannel(input) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DIG — đào 1 kênh theo TÊN: tìm ứng viên → xếp hạng → tự crawl kênh khớp nhất
+// → tóm tắt chủ đề. ADDITIVE, guarded, không bao giờ crash server.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Chuẩn hoá "handle": bỏ @, bỏ dấu, chỉ giữ chữ+số thường.
+function normHandle(s) {
+  return String(s == null ? '' : s)
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/^@+/, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// Khoảng cách sửa (Levenshtein) — dùng đoán kênh gần đúng (vd "rixi404" cho "rexi").
+function editDistance(a, b) {
+  const s = String(a || ''), t = String(b || '');
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+  let prev = new Array(t.length + 1);
+  let cur = new Array(t.length + 1);
+  for (let j = 0; j <= t.length; j++) prev[j] = j;
+  for (let i = 1; i <= s.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= t.length; j++) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    const tmp = prev; prev = cur; cur = tmp;
+  }
+  return prev[t.length];
+}
+
+// Độ "gần" giữa handle kênh và tên tìm (0..1): exact > prefix (phạt độ dài thêm)
+// > substring > prefix gần đúng (vd "rixi404" cho "rexi").
+function closeness(handle, name) {
+  const h = String(handle || ''), n = String(name || '');
+  if (!h || !n) return 0;
+  if (h === n) return 1;
+  if (h.startsWith(n)) {
+    const extra = h.length - n.length;
+    return Math.max(0.5, 0.85 - Math.min(extra, 6) * 0.05);
+  }
+  if (h.includes(n)) return 0.5;
+  if (n.includes(h) && h.length >= 3) return 0.5;
+  let best = 0;
+  const probes = [h];
+  for (let len = Math.max(3, n.length - 1); len <= n.length + 1; len++) {
+    if (len <= h.length) probes.push(h.slice(0, len));
+  }
+  for (const p of probes) {
+    const d = editDistance(p, n);
+    const sim = 1 - d / Math.max(p.length, n.length, 1);
+    if (sim > best) best = sim;
+  }
+  return Math.max(0, best);
+}
+
+// Parse số kiểu "12.5K" / "1,234" / "1.234.567" → số.
+function parseCount(raw) {
+  let s = String(raw == null ? '' : raw).trim().replace(/\s+/g, '');
+  if (!s) return 0;
+  s = s.replace(/,/g, '.');
+  const parts = s.split('.');
+  if (parts.length > 1) {
+    const last = parts[parts.length - 1];
+    if (last.length === 3 && /^\d+$/.test(parts[0])) s = parts.join(''); // 1.234.567 → hàng nghìn
+    else s = parts.slice(0, -1).join('') + '.' + last;                    // giữ 1 chữ số thập phân cuối
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function applyCountSuffix(n, suffix) {
+  const s = String(suffix || '').toLowerCase();
+  if (/^(k|nghìn|nghin|ngàn|ngan)$/.test(s)) return n * 1e3;
+  if (/^(m|triệu|trieu)$/.test(s)) return n * 1e6;
+  if (/^(b|tỷ|ty)$/.test(s)) return n * 1e9;
+  return n;
+}
+
+// Trích follower / like / video từ snippet tìm kiếm (VI + EN).
+function extractEngagement(text) {
+  const s = String(text || '');
+  const num = '([\\d][\\d.,]*)';
+  const suf = '(k|m|b|nghìn|nghin|ngàn|ngan|triệu|trieu|tỷ|ty)?';
+  const scan = (re) => {
+    const m = s.match(re);
+    if (!m) return 0;
+    return Math.round(applyCountSuffix(parseCount(m[1]), m[2]));
+  };
+  return {
+    followers: scan(new RegExp(num + '\\s*' + suf + '\\s*(?:followers?|subscribers?|subs\\b|người theo dõi|nguoi theo doi|người đăng ký|nguoi dang ky)', 'i')),
+    likes: scan(new RegExp(num + '\\s*' + suf + '\\s*(?:likes?|lượt thích|luot thich|thích\\b)', 'i')),
+    videos: scan(new RegExp(num + '\\s*' + suf + '\\s*(?:videos?|clips?|video\\b)', 'i')),
+    following: scan(new RegExp(num + '\\s*' + suf + '\\s*(?:following|đang follow|dang follow)', 'i')),
+  };
+}
+
+// Rút handle kênh từ URL (tiktok/youtube/instagram).
+function handleFromUrl(url) {
+  const u = String(url || '');
+  let m = u.match(/tiktok\.com\/@([^/?#]+)/i);
+  if (m) return normHandle(m[1]);
+  m = u.match(/youtube\.com\/@([^/?#]+)/i);
+  if (m) return normHandle(m[1]);
+  m = u.match(/youtube\.com\/(?:c|user)\/([^/?#]+)/i);
+  if (m) return normHandle(m[1]);
+  m = u.match(/instagram\.com\/([^/?#]+)/i);
+  if (m && !/^(p|reel|reels|tv|explore|stories)$/i.test(m[1])) return normHandle(m[1]);
+  return '';
+}
+
+// Chuẩn hoá URL ứng viên → URL kênh/profile (bỏ phần /video/… của TikTok).
+function candidateProfileUrl(url) {
+  const u = String(url || '');
+  const t = u.match(/tiktok\.com\/@([^/?#]+)/i);
+  if (t) return `https://www.tiktok.com/@${t[1]}`;
+  return u;
+}
+
+// Xếp hạng ứng viên: (a) độ khớp handle ↔ tên, (b) engagement trong snippet.
+function rankCandidates(candidates, name) {
+  const n = normHandle(name);
+  const scored = (Array.isArray(candidates) ? candidates : []).map((c) => {
+    const url = candidateProfileUrl(c.url);
+    const handle = handleFromUrl(url) || normHandle(c.name);
+    const eng = extractEngagement([c.snippet, c.name].filter(Boolean).join(' · '));
+    let score = closeness(handle, n) * 500;
+    if (eng.followers) score += Math.log10(eng.followers + 1) * 40;
+    if (eng.likes) score += Math.log10(eng.likes + 1) * 25;
+    const out = { ...c, url, handle, score: Math.round(score) };
+    if (eng.followers) out.followers = eng.followers;
+    if (eng.likes) out.likes = eng.likes;
+    return out;
+  });
+  scored.sort((a, b) => b.score - a.score);
+  // Bỏ trùng theo URL kênh (giữ bản điểm cao nhất) — vd nhiều video cùng 1 kênh.
+  const seen = new Set();
+  return scored.filter((c) => {
+    if (seen.has(c.url)) return false;
+    seen.add(c.url);
+    return true;
+  });
+}
+
+// Stopwords (đã bỏ dấu) cho việc đếm keyword tần suất.
+const DIG_STOPWORDS = new Set((
+  'a,an,the,and,or,of,to,in,on,for,with,at,by,from,this,that,these,those,is,are,was,were,be,been,it,its,as,we,you,he,she,they,i,me,my,your,our,their,his,her,not,no,do,does,did,so,if,then,than,too,very,can,will,just,new,more,most,all,any,out,up,down,over,about,into,only,also,how,what,when,where,who,why,but,your,via,get,got,one,two,day,full,part,official,channel,subscribe,sub,like,comment,share,follow,tiktok,youtube,shorts,short,video,clip,clips,live,viral,trend,trending,music,funny' +
+  ',va,cua,la,co,cho,voi,trong,tren,mot,nhung,cac,duoc,nguoi,nhu,da,se,khong,cung,nay,do,khi,thi,de,tu,theo,ve,ra,vao,hoac,vi,nen,roi,oi,nha,nhe,day,kia,ay,ta,minh,ban,anh,chi,em,no,ho,chung,toi,dang,bi,o,tai,sang,qua,len,xuong,an,choi,lam,di,xem,xu,huong,moi,ngay,video,clip,kênh,kenh'
+).split(',').map((w) => w.trim()).filter(Boolean));
+
+// Đếm tần suất hashtag hoặc keyword trong corpus text.
+function topCounts(texts, mode) {
+  const joined = (Array.isArray(texts) ? texts : []).join('\n');
+  const counts = new Map();
+  if (mode === 'hashtag') {
+    const re = /#([\p{L}\p{N}_]+)/gu;
+    let m;
+    while ((m = re.exec(joined)) !== null) {
+      const tag = m[1].toLowerCase();
+      if (tag.length < 2) continue;
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+  } else {
+    const cleaned = joined
+      .replace(/https?:\/\/\S+/gi, ' ')
+      .replace(/@[\p{L}\p{N}_.]+/gu, ' ')
+      .replace(/#[\p{L}\p{N}_]+/gu, ' ')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const toks = cleaned.match(/[a-z0-9]{3,}/g) || [];
+    for (const t of toks) {
+      if (DIG_STOPWORDS.has(t)) continue;
+      if (/^\d+$/.test(t)) continue;
+      counts.set(t, (counts.get(t) || 0) + 1);
+    }
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+// Tóm tắt chủ đề dựa trên tần suất (khi không có Gemini).
+function freqSummary(keywords, hashtags) {
+  const kw = (keywords || []).slice(0, 5).map((x) => x[0]);
+  const tags = (hashtags || []).slice(0, 5).map((x) => '#' + x[0]);
+  const parts = [];
+  if (kw.length) parts.push(`Nội dung xoay quanh: ${kw.join(', ')}`);
+  if (tags.length) parts.push(`Hashtag nổi bật: ${tags.join(' ')}`);
+  if (!parts.length) return 'Chưa đủ dữ liệu để tóm tắt chủ đề kênh.';
+  return parts.join('. ') + '.';
+}
+
+// (Tuỳ chọn) tóm tắt 1-2 câu bằng Gemini nếu có key — lỗi/không có → null (fallback tần suất).
+async function geminiTopicSummary(name, titles) {
+  const key = String(process.env.GEMINI_API_KEY || '').trim();
+  if (!key || key === 'YOUR_GEMINI_API_KEY_HERE') return null;
+  try {
+    const prompt = `Dựa trên các tiêu đề video gần đây của kênh "${name}", viết 1-2 câu tiếng Việt ngắn gọn: kênh này làm về chủ đề gì. Chỉ trả về câu tóm tắt, không thêm gì khác.\n\nTiêu đề:\n${(titles || []).slice(0, 12).join('\n')}`;
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.4, maxOutputTokens: 120 } }),
+        signal: AbortSignal.timeout(12000),
+      }
+    );
+    if (!res.ok) return null;
+    const j = await res.json().catch(() => null);
+    const txt = j && j.candidates && j.candidates[0] && j.candidates[0].content
+      && j.candidates[0].content.parts && j.candidates[0].content.parts[0]
+      && j.candidates[0].content.parts[0].text;
+    const out = String(txt || '').trim();
+    return out ? out.slice(0, 400) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// dig({name, platform?='tiktok', limit?}) → tìm kênh → xếp hạng → tự crawl → tóm tắt.
+async function dig(input) {
+  const inp = input || {};
+  const name = String(inp.name != null ? inp.name : (inp.q != null ? inp.q : '')).trim();
+  if (!name) throw new Error('Thiếu name (tên kênh).');
+  const platform = String(inp.platform || 'tiktok').toLowerCase();
+  const maxTry = Math.max(1, Math.min(parseInt(inp.limit, 10) || 3, 5));
+  const perChannel = Math.max(6, Math.min(parseInt(inp.per_channel, 10) || 12, 20));
+
+  // 1) Ứng viên kênh.
+  let candidates = [];
+  try {
+    const fc = await findChannel({ name, platform, limit: Math.max(maxTry, 8) });
+    candidates = fc.candidates || [];
+  } catch (e) {
+    console.log(`[scraper] dig findChannel thất bại: ${e && e.message ? e.message : 'lỗi'}`);
+  }
+
+  // 2) Xếp hạng.
+  const ranked = rankCandidates(candidates, name);
+
+  // 3) Tự crawl lần lượt tới khi có kênh ra video (tối đa maxTry lần thử).
+  const tried = [];
+  let best = null;
+  for (let i = 0; i < ranked.length && tried.length < maxTry; i++) {
+    const c = ranked[i];
+    const entry = { url: c.url, handle: c.handle || null, name: c.name };
+    try {
+      const ch = await channel(c.url, { limit: perChannel });
+      if (ch && ch.count > 0 && Array.isArray(ch.items) && ch.items.length) {
+        entry.ok = true; entry.count = ch.count;
+        tried.push(entry);
+        best = { candidate: c, channel: ch };
+        break;
+      }
+      entry.ok = false; entry.count = 0; entry.error = '0 video';
+      tried.push(entry);
+    } catch (e) {
+      entry.ok = false; entry.error = e && e.message ? e.message : 'lỗi';
+      tried.push(entry);
+    }
+  }
+
+  // 4) Tóm tắt chủ đề cho kênh tốt nhất.
+  let bestOut = null;
+  if (best) {
+    const ch = best.channel;
+    const c = best.candidate;
+    const items = ch.items || [];
+    const titles = items.map((it) => it.title).filter(Boolean);
+    const hashtags = topCounts(titles, 'hashtag').slice(0, 12).map(([tag, count]) => ({ tag, count }));
+    const keywords = topCounts(titles, 'keyword').slice(0, 12).map(([word, count]) => ({ word, count }));
+    const freq = freqSummary(keywords.map((k) => [k.word, k.count]), hashtags.map((h) => [h.tag, h.count]));
+    let topic_summary = freq;
+    const g = await geminiTopicSummary(c.name || name, titles);
+    if (g) topic_summary = g;
+    const views = items.map((it) => it.view_count).filter((v) => v != null);
+    const avgView = views.length ? Math.round(views.reduce((a, b) => a + b, 0) / views.length) : null;
+    const dates = items.map((it) => it.published).filter(Boolean).sort();
+    bestOut = {
+      name: c.name || c.handle || name,
+      url: c.url,
+      handle: c.handle || null,
+      followers: c.followers != null ? c.followers : null,
+      likes: c.likes != null ? c.likes : null,
+      count: ch.count,
+      videos_sample: items.slice(0, 5).map((it) => ({
+        title: it.title, url: it.url, published: it.published,
+        view_count: it.view_count != null ? it.view_count : null,
+      })),
+      hashtags,
+      keywords,
+      topic_summary,
+      last_upload: dates.length ? dates[dates.length - 1] : null,
+      stats: { avg_view: avgView, last_view: views.length ? views[0] : null, sample: items.length },
+    };
+  }
+
+  return {
+    ok: true,
+    name,
+    platform,
+    best: bestOut,
+    candidates: ranked.map((c) => ({
+      name: c.name, url: c.url, handle: c.handle || null, score: c.score,
+      followers: c.followers != null ? c.followers : null,
+      likes: c.likes != null ? c.likes : null,
+      snippet: c.snippet,
+    })),
+    tried,
+    note: bestOut ? undefined : 'Không crawl được kênh nào ra video (worker yt-dlp có thể chưa cấu hình hoặc nền tảng chặn).',
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 function status() {
-  return { ok: true, ytdlp_worker: workerStatus(), web: true, search: true, supports: SUPPORTS };
+  return { ok: true, ytdlp_worker: workerStatus(), web: true, search: true, dig: true, supports: SUPPORTS };
 }
 
 // info(): ưu tiên worker → fallback web (guarded). Trả {ok,source,data}.
@@ -880,6 +1193,7 @@ module.exports = {
   pipeline,
   search,
   findChannel,
+  dig,
   normalizeUrl,
   workerStatus,
   workerEnabled,

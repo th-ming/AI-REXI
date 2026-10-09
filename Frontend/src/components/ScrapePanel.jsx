@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, Copy, Check, Loader2, Link2, FileText, MessageSquare, Layers, AlertTriangle, Play, Tv, Database, Upload, Search } from 'lucide-react';
+import { X, Download, Copy, Check, Loader2, Link2, FileText, MessageSquare, Layers, AlertTriangle, Play, Tv, Database, Upload, Search, Sparkles } from 'lucide-react';
 import { API_BASE } from '../config';
 
 /**
@@ -39,6 +39,13 @@ export default function ScrapePanel({ open, onClose, token }) {
   const [searchError, setSearchError] = useState('');
   const [searchMsg, setSearchMsg] = useState('');
   const [searchRow, setSearchRow] = useState('');
+
+  // ── Tab "Tìm kiếm" — Đào kênh (dig) ──
+  const [digLoading, setDigLoading] = useState(false);
+  const [digResult, setDigResult] = useState(null);
+  const [digError, setDigError] = useState('');
+  const [digMsg, setDigMsg] = useState('');
+  const [digIngesting, setDigIngesting] = useState(false);
 
   // ── Tab "RAG" ──
   const [ragQuestion, setRagQuestion] = useState('');
@@ -156,6 +163,62 @@ export default function ScrapePanel({ open, onClose, token }) {
       setSearchError(e.message || 'Lỗi không xác định.');
     } finally {
       setSearchLoading(false);
+    }
+  };
+
+  const runDig = async () => {
+    if (digLoading) return;
+    setDigError(''); setDigResult(null); setDigMsg('');
+    if (!searchQ.trim()) { setDigError('Nhập tên kênh để đào.'); return; }
+    setDigLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/scrape/dig`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ name: searchQ.trim(), platform: searchPlatform, limit: Number(searchLimit) || 5 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setDigResult(data);
+      if (!data.best) setDigMsg(data.note || 'Không đào được kênh nào ra video.');
+    } catch (e) {
+      setDigError(e.message || 'Lỗi không xác định.');
+    } finally {
+      setDigLoading(false);
+    }
+  };
+
+  const ingestDig = async () => {
+    if (digIngesting || !digResult?.best) return;
+    setDigError(''); setDigMsg(''); setDigIngesting(true);
+    const b = digResult.best;
+    try {
+      const text = [
+        `Kênh: ${b.name || b.handle || ''} (${b.url || ''})`,
+        b.followers != null ? `Followers: ${b.followers}` : '',
+        b.likes != null ? `Likes: ${b.likes}` : '',
+        `Chủ đề: ${b.topic_summary || ''}`,
+        b.hashtags?.length ? `Hashtags: ${b.hashtags.map((h) => '#' + h.tag).join(' ')}` : '',
+        b.keywords?.length ? `Từ khoá: ${b.keywords.map((k) => k.word).join(', ')}` : '',
+        ...(b.videos_sample || []).map((v) => `- ${v.title || ''} (${v.published || ''}) ${v.url || ''}`),
+      ].filter(Boolean).join('\n');
+      const res = await fetch(`${API_BASE}/scrape/ingest`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          source: `dig:${digResult.platform}:${b.url || b.name}`,
+          title: `Kênh ${b.name || b.handle || ''}`,
+          items: (b.videos_sample || []).map((v) => ({ title: v.title, url: v.url, description: v.published })),
+          text: text.length >= 10 ? text : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setDigMsg(`Đã nạp vào RAG: ${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}…`);
+    } catch (e) {
+      setDigError(e.message || 'Lỗi nạp RAG.');
+    } finally {
+      setDigIngesting(false);
     }
   };
 
@@ -499,6 +562,15 @@ export default function ScrapePanel({ open, onClose, token }) {
                 {searchLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
                 Tìm kiếm
               </button>
+              <button
+                onClick={runDig}
+                disabled={digLoading}
+                title="Tự tìm + crawl kênh khớp nhất và tóm tắt chủ đề"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50"
+              >
+                {digLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                Đào kênh
+              </button>
             </div>
 
             {searchError && (
@@ -509,6 +581,80 @@ export default function ScrapePanel({ open, onClose, token }) {
             )}
             {searchMsg && (
               <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2">{searchMsg}</div>
+            )}
+
+            {digError && (
+              <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <span>{digError}</span>
+              </div>
+            )}
+            {digMsg && (
+              <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2">{digMsg}</div>
+            )}
+
+            {digResult?.best && (
+              <div className="flex-1 min-h-0 flex flex-col gap-2">
+                <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-violet-300" /> {digResult.best.name || digResult.best.handle || '—'}
+                      </div>
+                      <a href={digResult.best.url} target="_blank" rel="noreferrer" className="text-[11px] text-cyan-300 hover:underline font-mono break-all">{digResult.best.url}</a>
+                    </div>
+                    <button
+                      onClick={ingestDig}
+                      disabled={digIngesting}
+                      className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
+                    >
+                      {digIngesting ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
+                      Nạp vào RAG
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-[11px] text-slate-400">
+                    {digResult.best.followers != null ? <span>Followers: <span className="text-slate-200">{digResult.best.followers}</span></span> : null}
+                    {digResult.best.likes != null ? <span>Likes: <span className="text-slate-200">{digResult.best.likes}</span></span> : null}
+                    <span>Video: <span className="text-slate-200">{digResult.best.count}</span></span>
+                    {digResult.best.last_upload ? <span>Mới nhất: <span className="text-slate-200">{digResult.best.last_upload}</span></span> : null}
+                  </div>
+                  {digResult.best.topic_summary ? (
+                    <p className="text-[11px] text-slate-200 bg-black/30 rounded-lg px-2.5 py-2">{digResult.best.topic_summary}</p>
+                  ) : null}
+                  {(digResult.best.hashtags || []).length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {digResult.best.hashtags.map((h, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-200 border border-violet-500/25">#{h.tag} <span className="text-slate-500">{h.count}</span></span>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="overflow-auto rounded-xl border border-white/10 max-h-[40vh]">
+                  <table className="w-full text-[11px] text-slate-300">
+                    <thead className="bg-[#131417] text-slate-400 sticky top-0">
+                      <tr>
+                        <th className="text-left px-2 py-1.5 font-medium">Video (mẫu)</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Ngày</th>
+                        <th className="text-right px-2 py-1.5 font-medium">Views</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(digResult.best.videos_sample || []).map((v, i) => (
+                        <tr key={i} className="border-t border-white/5">
+                          <td className="px-2 py-1.5">
+                            {v.url ? <a href={v.url} target="_blank" rel="noreferrer" className="text-cyan-300 hover:underline">{v.title || v.url}</a> : (v.title || '—')}
+                          </td>
+                          <td className="px-2 py-1.5 whitespace-nowrap text-slate-500">{v.published || ''}</td>
+                          <td className="px-2 py-1.5 text-right text-slate-400">{v.view_count != null ? v.view_count : ''}</td>
+                        </tr>
+                      ))}
+                      {!(digResult.best.videos_sample || []).length && (
+                        <tr><td colSpan={3} className="px-2 py-3 text-center text-slate-500">Không có video.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
 
             {searchResult && (

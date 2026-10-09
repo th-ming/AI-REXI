@@ -49,6 +49,7 @@ Public, nhẹ.
   "ytdlp_worker": { "configured": true, "url": "https://<tunnel>" },
   "web": true,
   "search": true,
+  "dig": true,
   "supports": ["youtube","tiktok","instagram","twitter/x","facebook", "…","generic-web"]
 }
 ```
@@ -132,6 +133,32 @@ lọc link profile nhận diện được. Không có gì khớp → `ok:true, c
   "candidates": [{ "name": "...", "url": "https://www.tiktok.com/@...", "platform": "tiktok" }] }
 ```
 
+### `POST /api/scrape/dig` — `{ "name": "rexi", "platform": "tiktok", "limit": 5 }`
+**Đào kênh:** từ một cái **tên** (chưa biết URL) → tự tìm ứng viên, **xếp hạng**, **tự crawl**
+kênh khớp nhất và **tóm tắt chủ đề**. `platform` mặc định `tiktok`; `limit` = số ứng viên thử crawl
+(mặc định 3, kẹp `[1,5]`; cứ thử kênh kế tiếp tới khi có kênh ra video).
+- **Xếp hạng:** (a) độ khớp handle ↔ tên (chuẩn hoá, bỏ dấu; boost exact/prefix/gần đúng kiểu
+  `rixi404` cho "rexi"); (b) engagement parse từ snippet ("X Followers", "X Lượt thích/Likes"); ưu tiên nhiều follower/like hơn.
+- **Tự crawl:** gọi `/channel` (worker `/list`) cho từng ứng viên; kênh 0 video/lỗi → thử kênh kế.
+- **Tóm tắt:** top hashtag + top keyword tần suất từ tiêu đề gần đây (VI+EN), `recent_titles` (5),
+  stats (avg/last views, ngày đăng mới nhất). Nếu có `GEMINI_API_KEY` → 1–2 câu "kênh này làm về gì",
+  không thì dùng tóm tắt tần suất.
+```json
+{ "ok": true, "name": "rexi", "platform": "tiktok",
+  "best": {
+    "name": "...", "url": "https://www.tiktok.com/@rixi404", "handle": "rixi404",
+    "followers": 12345, "likes": null, "count": 12,
+    "videos_sample": [{ "title": "#rexi404 #funny #meme", "url": "https://...", "published": "2026-10-08", "view_count": 129000 }],
+    "hashtags": [{ "tag": "rexi404", "count": 6 }, { "tag": "funny", "count": 4 }, { "tag": "meme", "count": 3 }],
+    "keywords": [{ "word": "rexi404", "count": 6 }],
+    "topic_summary": "Nội dung xoay quanh: meme, funny. Hashtag nổi bật: #rexi404 #funny #meme.",
+    "last_upload": "2026-10-08", "stats": { "avg_view": 45000, "last_view": 129000, "sample": 12 }
+  },
+  "candidates": [{ "name": "...", "url": "...", "handle": "rixi404", "score": 730, "followers": 12345, "likes": null }],
+  "tried": [{ "url": "...", "handle": "rixi404", "ok": true, "count": 12 }] }
+```
+Không crawl được kênh nào ra video → `ok:true, best:null` + `note` (không crash).
+
 ### `POST /api/scrape/ingest` — `{ "source": "...", "title": "...", "text": "..." | "items": [...] }`
 Chunk `text` (hoặc ghép `items` title/description/link) → lưu vào **RAG store đang có**
 (`ragService`, cùng bảng `tai_lieu_rag` + `tai_lieu_rag_chunk` như `/api/documents/upload`) →
@@ -172,6 +199,7 @@ vào RAG** → nếu có `question` thì trả luôn **top chunks**. `urls` tố
 | `/channel` | 15 |
 | `/search` | 30 |
 | `/findchannel` | 20 |
+| `/dig` | 10 |
 | `/ingest` | 20 |
 | `/ask` | 30 |
 | `/pipeline` | 10 |

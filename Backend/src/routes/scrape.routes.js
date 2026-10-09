@@ -13,6 +13,7 @@
  *   POST /api/scrape/channel {url,limit,today} → liệt kê video kênh/playlist (worker /list)
  *   POST /api/scrape/search {q,platform?,limit?} → tìm kênh/từ khoá (web DDG; youtube worker ytsearch)
  *   POST /api/scrape/findchannel {name,platform} → tìm kênh theo tên → URL kênh ứng viên
+ *   POST /api/scrape/dig {name,platform?,limit?} → đào kênh: tìm → xếp hạng → tự crawl → tóm tắt chủ đề
  *   POST /api/scrape/ingest {source,title,text|items} → nạp vào RAG (tiết kiệm token)
  *   POST /api/scrape/ask {question,source?} → truy vấn RAG, trả chunk liên quan
  *   POST /api/scrape/pipeline {urls[],channel?,question?} → crawl + nạp RAG + trả chunk/answer
@@ -159,6 +160,19 @@ router.post('/findchannel', rateLimit({ windowMs: 60000, max: 20 }), async (req,
     const { name, platform, limit } = req.body || {};
     if (!name) return fail(res, 400, 'Thiếu name.');
     const r = await scraper.findChannel({ name, platform, limit });
+    res.json(r);
+  } catch (e) {
+    fail(res, 400, e.message);
+  }
+});
+
+// POST /dig — đào 1 kênh theo TÊN: tìm ứng viên → xếp hạng → tự crawl kênh khớp nhất → tóm tắt chủ đề.
+// Body {name, platform?='tiktok', limit?}. Trả {ok, best:{...topic_summary, videos_sample, hashtags...}, candidates, tried}.
+router.post('/dig', rateLimit({ windowMs: 60000, max: 10 }), async (req, res) => {
+  try {
+    const { name, platform, limit } = req.body || {};
+    if (!name) return fail(res, 400, 'Thiếu name.');
+    const r = await scraper.dig({ name, platform, limit });
     res.json(r);
   } catch (e) {
     fail(res, 400, e.message);
