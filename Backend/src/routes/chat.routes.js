@@ -995,7 +995,7 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
         // ─── AUTO-RESEARCH: có link → tự đọc; hỏi thông tin → tự search web (zero-config) ───
         try {
           const research = await require('../services/autoResearch').gather(noi_dung);
-          if (research) systemPrompt += `\n\n[DỮ LIỆU TRA CỨU WEB TỰ ĐỘNG — dùng để trả lời chính xác, có thể trích dẫn nguồn]\n${research}`;
+          if (research) systemPrompt += `\n\n[DỮ LIỆU TRA CỨU WEB TỰ ĐỘNG — BẮT BUỘC ưu tiên dùng phần này để trả lời chính xác; tóm tắt ý chính và nêu nguồn (URL) khi phù hợp; nếu nội dung không liên quan câu hỏi thì bỏ qua]\n${research}`;
         } catch (e) { /* không chặn chat nếu tra cứu lỗi */ }
 
         // ─── AUTO ROUTER: model = 'auto' → phân loại câu hỏi + chọn model thông minh ───
@@ -1631,10 +1631,10 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
           const t = chunk.text();
           if (t) { fullText += t; sendSSE({ type: 'token', text: t }); }
         }
-      } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode'].includes(selectedProvider)) {
+      } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode', 'kilo'].includes(selectedProvider)) {
         // ─── FALLBACK CHUỖI (stream): provider lỗi/429 → tự thử candidate kế tiếp ───
         const quotaStream = require('../services/quotaManager');
-        const OPENAI_STYLE = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode'];
+        const OPENAI_STYLE = ['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode', 'kilo'];
         const attempts = [{ provider: selectedProvider, model: finalModel }];
         if (autoRouteInfo && autoRouteInfo.route && autoRouteInfo.route.candidates) {
           for (const c of autoRouteInfo.route.candidates.slice(1)) {
@@ -1661,6 +1661,11 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
           if (att.provider === 'deepseek') attEndpoint = "https://api.deepseek.com/chat/completions";
           else if (att.provider === 'groq') attEndpoint = "https://api.groq.com/openai/v1/chat/completions";
           else if (att.provider === 'github') attEndpoint = "https://models.github.ai/inference/chat/completions";
+          else if (att.provider === 'kilo') {
+            // kilo keyless: base 2 segment KHÔNG /v1, model ID đầy đủ kiểu OpenRouter, KHÔNG gửi Authorization
+            const cleanedBase = String(attBase || 'https://kilo.ai/api/openrouter').replace(/\/+$/, '');
+            attEndpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : cleanedBase + '/chat/completions';
+          }
           else if (['custom', 'xkiro', 'agentrouter'].includes(att.provider) || attBase) {
             const cleanedBase = String(attBase || '').replace(/\/+$/, '');
             if (cleanedBase) attEndpoint = cleanedBase.endsWith('/chat/completions') ? cleanedBase : cleanedBase + '/chat/completions';
@@ -1668,7 +1673,7 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
           const attModel = String(att.model || '').replace(/^opencode\//, '');
           const attHeaders = { 'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json, */*' };
           if (att.provider === 'agentrouter') attHeaders['User-Agent'] = 'opencode/1.17.12';
-          if (att.provider !== 'opencode') attHeaders['Authorization'] = `Bearer ${attKey}`; // Zen free: gửi key sai sẽ 401
+          if (att.provider !== 'opencode' && att.provider !== 'kilo') attHeaders['Authorization'] = `Bearer ${attKey}`; // Zen free + kilo keyless: KHÔNG gửi key
           try {
             const response = await fetch(attEndpoint, {
               method: 'POST',
