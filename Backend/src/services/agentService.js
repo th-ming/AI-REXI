@@ -88,7 +88,11 @@ const TOOL_REGISTRY = [
     parameters: {
       type: 'object',
       properties: {
-        operation: { type: 'string', enum: ['trim', 'concat', 'add_audio', 'add_text', 'resize', 'speed', 'extract_audio', 'thumbnail'], description: 'Phép xử lý' },
+        operation: { type: 'string', enum: ['trim', 'concat', 'add_audio', 'add_text', 'resize', 'speed', 'extract_audio', 'thumbnail', 'make_video'], description: 'Phép xử lý' },
+        slides: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, subtitle: { type: 'string' } } }, description: 'make_video: danh sách slide {title, subtitle}' },
+        secondsPerSlide: { type: 'number', description: 'make_video: giây mỗi slide (mặc định 3)' },
+        music: { type: 'string', description: 'make_video: URL nhạc nền (tùy chọn)' },
+        musicMix: { type: 'number', description: 'make_video: âm lượng nhạc 0..1' },
         input: { type: 'string', description: 'File/URL video nguồn (đa số op)' },
         inputs: { type: 'array', items: { type: 'string' }, description: 'Danh sách input (cho concat, >=2)' },
         start: { type: 'string', description: 'Mốc bắt đầu (giây hoặc mm:ss)' },

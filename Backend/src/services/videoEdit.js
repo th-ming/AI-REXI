@@ -228,9 +228,63 @@ async function opThumbnail(a) {
   return out;
 }
 
+function slideHtml(s, W, H) {
+  const title = escHtml(s.title || '');
+  const sub = escHtml(s.subtitle || '');
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:${W}px;height:${H}px;overflow:hidden;font-family:'Segoe UI',Roboto,Arial,sans-serif}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:radial-gradient(${Math.round(W*0.5)}px ${Math.round(H*0.6)}px at 25% 15%,rgba(34,211,238,.35),transparent 60%),radial-gradient(${Math.round(W*0.55)}px ${Math.round(H*0.65)}px at 80% 90%,rgba(168,85,247,.35),transparent 62%),#070b16;color:#fff;padding:8%}
+  .t{font-size:${Math.round(H*0.13)}px;font-weight:800;letter-spacing:1px;line-height:1.12;max-width:92%}
+  .s{font-size:${Math.round(H*0.045)}px;font-weight:600;color:#a5b4fc;letter-spacing:3px;margin-top:${Math.round(H*0.03)}px;text-transform:uppercase;max-width:92%}
+  </style></head><body><div class="slide"><div class="t">${title}</div>${sub ? `<div class="s">${sub}</div>` : ''}</div></body></html>`;
+}
+
+async function opMakeVideo(a) {
+  const slides = Array.isArray(a.slides) ? a.slides.filter(Boolean) : [];
+  if (!slides.length) throw new Error('make_video cần "slides" (mảng {title, subtitle})');
+  const W = Math.min(Math.max(parseInt(a.width || 1280, 10), 320), 1920);
+  const H = Math.min(Math.max(parseInt(a.height || 720, 10), 240), 1080);
+  const fps = Math.min(Math.max(parseInt(a.fps || 30, 10), 15), 30);
+  const per = Math.min(Math.max(Number(a.secondsPerSlide || 3), 1), 10);
+  if (!_chromium) throw new Error('Server chưa có Playwright để vẽ slide');
+  const { launchBrowser } = require('./videoRenderer');
+  const launched = await launchBrowser(_chromium);
+  const browser = launched.browser;
+  const clips = [];
+  try {
+    for (let i = 0; i < slides.length; i++) {
+      const page = await browser.newPage({ viewport: { width: W, height: H } });
+      await page.setContent(slideHtml(slides[i], W, H), { waitUntil: 'load' });
+      const png = outPath('png');
+      await page.screenshot({ path: png });
+      await page.close().catch(() => {});
+      const frames = Math.round(per * fps);
+      const clip = outPath('mp4');
+      await runFfmpeg(['-y', '-loop', '1', '-i', png, '-t', String(per),
+        '-vf', `scale=${W * 2}:${H * 2},zoompan=z='min(zoom+0.0015,1.25)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${W}x${H}:fps=${fps},format=yuv420p`,
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '2', '-movflags', '+faststart', clip]);
+      clips.push(clip);
+    }
+  } finally { await browser.close().catch(() => {}); }
+  const out = outPath('mp4');
+  const lf = path.join(ensureTemp(), 'mv_' + Date.now() + '.txt');
+  fs.writeFileSync(lf, clips.map(p => "file '" + p.replace(/'/g, "'\\''") + "'").join('\n'));
+  await runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', lf, '-c', 'copy', '-movflags', '+faststart', out]);
+  if (a.music) {
+    try {
+      const withMusic = await opAddAudio({ input: out, audio: a.music, mix: a.musicMix != null ? a.musicMix : 0.25, loop: true });
+      try { fs.unlinkSync(out); } catch (e) {}
+      return withMusic;
+    } catch (e) { /* giữ video không nhạc */ }
+  }
+  return out;
+}
+
 const OPS = {
   trim: opTrim, concat: opConcat, add_audio: opAddAudio, add_text: opAddText,
-  resize: opResize, speed: opSpeed, extract_audio: opExtractAudio, thumbnail: opThumbnail,
+  resize: opResize, speed: opSpeed, extract_audio: opExtractAudio, thumbnail: opThumbnail, make_video: opMakeVideo,
 };
 
 let _chain = Promise.resolve();

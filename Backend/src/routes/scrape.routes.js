@@ -11,6 +11,8 @@
  *   POST /api/scrape/batch {urls[]}  → tuần tự tối đa 10 url
  *   POST /api/scrape/download {url}  → URL media trực tiếp + headers (không proxy bytes)
  *   POST /api/scrape/channel {url,limit,today} → liệt kê video kênh/playlist (worker /list)
+ *   POST /api/scrape/search {q,platform?,limit?} → tìm kênh/từ khoá (web DDG; youtube worker ytsearch)
+ *   POST /api/scrape/findchannel {name,platform} → tìm kênh theo tên → URL kênh ứng viên
  *   POST /api/scrape/ingest {source,title,text|items} → nạp vào RAG (tiết kiệm token)
  *   POST /api/scrape/ask {question,source?} → truy vấn RAG, trả chunk liên quan
  *   POST /api/scrape/pipeline {urls[],channel?,question?} → crawl + nạp RAG + trả chunk/answer
@@ -132,6 +134,31 @@ router.post('/channel', rateLimit({ windowMs: 60000, max: 15 }), async (req, res
     const { url, limit, today } = req.body || {};
     if (!url) return fail(res, 400, 'Thiếu url.');
     const r = await scraper.channel(url, { limit, today });
+    res.json(r);
+  } catch (e) {
+    fail(res, 400, e.message);
+  }
+});
+
+// POST /search — tìm kênh/từ khoá. platform: web (mặc định, DuckDuckGo) | youtube (worker ytsearch)
+// | tiktok/khác (web search scope `site:<host> <q>`). Trả {ok,results:[{title,url,platform,snippet?}]}.
+router.post('/search', rateLimit({ windowMs: 60000, max: 30 }), async (req, res) => {
+  try {
+    const { q, query, platform, limit } = req.body || {};
+    if (!q && !query) return fail(res, 400, 'Thiếu q.');
+    const r = await scraper.search({ q: q || query, platform, limit });
+    res.json(r);
+  } catch (e) {
+    fail(res, 400, e.message);
+  }
+});
+
+// POST /findchannel — tìm kênh theo tên trên 1 platform → danh sách URL kênh ứng viên.
+router.post('/findchannel', rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
+  try {
+    const { name, platform, limit } = req.body || {};
+    if (!name) return fail(res, 400, 'Thiếu name.');
+    const r = await scraper.findChannel({ name, platform, limit });
     res.json(r);
   } catch (e) {
     fail(res, 400, e.message);

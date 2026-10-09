@@ -13,6 +13,7 @@
  *   GET /stream?id=<id>         -> proxy bytes video (hỗ trợ Range)
  *   GET /stream?url=<watchUrl>  -> như trên với URL đầy đủ
  *   GET /list?url=<chan/playlist>&limit=<n> -> liệt kê video (flat-playlist)
+ *   GET /search?q=<query>&limit=<n> -> tìm kiếm YouTube (pseudo-url ytsearch<n>:q)
  *
  * Không phụ thuộc npm. Node >= 18 (dùng fetch/stream).
  */
@@ -246,6 +247,66 @@ async function resolveChannelAvatar(channelId) {
   return { avatar_url: pick.url, channel: data.channel || data.uploader || '', channel_id: id };
 }
 
+// Chuẩn hoá 1 entry yt-dlp (flat-playlist / dump-json) → schema thống nhất.
+function mapListEntry(d) {
+  if (!d || typeof d !== 'object') return null;
+  const id = d.id || null;
+  let vurl = d.webpage_url || null;
+  if (!vurl) {
+    const raw = d.url || '';
+    if (/^https?:\/\//.test(raw)) vurl = raw;
+    else if (id && /youtube/i.test(d.ie_key || d.extractor || '')) vurl = `https://www.youtube.com/watch?v=${id}`;
+    else if (id) vurl = raw || `https://www.youtube.com/watch?v=${id}`;
+  }
+  const ts = d.timestamp || d.release_timestamp || null;
+  return {
+    id,
+    title: d.title || null,
+    url: vurl || (id ? `https://www.youtube.com/watch?v=${id}` : null),
+    uploader: d.uploader || d.channel || d.uploader_id || null,
+    channel_id: d.channel_id || null,
+    uploader_url: d.uploader_url || d.channel_url || null,
+    duration: d.duration != null ? d.duration : null,
+    timestamp: ts != null ? ts : null,
+    upload_date: d.upload_date || null,
+    view_count: d.view_count != null ? d.view_count : (d.view_count == null && d.views != null ? d.views : null),
+    platform: d.ie_key || d.extractor || null,
+  };
+}
+
+// Parse output --dump-json [--flat-playlist] (nhiều dòng JSON hoặc 1 object) → { platform, items }.
+function parseFlatDump(out, n) {
+  const items = [];
+  let platform = null;
+  for (const line of String(out || '').split('\n')) {
+    const t = line.trim();
+    if (!t || t[0] !== '{') continue;
+    let d;
+    try { d = JSON.parse(t); } catch (e) { continue; }
+    if (d && d._type === 'playlist' && Array.isArray(d.entries)) {
+      platform = platform || d.extractor || d.ie_key || null;
+      for (const e of d.entries) { const m = mapListEntry(e); if (m && m.id) items.push(m); }
+    } else if (d && d.id) {
+      platform = platform || d.extractor || d.ie_key || null;
+      const m = mapListEntry(d); if (m && m.id) items.push(m);
+    }
+  }
+  // Fallback: output là 1 JSON object duy nhất (một số phiên bản yt-dlp)
+  if (!items.length) {
+    try {
+      const d = JSON.parse(out);
+      if (d && d._type === 'playlist' && Array.isArray(d.entries)) {
+        platform = d.extractor || d.ie_key || platform;
+        for (const e of d.entries) { const m = mapListEntry(e); if (m && m.id) items.push(m); }
+      } else if (d && d.id) {
+        platform = d.extractor || d.ie_key || platform;
+        const m = mapListEntry(d); if (m && m.id) items.push(m);
+      }
+    } catch (e) { /* ignore */ }
+  }
+  return { platform, items: items.slice(0, n) };
+}
+
 // Liệt kê video của kênh/playlist (flat-playlist) — nhanh, không tải.
 // Trả [{ id, title, url, uploader, duration, timestamp, upload_date, view_count, platform }].
 // Best-effort: nhiều site (YouTube tốt nhất) hỗ trợ; site không hỗ trợ → mảng rỗng/lỗi.
@@ -260,60 +321,24 @@ async function resolveList(idOrUrl, limit) {
   if (hasCookies) args.push('--cookies', COOKIES_FILE);
   args.push(url);
   const out = await run(YTDLP, args, 90000);
+  const { platform, items } = parseFlatDump(out, n);
+  return { platform, count: items.length, items };
+}
 
-  const mapEntry = (d) => {
-    if (!d || typeof d !== 'object') return null;
-    const id = d.id || null;
-    let vurl = d.webpage_url || null;
-    if (!vurl) {
-      const raw = d.url || '';
-      if (/^https?:\/\//.test(raw)) vurl = raw;
-      else if (id && /youtube/i.test(d.ie_key || d.extractor || '')) vurl = `https://www.youtube.com/watch?v=${id}`;
-      else if (id) vurl = raw || `https://www.youtube.com/watch?v=${id}`;
-    }
-    const ts = d.timestamp || d.release_timestamp || null;
-    return {
-      id,
-      title: d.title || null,
-      url: vurl || (id ? `https://www.youtube.com/watch?v=${id}` : null),
-      uploader: d.uploader || d.channel || d.uploader_id || null,
-      duration: d.duration != null ? d.duration : null,
-      timestamp: ts != null ? ts : null,
-      upload_date: d.upload_date || null,
-      view_count: d.view_count != null ? d.view_count : (d.view_count == null && d.views != null ? d.views : null),
-      platform: d.ie_key || d.extractor || null,
-    };
-  };
-
-  const items = [];
-  let platform = null;
-  for (const line of out.split('\n')) {
-    const t = line.trim();
-    if (!t || t[0] !== '{') continue;
-    let d;
-    try { d = JSON.parse(t); } catch (e) { continue; }
-    if (d && d._type === 'playlist' && Array.isArray(d.entries)) {
-      platform = platform || d.extractor || d.ie_key || null;
-      for (const e of d.entries) { const m = mapEntry(e); if (m && m.id) items.push(m); }
-    } else if (d && d.id) {
-      platform = platform || d.extractor || d.ie_key || null;
-      const m = mapEntry(d); if (m && m.id) items.push(m);
-    }
-  }
-  // Fallback: output là 1 JSON object duy nhất (một số phiên bản yt-dlp)
-  if (!items.length) {
-    try {
-      const d = JSON.parse(out);
-      if (d && d._type === 'playlist' && Array.isArray(d.entries)) {
-        platform = d.extractor || d.ie_key || platform;
-        for (const e of d.entries) { const m = mapEntry(e); if (m && m.id) items.push(m); }
-      } else if (d && d.id) {
-        platform = d.extractor || d.ie_key || platform;
-        const m = mapEntry(d); if (m && m.id) items.push(m);
-      }
-    } catch (e) { /* ignore */ }
-  }
-  return { platform, count: items.slice(0, n).length, items: items.slice(0, n) };
+// Tìm kiếm YouTube qua pseudo-url `ytsearch<n>:<q>` (flat-playlist, không tải).
+// Trả { platform, count, items } cùng schema với /list (kèm channel_id/uploader_url).
+async function resolveSearch(query, limit) {
+  const q = String(query || '').trim();
+  if (!q) throw new Error('missing q');
+  const n = Math.max(1, Math.min(parseInt(limit, 10) || 10, 50));
+  const hasCookies = fs.existsSync(COOKIES_FILE);
+  const args = ['--flat-playlist', '--dump-json', '--ignore-errors', '--no-warnings',
+    '--skip-download', '--playlist-end', String(n), '--socket-timeout', '20'];
+  if (hasCookies) args.push('--cookies', COOKIES_FILE);
+  args.push(`ytsearch${n}:${q}`);
+  const out = await run(YTDLP, args, 90000);
+  const { platform, items } = parseFlatDump(out, n);
+  return { platform: platform || 'youtube', count: items.length, items };
 }
 
 async function channelAvatarHandler(req, res, id) {
@@ -402,6 +427,21 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ ok: true, ...info, ms: Date.now() - started }));
       } catch (e) {
         console.log(`[worker] list fail: ${e.message}`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    }
+    if (u.pathname === '/search') {
+      const q = u.searchParams.get('q') || u.searchParams.get('query') || '';
+      if (!q) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing q' })); }
+      const started = Date.now();
+      try {
+        const info = await resolveSearch(q, u.searchParams.get('limit'));
+        console.log(`[worker] search ok: "${q}" ${info.count} items, ${Date.now() - started}ms`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: true, query: q, ...info, ms: Date.now() - started }));
+      } catch (e) {
+        console.log(`[worker] search fail: ${e.message}`);
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
         return res.end(JSON.stringify({ ok: false, error: e.message }));
       }

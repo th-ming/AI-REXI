@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, Copy, Check, Loader2, Link2, FileText, MessageSquare, Layers, AlertTriangle, Play, Tv, Database, Upload } from 'lucide-react';
+import { X, Download, Copy, Check, Loader2, Link2, FileText, MessageSquare, Layers, AlertTriangle, Play, Tv, Database, Upload, Search } from 'lucide-react';
 import { API_BASE } from '../config';
 
 /**
@@ -29,6 +29,16 @@ export default function ScrapePanel({ open, onClose, token }) {
   const [channelLoading, setChannelLoading] = useState(false);
   const [channelResult, setChannelResult] = useState(null);
   const [channelError, setChannelError] = useState('');
+
+  // ── Tab "Tìm kiếm" ──
+  const [searchQ, setSearchQ] = useState('');
+  const [searchPlatform, setSearchPlatform] = useState('web');
+  const [searchLimit, setSearchLimit] = useState(10);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResult, setSearchResult] = useState(null);
+  const [searchError, setSearchError] = useState('');
+  const [searchMsg, setSearchMsg] = useState('');
+  const [searchRow, setSearchRow] = useState('');
 
   // ── Tab "RAG" ──
   const [ragQuestion, setRagQuestion] = useState('');
@@ -125,6 +135,67 @@ export default function ScrapePanel({ open, onClose, token }) {
       setChannelError(e.message || 'Lỗi không xác định.');
     } finally {
       setChannelLoading(false);
+    }
+  };
+
+  const runSearch = async () => {
+    if (searchLoading) return;
+    setSearchError(''); setSearchResult(null); setSearchMsg('');
+    if (!searchQ.trim()) { setSearchError('Nhập từ khoá tìm kiếm.'); return; }
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/scrape/search`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ q: searchQ.trim(), platform: searchPlatform, limit: Number(searchLimit) || 10 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setSearchResult(data);
+    } catch (e) {
+      setSearchError(e.message || 'Lỗi không xác định.');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const scrapeChannelFromSearch = async (r) => {
+    setSearchError(''); setSearchMsg(''); setSearchRow(`ch:${r.url}`);
+    try {
+      const res = await fetch(`${API_BASE}/scrape/channel`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({ url: r.url, limit: Number(channelLimit) || 20 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setSearchMsg(`Đã cào kênh: ${data.count} video · ${data.platform || ''}`);
+    } catch (e) {
+      setSearchError(e.message || 'Lỗi cào kênh.');
+    } finally {
+      setSearchRow('');
+    }
+  };
+
+  const ingestSearch = async (r) => {
+    setSearchError(''); setSearchMsg(''); setSearchRow(`rag:${r.url}`);
+    try {
+      const res = await fetch(`${API_BASE}/scrape/ingest`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          source: `search:${r.platform || 'web'}:${r.url}`,
+          title: r.title || r.url,
+          text: [r.title && `# ${r.title}`, r.url && `Link: ${r.url}`, r.snippet].filter(Boolean).join('\n'),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      setSearchMsg(`Đã nạp vào RAG: ${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}…`);
+    } catch (e) {
+      setSearchError(e.message || 'Lỗi nạp RAG.');
+    } finally {
+      setSearchRow('');
     }
   };
 
@@ -266,6 +337,7 @@ export default function ScrapePanel({ open, onClose, token }) {
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-white/5">
           <Tab id="link" icon={<Link2 size={13} />} label="Cào link" />
+          <Tab id="search" icon={<Search size={13} />} label="Tìm kiếm" />
           <Tab id="channel" icon={<Tv size={13} />} label="Kênh / Hôm nay" />
           <Tab id="rag" icon={<Database size={13} />} label="RAG" />
         </div>
@@ -375,6 +447,123 @@ export default function ScrapePanel({ open, onClose, token }) {
                     {JSON.stringify(result, null, 2)}
                   </pre>
                 )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ─────────── TAB: TÌM KIẾM ─────────── */}
+        {tab === 'search' && (
+          <>
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                <Search size={12} className="text-cyan-400" /> Tìm kênh / từ khoá (Web · YouTube · TikTok)
+              </label>
+              <input
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') runSearch(); }}
+                placeholder="vd: rexi game, @kenh, chủ đề..."
+                className="w-full bg-[#131417] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40"
+              />
+              <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
+                <span className="flex items-center gap-2">
+                  Nền tảng:
+                  <select
+                    value={searchPlatform}
+                    onChange={(e) => setSearchPlatform(e.target.value)}
+                    className="bg-[#131417] border border-white/10 rounded-lg px-2 py-0.5 text-slate-200 outline-none"
+                  >
+                    <option value="web">Web</option>
+                    <option value="youtube">YouTube</option>
+                    <option value="tiktok">TikTok</option>
+                  </select>
+                </span>
+                <span className="flex items-center gap-2">
+                  Số kết quả:
+                  <input
+                    type="number" min={1} max={25} value={searchLimit}
+                    onChange={(e) => setSearchLimit(e.target.value)}
+                    className="w-16 bg-[#131417] border border-white/10 rounded-lg px-2 py-0.5 text-slate-200 outline-none"
+                  />
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={runSearch}
+                disabled={searchLoading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
+              >
+                {searchLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                Tìm kiếm
+              </button>
+            </div>
+
+            {searchError && (
+              <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-xl px-3 py-2">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <span>{searchError}</span>
+              </div>
+            )}
+            {searchMsg && (
+              <div className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2">{searchMsg}</div>
+            )}
+
+            {searchResult && (
+              <div className="flex-1 min-h-0 flex flex-col gap-2">
+                <span className="text-[11px] text-slate-400">
+                  Nền tảng: <span className="text-cyan-300 font-mono">{searchResult.platform}</span> · nguồn{' '}
+                  <span className="text-cyan-300 font-mono">{searchResult.source}</span> · <span className="text-slate-300">{searchResult.count}</span> kết quả
+                </span>
+                <div className="overflow-auto rounded-xl border border-white/10 max-h-[45vh]">
+                  <table className="w-full text-[11px] text-slate-300">
+                    <thead className="bg-[#131417] text-slate-400 sticky top-0">
+                      <tr>
+                        <th className="text-left px-2 py-1.5 font-medium">Tiêu đề</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Link</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Nền tảng</th>
+                        <th className="text-right px-2 py-1.5 font-medium">Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(searchResult.results || []).map((r, i) => (
+                        <tr key={i} className="border-t border-white/5">
+                          <td className="px-2 py-1.5">
+                            <div className="text-slate-200">{r.title || '—'}</div>
+                            {r.snippet ? <div className="text-[10px] text-slate-500 line-clamp-2">{r.snippet}</div> : null}
+                          </td>
+                          <td className="px-2 py-1.5 max-w-[220px]">
+                            <a href={r.url} target="_blank" rel="noreferrer" className="text-cyan-300 hover:underline font-mono break-all">{r.url}</a>
+                          </td>
+                          <td className="px-2 py-1.5 whitespace-nowrap text-slate-400">{r.platform || ''}</td>
+                          <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                            <button
+                              onClick={() => scrapeChannelFromSearch(r)}
+                              disabled={!!searchRow}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50"
+                            >
+                              {searchRow === `ch:${r.url}` ? <Loader2 size={10} className="animate-spin" /> : <Tv size={10} />}
+                              Cào kênh này
+                            </button>
+                            <button
+                              onClick={() => ingestSearch(r)}
+                              disabled={!!searchRow}
+                              className="ml-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              {searchRow === `rag:${r.url}` ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
+                              Nạp RAG
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {!(searchResult.results || []).length && (
+                        <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">Không có kết quả.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>

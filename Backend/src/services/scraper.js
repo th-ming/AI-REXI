@@ -271,10 +271,183 @@ async function workerList(url, limit) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SEARCH — tìm kênh / từ khoá (ADDITIVE). Web qua DuckDuckGo HTML; YouTube qua
+// worker ytsearch; platform khác → web search scoped (`site:<host> <q>`).
+// Không bao giờ crash: thiếu worker → fallback web; lỗi parse → mảng rỗng.
+// ─────────────────────────────────────────────────────────────────────────────
+const SEARCH_RESULT_LIMIT = 25;
+
+// Platform → host để scope `site:` khi không có API riêng.
+const PLATFORM_SITE = {
+  tiktok: 'tiktok.com',
+  youtube: 'youtube.com',
+  instagram: 'instagram.com',
+  twitter: 'twitter.com',
+  'twitter/x': 'twitter.com',
+  x: 'twitter.com',
+  facebook: 'facebook.com',
+  reddit: 'reddit.com',
+  linkedin: 'linkedin.com',
+  pinterest: 'pinterest.com',
+  bilibili: 'bilibili.com',
+  threads: 'threads.net',
+};
+
+function normSearchLimit(n) {
+  return Math.max(1, Math.min(parseInt(n, 10) || 10, SEARCH_RESULT_LIMIT));
+}
+
+// Giải mã redirect DuckDuckGo: https://duckduckgo.com/l/?uddg=<encoded> → URL thật.
+function decodeDdgRedirect(href) {
+  let h = decodeEntities(String(href || '')).trim();
+  if (!h) return '';
+  if (h.startsWith('//')) h = 'https:' + h;
+  try {
+    const u = new URL(h);
+    if (/(^|\.)duckduckgo\.com$/i.test(u.hostname)) {
+      const uddg = u.searchParams.get('uddg');
+      if (uddg) return uddg;
+    }
+  } catch (e) { /* không phải URL tuyệt đối → trả nguyên */ }
+  return h;
+}
+
+// Parse trang kết quả html.duckduckgo.com/html/ → [{title,url,snippet}].
+function parseDdgResults(html, limit) {
+  const h = String(html || '');
+  const out = [];
+  const reA = /<a\b([^>]*\bclass=["'][^"']*result__a[^"']*["'][^>]*)>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = reA.exec(h)) !== null) {
+    const hrefM = (m[1] || '').match(/\bhref=["']([^"']*)["']/i);
+    if (!hrefM) continue;
+    const url = decodeDdgRedirect(hrefM[1]);
+    if (!/^https?:\/\//i.test(url)) continue;
+    const title = stripTags(m[2]).trim();
+    if (!title) continue;
+    out.push({ title, url });
+    if (out.length >= limit) break;
+  }
+  const snippets = [];
+  const reS = /<a\b[^>]*\bclass=["'][^"']*result__snippet[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi;
+  while ((m = reS.exec(h)) !== null) snippets.push(stripTags(m[1]).trim());
+  return out.map((a, i) => ({ title: a.title, url: a.url, snippet: snippets[i] || undefined }));
+}
+
+// Web search (DuckDuckGo HTML) — platform != 'web' → scope `site:<host> <q>`.
+// Nếu query scoped không ra kết quả (DDG đôi khi trả trang rỗng) → thử lại query thô.
+async function ddgFetch(query) {
+  const r = await fetchHtml(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`);
+  return r.html;
+}
+async function webSearch(q, limit, platform) {
+  const p = String(platform || 'web').toLowerCase();
+  const host = PLATFORM_SITE[p];
+  const scoped = p !== 'web' && !!host;
+  const query = scoped ? `site:${host} ${q}` : q;
+  let parsed = parseDdgResults(await ddgFetch(query), limit);
+  if (!parsed.length && scoped) parsed = parseDdgResults(await ddgFetch(q), limit);
+  return parsed.map((it) => ({
+    title: it.title,
+    url: it.url,
+    platform: p === 'web' ? (platformOf(it.url) || 'web') : p,
+    snippet: it.snippet,
+  }));
+}
+
+// YouTube search qua worker ytsearch.
+async function workerSearch(q, limit) {
+  const j = await workerGet(`/search?${workerQ({ q, limit: String(limit) })}`, WORKER_INFO_TIMEOUT_MS);
+  const arr = Array.isArray(j.items) ? j.items : [];
+  return arr.map((it) => ({
+    title: it.title || it.id || 'video',
+    url: it.url || (it.id ? `https://www.youtube.com/watch?v=${it.id}` : null),
+    platform: 'youtube',
+    snippet: it.uploader || undefined,
+    uploader: it.uploader || null,
+    channel_id: it.channel_id || null,
+    uploader_url: it.uploader_url || null,
+  })).filter((r) => r.url);
+}
+
+// search({q, platform?, limit?}) → { ok, source, query, platform, count, results:[{title,url,platform,snippet?}] }.
+async function search(input) {
+  const inp = input || {};
+  const q = String(inp.q != null ? inp.q : (inp.query != null ? inp.query : '')).trim();
+  if (!q) throw new Error('Thiếu q (từ khoá tìm kiếm).');
+  const limit = normSearchLimit(inp.limit);
+  const platform = String(inp.platform || 'web').toLowerCase();
+  let results = [];
+  let source = 'web';
+
+  if (platform === 'youtube') {
+    if (workerEnabled()) {
+      try {
+        results = await workerSearch(q, limit);
+        source = 'ytdlp';
+      } catch (e) {
+        console.log(`[scraper] workerSearch thất bại: ${e && e.message ? e.message : 'lỗi'}`);
+        results = [];
+      }
+    }
+    if (!results.length) { results = await webSearch(q, limit, 'youtube'); source = 'web'; }
+  } else {
+    results = await webSearch(q, limit, platform);
+  }
+
+  return { ok: true, source, query: q, platform, count: results.length, results };
+}
+
+// findChannel({name, platform?}) → { ok, name, platform, count, candidates:[{name,url,platform}] }.
+async function findChannel(input) {
+  const inp = input || {};
+  const name = String(inp.name != null ? inp.name : (inp.q != null ? inp.q : '')).trim();
+  if (!name) throw new Error('Thiếu name (tên kênh).');
+  const platform = String(inp.platform || '').toLowerCase();
+  const limit = normSearchLimit(inp.limit || 10);
+  const candidates = [];
+  const seen = new Set();
+  const push = (c) => {
+    if (!c || !c.url || seen.has(c.url)) return;
+    seen.add(c.url);
+    candidates.push(c);
+  };
+
+  // YouTube: dùng worker ytsearch → channel_id/uploader_url từ entries.
+  if (platform === 'youtube' && workerEnabled()) {
+    try {
+      const r = await workerSearch(name, limit);
+      for (const it of r) {
+        if (it.uploader_url) push({ name: it.uploader || name, url: it.uploader_url, platform: 'youtube' });
+        else if (it.channel_id) push({ name: it.uploader || name, url: `https://www.youtube.com/channel/${it.channel_id}`, platform: 'youtube' });
+      }
+    } catch (e) {
+      console.log(`[scraper] findChannel worker thất bại: ${e && e.message ? e.message : 'lỗi'}`);
+    }
+  }
+
+  // Fallback / platform khác: web search scoped, lọc link kênh/profile khi nhận diện được.
+  if (!candidates.length) {
+    const host = PLATFORM_SITE[platform];
+    const query = host ? `site:${host} ${name}` : name;
+    const r = await webSearch(query, limit, platform || 'web');
+    for (const it of r) {
+      let ok = true;
+      if (platform === 'tiktok') ok = /tiktok\.com\/@/i.test(it.url);
+      else if (platform === 'youtube') ok = /youtube\.com\/(@|channel\/|c\/|user\/)/i.test(it.url);
+      else if (platform === 'instagram') ok = /instagram\.com\//i.test(it.url);
+      if (ok) push({ name: it.title || name, url: it.url, platform: it.platform, snippet: it.snippet });
+    }
+  }
+
+  return { ok: true, name, platform: platform || 'web', count: candidates.length, candidates };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 function status() {
-  return { ok: true, ytdlp_worker: workerStatus(), web: true, supports: SUPPORTS };
+  return { ok: true, ytdlp_worker: workerStatus(), web: true, search: true, supports: SUPPORTS };
 }
 
 // info(): ưu tiên worker → fallback web (guarded). Trả {ok,source,data}.
@@ -594,6 +767,8 @@ module.exports = {
   ingest,
   ask,
   pipeline,
+  search,
+  findChannel,
   normalizeUrl,
   workerStatus,
   workerEnabled,

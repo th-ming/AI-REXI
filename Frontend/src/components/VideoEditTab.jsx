@@ -10,6 +10,7 @@ const OPS = [
   { id: 'speed', label: 'Đổi tốc độ', icon: <Gauge size={15} /> },
   { id: 'extract_audio', label: 'Tách âm thanh', icon: <Volume2 size={15} /> },
   { id: 'thumbnail', label: 'Ảnh bìa', icon: <ImageIcon size={15} /> },
+  { id: 'make_video', label: 'Tạo Video', icon: <Wand2 size={15} /> },
 ];
 
 const field = 'w-full rounded-lg bg-black/30 border border-white/10 text-[12.5px] text-slate-100 px-3 py-2 focus:outline-none focus:border-cyan-400/50 placeholder:text-slate-600';
@@ -57,12 +58,19 @@ export default function VideoEditTab({ authToken, showToast }) {
     if (op === 'resize') { base.width = Number(p.width) || 1080; base.height = Number(p.height) || 1920; }
     if (op === 'speed') { base.speed = Number(p.speed) || 1.5; }
     if (op === 'thumbnail') { base.at = p.at || '1'; }
+    if (op === 'make_video') {
+      const lines = String(p.slides || '').split('\n').map(s => s.trim()).filter(Boolean);
+      base.slides = lines.map(l => { const parts = l.split('|'); return { title: (parts[0] || '').trim(), subtitle: (parts[1] || '').trim() }; });
+      base.secondsPerSlide = Number(p.secondsPerSlide) || 3;
+      base.width = 1280; base.height = 720; base.fps = 30;
+      if (p.music) { base.music = p.music; }
+    }
     return base;
   };
 
   const run = async () => {
     if (!authToken) { showToast && showToast('Cần đăng nhập', 'error'); return; }
-    if (op === 'concat' ? !inputSrc && !p.extra : !inputSrc) { setErr('Chưa có nguồn video (URL hoặc file).'); return; }
+    if (op !== 'make_video' && (op === 'concat' ? !inputSrc && !p.extra : !inputSrc)) { setErr('Chưa có nguồn video (URL hoặc file).'); return; }
     setBusy(true); setErr(''); setResult(null);
     try {
       const r = await fetch('/api/services/video/edit', {
@@ -142,6 +150,11 @@ export default function VideoEditTab({ authToken, showToast }) {
             </>)}
             {op === 'thumbnail' && (<>
               <div><span className={label}>Lấy ảnh tại (giây)</span><input className={field} placeholder="1" value={p.at || ''} onChange={e => set('at', e.target.value)} /></div>
+            </>)}
+            {op === 'make_video' && (<>
+              <div className="col-span-2"><span className={label}>Các slide (mỗi dòng: Tiêu đề | Phụ đề)</span><textarea rows={4} className={field} placeholder={"REXI AI | Trợ lý AI toàn năng\nDựng Video | Tự động từ 1 câu lệnh\nrexiai.bot.cd | Làm mọi thứ"} value={p.slides || ''} onChange={e => set('slides', e.target.value)} /></div>
+              <div><span className={label}>Giây mỗi slide</span><input className={field} placeholder="3" value={p.secondsPerSlide || ''} onChange={e => set('secondsPerSlide', e.target.value)} /></div>
+              <div><span className={label}>Nhạc nền (URL mp3, tùy chọn)</span><input className={field} placeholder="https://...mp3" value={p.music || ''} onChange={e => set('music', e.target.value)} /></div>
             </>)}
           </div>
 

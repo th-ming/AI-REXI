@@ -5,7 +5,7 @@ từ link mạng xã hội, video **và** trang web thường. Không phá vỡ 
 crash server (mọi endpoint bọc `try/catch` + `rateLimit`, luôn trả JSON `{ok:...}`).
 
 > UI: mở **FAB (góc phải dưới)** → **Cào dữ liệu**, hoặc **Super Tools** → nút **Cào dữ liệu**.
-> Panel có 3 tab: **Cào link** · **Kênh / Hôm nay** · **RAG**.
+> Panel có 4 tab: **Cào link** · **Tìm kiếm** · **Kênh / Hôm nay** · **RAG**.
 
 ## Cào được gì
 
@@ -15,6 +15,9 @@ crash server (mọi endpoint bọc `try/catch` + `rateLimit`, luôn trả JSON `
   Bandcamp, Mixcloud, Streamable, Rumble, Odysee, Kick, Likee, Threads, Weibo, Youku, iQiyi…
 - **Danh sách kênh / playlist (mới):** liệt kê video của một kênh/playlist qua worker `/list`
   (`yt-dlp --flat-playlist`), lọc được **chỉ video đăng hôm nay**. YouTube tốt nhất.
+- **Tìm kiếm (mới):** tìm **kênh / từ khoá** khi chưa biết URL — Web qua DuckDuckGo HTML,
+  YouTube qua worker `ytsearch<n>:<q>`, TikTok/nền tảng khác qua web search scope `site:<host>`
+  (`/search`), và tìm kênh theo tên (`/findchannel`).
 - **Web thường (fetch trực tiếp):** `title`, `description`, `og:image`, `og:site_name`,
   readable `text`, danh sách `links`.
 - **Nạp vào RAG (mới):** chunk dữ liệu cào được → lưu vào **RAG store đang có** của app để chat
@@ -45,6 +48,7 @@ Public, nhẹ.
   "ok": true,
   "ytdlp_worker": { "configured": true, "url": "https://<tunnel>" },
   "web": true,
+  "search": true,
   "supports": ["youtube","tiktok","instagram","twitter/x","facebook", "…","generic-web"]
 }
 ```
@@ -106,6 +110,28 @@ chính URL đó (1 mục); nếu vẫn không được → `{ "ok": false, "erro
               "uploader": "...", "published": "2026-10-09", "view_count": 12345 }] }
 ```
 
+### `POST /api/scrape/search` — `{ "q": "...", "platform": "web"|"youtube"|"tiktok", "limit": 10 }`
+Tìm kênh/từ khoá khi chưa biết URL. `platform` tuỳ chọn:
+- `web` (mặc định) → **DuckDuckGo HTML** (`https://html.duckduckgo.com/html/?q=…`).
+- `youtube` → worker `ytsearch<limit>:<q>` (cần worker; lỗi → fallback web scoped `site:youtube.com`).
+- `tiktok` / nền tảng khác → web search scope `site:<host> <q>` (vd `site:tiktok.com <q>`).
+
+`limit` kẹp trong `[1, 25]`. Không đủ dữ liệu cũng trả `ok:true, count:0` (không crash).
+```json
+{ "ok": true, "source": "web", "query": "rexi", "platform": "tiktok", "count": 5,
+  "results": [{ "title": "...", "url": "https://www.tiktok.com/@...", "platform": "tiktok", "snippet": "…" }] }
+```
+Với `platform:"youtube"` và worker bật, mỗi result còn kèm `uploader`, `channel_id`, `uploader_url`.
+
+### `POST /api/scrape/findchannel` — `{ "name": "...", "platform": "tiktok"|"youtube"|..., "limit": 10 }`
+Tìm kênh theo **tên** trên một nền tảng → danh sách URL kênh ứng viên.
+YouTube (worker) ưu tiên `uploader_url`/`channel_id`; TikTok lọc link `@handle`; nền tảng khác
+lọc link profile nhận diện được. Không có gì khớp → `ok:true, count:0`.
+```json
+{ "ok": true, "name": "rexi", "platform": "tiktok", "count": 3,
+  "candidates": [{ "name": "...", "url": "https://www.tiktok.com/@...", "platform": "tiktok" }] }
+```
+
 ### `POST /api/scrape/ingest` — `{ "source": "...", "title": "...", "text": "..." | "items": [...] }`
 Chunk `text` (hoặc ghép `items` title/description/link) → lưu vào **RAG store đang có**
 (`ragService`, cùng bảng `tai_lieu_rag` + `tai_lieu_rag_chunk` như `/api/documents/upload`) →
@@ -144,6 +170,8 @@ vào RAG** → nếu có `question` thì trả luôn **top chunks**. `urls` tố
 | `/batch` | 10 |
 | `/download` | 20 |
 | `/channel` | 15 |
+| `/search` | 30 |
+| `/findchannel` | 20 |
 | `/ingest` | 20 |
 | `/ask` | 30 |
 | `/pipeline` | 10 |
