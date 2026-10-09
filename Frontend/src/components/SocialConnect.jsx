@@ -84,6 +84,12 @@ export default function SocialConnect({ showToast }) {
     return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">Chưa kết nối</span>;
   };
 
+  // Nếu CHƯA có nền tảng nào sẵn sàng -> ẩn HẲN mục này.
+  // Người dùng không phải cấu hình gì — hệ thống (operator) lo.
+  if (platforms && !PLATFORM_ORDER.some((p) => platforms[p] && platforms[p].configured)) {
+    return null;
+  }
+
   return (
     <div className="border-t border-white/10 pt-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -110,7 +116,7 @@ export default function SocialConnect({ showToast }) {
         <p className="text-[11px] text-slate-400">Đang tải...</p>
       )}
 
-      {platforms && PLATFORM_ORDER.map((p) => {
+      {platforms && PLATFORM_ORDER.filter((p) => platforms[p] && platforms[p].configured).map((p) => {
         const info = platforms[p] || { configured: false, connected: false };
         const meta = PLATFORM_META[p] || { label: p };
         return (
@@ -156,12 +162,6 @@ export default function SocialConnect({ showToast }) {
 
             {info.configured && !info.connected && (
               <p className="text-[10px] text-slate-500">Bấm "Kết nối" để cấp quyền đăng bài.</p>
-            )}
-
-            {!info.configured && (
-              <p className="text-[10px] text-slate-500 flex items-center gap-1">
-                <CheckCircle2 size={11} className="text-slate-500" /> Chưa có API key — xem docs/SOCIAL.md để bật.
-              </p>
             )}
           </div>
         );
