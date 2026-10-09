@@ -992,6 +992,12 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
           systemPrompt = `You are Rexi, an all-in-one AI assistant. Current time: ${nowFormatted} (Vietnam time). User's estimated location: ${locationStr}.\n${ragText}\n${profileText || ''}\nLONG-TERM MEMORY ABOUT THE USER & REXI RULES:\n${memoryText || '- The user prefers professional, concise, practical and accurate answers.'}\n\n- IMPORTANT RULE: Do not repeat disclaimers. Answer directly, naturally, friendly and helpfully.${skillInstruction}`;
         }
 
+        // ─── AUTO-RESEARCH: có link → tự đọc; hỏi thông tin → tự search web (zero-config) ───
+        try {
+          const research = await require('../services/autoResearch').gather(noi_dung);
+          if (research) systemPrompt += `\n\n[DỮ LIỆU TRA CỨU WEB TỰ ĐỘNG — dùng để trả lời chính xác, có thể trích dẫn nguồn]\n${research}`;
+        } catch (e) { /* không chặn chat nếu tra cứu lỗi */ }
+
         // ─── AUTO ROUTER: model = 'auto' → phân loại câu hỏi + chọn model thông minh ───
         let autoRouteInfo = null;
         const isAutoModel = String(model_name || '').trim() === 'auto' || String(model_name || '').trim() === 'auto/' + selectedProvider;
