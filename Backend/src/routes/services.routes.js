@@ -2850,6 +2850,27 @@ router.post('/video/render', authMiddleware, rateLimit({ windowMs: 3600000, max:
   const outputFile = path.join(projectDir, 'output.mp4');
   const fpsArgMain = Math.min(Math.max(parseInt(fps, 10) || 30, 1), 60);
 
+  // ─── OFFLOAD render nặng sang VIDEO WORKER local (tunnel) nếu có — như TTS ───
+  const workerUrl = (process.env.VIDEO_WORKER_URL || '').trim().replace(/\/$/, '');
+  if (workerUrl) {
+    try {
+      const wRes = await fetch(workerUrl + '/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-worker-token': (process.env.VIDEO_WORKER_TOKEN || '') },
+        body: JSON.stringify({ html, width: compWidth, height: compHeight, fps: fpsArgMain, duration: compDuration }),
+        signal: AbortSignal.timeout(300000),
+      });
+      const data = await wRes.json();
+      if (data && data.success && data.video) {
+        console.log('[Video Render] worker OK —', Math.round((data.size || 0) / 1024), 'KB');
+        return res.json({ success: true, video: data.video, format: 'mp4', size: data.size, width: compWidth, height: compHeight, duration: compDuration, fps: fpsArgMain, frames: data.frames, engine: 'worker', renderId });
+      }
+      console.warn('[Video Render] worker lỗi → fallback local:', data && data.error);
+    } catch (eW) {
+      console.warn('[Video Render] worker exception → fallback local:', eW.message);
+    }
+  }
+
   // ─── ĐƯỜNG CHÍNH (QA 17/9): renderer Playwright + ffmpeg của mình ───
   // `hyperframes render` cần browser riêng và chết ở phase capture (Network.enable timeout).
   if (videoRenderer.isAvailable()) {
