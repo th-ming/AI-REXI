@@ -2395,12 +2395,12 @@ useEffect(() => {
               />
 
           {/* Panel công cụ — smoked glass, tuot ra tu mep, dau thi stagger
-              bottom-[11.5rem]: luôn nằm TRÊN tab mép phải (tab bottom-32 → chiếm 128-184px) */}
+              bottom-[9.5rem]: luôn nằm TRÊN tab mép phải (tab bottom-24 → chiếm 96-152px) */}
           <div ref={fabMenuRef} className={
-            'fixed right-3 bottom-[11.5rem] z-[45] flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform ' +
+            'fixed right-3 bottom-[9.5rem] z-[45] flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform ' +
             'rexi-fab-panel border ' +
             'transition-all duration-[600ms] ease-[cubic-bezier(0.32,0.72,0,1)] ' +
-            'max-h-[calc(100dvh-264px)] max-w-[calc(100vw-24px)] overflow-y-auto pr-1.5 scrollbar-thin ' +
+            'max-h-[calc(100dvh-216px)] max-w-[calc(100vw-24px)] overflow-y-auto pr-1.5 scrollbar-thin ' +
             (fabOpen
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto'
               : 'opacity-0 translate-x-16 scale-[0.98] pointer-events-none')
@@ -2498,11 +2498,11 @@ useEffect(() => {
             </div>
 
             {/* Tab mép phải kiểu Drive — smoked glass, LED accent, chevron island
-                bottom-32 (128px): cao hơn ô chat, không đè nút Gửi mọi viewport */}
+                bottom-24 (96px): cao hơn ô chat, không đè nút Gửi mọi viewport */}
             <button
               onClick={() => setFabOpen(!fabOpen)}
               className={
-                'group fixed bottom-32 right-0 z-[45] h-14 pl-3 pr-2.5 flex items-center rounded-l-full ' +
+                'group fixed bottom-24 right-0 z-[45] h-14 pl-3 pr-2.5 flex items-center rounded-l-full ' +
                 'rexi-fab-tab border border-r-0 ' +
                 'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform ' +
                 (fabOpen
