@@ -2387,22 +2387,24 @@ useEffect(() => {
           {(
             <>
               <div
-                className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-500 ease-out ${fabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={
+                  'fixed inset-0 z-40 bg-black/40 transition-opacity duration-500 ease-out ' +
+                  (fabOpen ? 'opacity-100' : 'opacity-0 pointer-events-none')
+                }
                 onClick={() => setFabOpen(false)}
               />
 
           {/* Panel công cụ — smoked glass, tuot ra tu mep, dau thi stagger
               bottom-[9.5rem]: luôn nằm TRÊN tab mép phải (tab bottom-24 → chiếm 96-152px) */}
-          <div ref={fabMenuRef} className={`
-            fixed right-3 bottom-[9.5rem] z-[45] flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform
-            rexi-fab-panel border
-            transition-all duration-[600ms] ease-[cubic-bezier(0.32,0.72,0,1)]
-            max-h-[calc(100dvh-216px)] max-w-[calc(100vw-24px)] overflow-y-auto pr-1.5 scrollbar-thin
-            ${fabOpen
+          <div ref={fabMenuRef} className={
+            'fixed right-3 bottom-[9.5rem] z-[45] flex flex-col gap-1 p-2 rounded-2xl origin-right will-change-transform ' +
+            'rexi-fab-panel border ' +
+            'transition-all duration-[600ms] ease-[cubic-bezier(0.32,0.72,0,1)] ' +
+            'max-h-[calc(100dvh-216px)] max-w-[calc(100vw-24px)] overflow-y-auto pr-1.5 scrollbar-thin ' +
+            (fabOpen
               ? 'opacity-100 translate-x-0 scale-100 pointer-events-auto'
-              : 'opacity-0 translate-x-16 scale-[0.98] pointer-events-none'
-            }
-          `}>
+              : 'opacity-0 translate-x-16 scale-[0.98] pointer-events-none')
+          }>
               {/* Nhóm AI */}
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-1 pb-1">{t(lang, 'fabAi')}</p>
               {[
@@ -2499,15 +2501,14 @@ useEffect(() => {
                 bottom-24 (96px): luôn ở TRÊN khung nhập chat, tránh đè nút Gửi mọi viewport */}
             <button
               onClick={() => setFabOpen(!fabOpen)}
-              className={`
-                group fixed bottom-24 right-0 z-[45] h-14 pl-3 pr-2.5 flex items-center rounded-l-full
-                rexi-fab-tab border border-r-0
-                transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform
-                ${fabOpen
+              className={
+                'group fixed bottom-24 right-0 z-[45] h-14 pl-3 pr-2.5 flex items-center rounded-l-full ' +
+                'rexi-fab-tab border border-r-0 ' +
+                'transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] will-change-transform ' +
+                (fabOpen
                   ? '-translate-x-1 rexi-fab-tab-open'
-                  : 'hover:-translate-x-3 active:scale-[0.98]'
-                }
-              `}
+                  : 'hover:-translate-x-3 active:scale-[0.98]')
+              }
               title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
             >
               {/* LED light — nguon sang xanh nhe, khong to mau */}
