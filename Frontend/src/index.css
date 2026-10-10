@@ -1067,3 +1067,44 @@ select {
 [data-theme="dark"] .bg-\[\#0d0e11\] {
   background-color: transparent;
 }
+
+/* ============ rexi-theme-fix2: vet sot light + nang sang dark (10/10/2026) ============ */
+/* A. LIGHT — dark hex + opacity con sot */
+[data-theme="light"] .bg-\[\#141622\]\/80,
+[data-theme="light"] .bg-\[\#141622\]\/90,
+[data-theme="light"] .bg-\[\#13141a\]\/80,
+[data-theme="light"] .bg-\[\#141519\]\/95,
+[data-theme="light"] .bg-\[\#0e0f17\]\/90 { background-color: #ffffff; }
+[data-theme="light"] .bg-\[\#141622\]\/60,
+[data-theme="light"] .bg-\[\#141622\]\/40,
+[data-theme="light"] .bg-\[\#0e0f17\]\/50,
+[data-theme="light"] .bg-\[\#10111a\]\/80,
+[data-theme="light"] .bg-\[\#0d0e14\]\/90,
+[data-theme="light"] .bg-\[\#0d0e14\]\/70,
+[data-theme="light"] .bg-\[\#0a0b0e\]\/60,
+[data-theme="light"] .bg-\[\#222325\] { background-color: #eef0f6; }
+[data-theme="light"] .bg-\[\#131417\]\/40 { background-color: #e9edf4; }
+[data-theme="light"] .bg-\[\#31343a\] { background-color: #e2e6ef; }
+[data-theme="light"] .bg-slate-700, [data-theme="light"] .bg-slate-900 { background-color: #e2e8f0; }
+[data-theme="light"] .bg-slate-900\/75 { background-color: #cbd5e1; }
+[data-theme="light"] .bg-slate-900\/50 { background-color: rgba(26,32,51,.12); }
+[data-theme="light"] .bg-slate-900\/30 { background-color: rgba(26,32,51,.08); }
+[data-theme="light"] .bg-black\/50 { background-color: rgba(0,0,0,.18); }
+/* B. LIGHT — kill gradient toi con sot */
+[data-theme="light"] .from-\[\#0b0c10\] { background-image: none; background-color: #ffffff; }
+[data-theme="light"] .via-\[\#0e0f17\],
+[data-theme="light"] .to-\[\#0a0b10\],
+[data-theme="light"] .to-\[\#181920\],
+[data-theme="light"] .to-slate-800 { background-image: none; }
+/* C. DARK — nang sang tong the (het den dac) */
+[data-theme="dark"] { --bg-main: #16181d; --bg-sidebar: #1d2026; --bg-card: #23262c; --bg-card-hover: #2b2f36; --text-sub: #a7acb8; }
+[data-theme="dark"] body {
+  background:
+    radial-gradient(1100px 520px at 12% -8%, rgba(111, 139, 255, 0.10), transparent 62%),
+    radial-gradient(900px 480px at 88% 108%, rgba(56, 189, 248, 0.08), transparent 60%),
+    linear-gradient(180deg, #14161c 0%, #181c24 100%);
+}
+[data-theme="dark"] .bg-\[\#131417\] { background-color: #1b1e25; }
+[data-theme="dark"] .bg-\[\#181920\] { background-color: #1e2129; }
+[data-theme="dark"] .bg-\[\#1e1f20\].border-white\/\[0\.06\] { background-color: #20232b; }
+[data-theme="dark"] .prose-rexi.bg-\[\#1e1f20\] { background-color: #21242c; }
