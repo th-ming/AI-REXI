@@ -129,7 +129,9 @@ async function runInternalAgent(prompt, { provider, model, onEvent, allowedTools
   let lastErr = null;
   for (const cand of chain) {
     try {
-      return await runAgentLoop(prompt, cand.provider, cand.model, onEvent, allowedTools);
+      const r = await runAgentLoop(prompt, cand.provider, cand.model, onEvent, allowedTools);
+      console.log(`[Agent] served by ${cand.provider}/${cand.model} (${r.rounds || '?'} rounds)`);
+      return r;
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
