@@ -69,26 +69,63 @@ function renderMarkdown(text) {
 
 // Avatar kênh YouTube thật — hiển thị chữ cái trước, fetch ảnh thật rồi swap
 // (progressive enhancement như YouTube). Cache 7 ngày phía BE nên lần sau ăn ngay.
-const avatarMemCache = new Map();
+// VẤN ĐỀ THẬT: worker yt-dlp (tunnel IP nhà) xử lý TUẦN TỰ. Grid 16 video bắn
+// 16 request cùng lúc → nghẽn worker → avatar mãi không về (user thấy chữ cái).
+// Fix: hàng đợi giới hạn concurrency (3) + retry + dedupe request trùng.
+const avatarMemCache = new Map();   // channelId -> avatar_url
+const avatarPending = new Map();    // queryKey -> Promise (dedupe request đang bay)
+const avatarQueue = { active: 0, max: 3, q: [] };
+function pumpAvatarQueue() {
+  while (avatarQueue.active < avatarQueue.max && avatarQueue.q.length) {
+    const job = avatarQueue.q.shift();
+    avatarQueue.active++;
+    job.task().then(job.resolve, job.reject).finally(() => { avatarQueue.active--; pumpAvatarQueue(); });
+  }
+}
+function enqueueAvatar(task) {
+  return new Promise((resolve, reject) => { avatarQueue.q.push({ task, resolve, reject }); pumpAvatarQueue(); });
+}
+async function fetchAvatarAttempt(query) {
+  const ctl = new AbortController();
+  const to = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const res = await fetch(`${API_BASE}/services/youtube/channel-avatar?${query}`, { signal: ctl.signal });
+    const data = await res.json().catch(() => null);
+    if (data && data.success && data.avatar_url) return data;
+    throw new Error((data && data.error) || 'no avatar');
+  } finally { clearTimeout(to); }
+}
+async function fetchAvatarQueued(query) {
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 1200 * attempt));
+    try { return await enqueueAvatar(() => fetchAvatarAttempt(query)); }
+    catch (e) { lastErr = e; }
+  }
+  throw lastErr;
+}
+function loadAvatar(query) {
+  if (avatarPending.has(query)) return avatarPending.get(query);
+  const p = fetchAvatarQueued(query).finally(() => avatarPending.delete(query));
+  avatarPending.set(query, p);
+  return p;
+}
 function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
   const [src, setSrc] = useState(() => (channelId && avatarMemCache.get(channelId)) || null);
   useEffect(() => {
     if (!channelId && !videoId) return;
     if (channelId && avatarMemCache.get(channelId)) { setSrc(avatarMemCache.get(channelId)); return; }
     let cancelled = false;
-    (async () => {
-      try {
-        const q = channelId
-          ? `channel_id=${encodeURIComponent(channelId)}`
-          : `video_id=${encodeURIComponent(videoId)}`;
-        const res = await fetch(`${API_BASE}/services/youtube/channel-avatar?${q}`);
-        const data = await res.json().catch(() => null);
-        if (!cancelled && data && data.success && data.avatar_url) {
-          if (data.channel_id) avatarMemCache.set(data.channel_id, data.avatar_url);
-          setSrc(data.avatar_url);
-        }
-      } catch { /* giữ chữ cái fallback */ }
-    })();
+    const q = channelId
+      ? `channel_id=${encodeURIComponent(channelId)}`
+      : `video_id=${encodeURIComponent(videoId)}`;
+    loadAvatar(q)
+      .then((data) => {
+        if (cancelled || !data || !data.avatar_url) return;
+        if (data.channel_id) avatarMemCache.set(data.channel_id, data.avatar_url);
+        setSrc(data.avatar_url);
+      })
+      .catch(() => { /* giữ chữ cái fallback */ });
     return () => { cancelled = true; };
   }, [channelId, videoId]);
   const letter = String(author || 'Y').trim().charAt(0).toUpperCase();
@@ -98,6 +135,7 @@ function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
         src={src}
         alt={author || 'kênh'}
         loading="lazy"
+        referrerPolicy="no-referrer"
         onError={() => { avatarMemCache.delete(channelId); setSrc(null); }}
         className="rounded-full object-cover shrink-0"
         style={{ width: size, height: size }}
@@ -106,7 +144,7 @@ function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
   }
   return (
     <span
-      className={`${ring ? 'bg-gradient-to-tr from-red-600 to-rose-500' : 'bg-slate-700'} rounded-full flex items-center justify-center font-bold text-white shrink-0`}
+      className={`${ring ? 'bg-slate-600' : 'bg-slate-700'} rounded-full flex items-center justify-center font-semibold text-white shrink-0`}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }}
     >
       {letter}
@@ -183,6 +221,7 @@ showToast, active }) {
   const [isHlsStream, setIsHlsStream] = useState(false); // stream_url là m3u (Chromium cần hls.js)
   const [comments, setComments] = useState(null); // {comments, count} — bấm mới load (chậm 10-30s)
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentsSlow, setCommentsSlow] = useState(false); // quá 12s → báo user kiên nhẫn
   const [commentText, setCommentText] = useState(''); // ô gửi bình luận local
   const [sendingComment, setSendingComment] = useState(false);
   const [history, setHistory] = useState([]); // Video đã xem — localStorage persist
@@ -293,14 +332,27 @@ showToast, active }) {
     if (!selected || commentsLoading) return;
     if (comments) { setComments(null); return; } // toggle đóng
     setCommentsLoading(true);
+    setCommentsSlow(false);
+    // yt-dlp --write-comments chậm 10-30s; đôi khi worker nghẽn >60s → phải có
+    // timeout client để nút KHÔNG treo vĩnh viễn (finally luôn reset loading).
+    const ctl = new AbortController();
+    const hardTo = setTimeout(() => ctl.abort(), 90000);
+    const slowTo = setTimeout(() => setCommentsSlow(true), 12000);
     try {
-      const res = await fetch(`${API_BASE}/services/youtube/comments?url=${encodeURIComponent(selected.id)}`, { headers: headers() });
-      const data = await res.json();
+      const res = await fetch(`${API_BASE}/services/youtube/comments?url=${encodeURIComponent(selected.id)}`, { headers: headers(), signal: ctl.signal });
+      const raw = await res.text();
+      let data;
+      try { data = JSON.parse(raw); }
+      catch { throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử lại sau ít giây.`); }
       if (!data.success) throw new Error(data.error || 'Lấy bình luận thất bại.');
       setComments(data);
     } catch (e) {
-      showToast?.('Lỗi bình luận: ' + e.message, 'error');
+      if (e.name === 'AbortError') showToast?.('Tải bình luận quá lâu (worker đang bận). Thử lại sau.', 'error');
+      else showToast?.('Lỗi bình luận: ' + e.message, 'error');
     } finally {
+      clearTimeout(hardTo);
+      clearTimeout(slowTo);
+      setCommentsSlow(false);
       setCommentsLoading(false);
     }
   };
@@ -442,7 +494,10 @@ showToast, active }) {
         headers: headers(),
         body: JSON.stringify({ url: selected.id }),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data;
+      try { data = JSON.parse(raw); }
+      catch { throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử bấm Tóm tắt lại sau ít giây.`); }
       if (!data.success) throw new Error(data.error || 'Không tóm tắt được video');
       setSummary({ title: data.title || selected.title, transcript: data.transcript || '', summary: data.summary || '', srt: data.srt || '' });
       if (!data.summary) setError('Video không có lời thoại để tóm tắt.');
@@ -638,7 +693,10 @@ showToast, active }) {
                         )}
                       </div>
                       <p className="text-[11px] font-semibold text-slate-100 line-clamp-2 leading-snug mt-1.5">{h.title}</p>
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{h.author}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <ChannelAvatar channelId={h.channel_id} videoId={h.id} author={h.author} size={20} ring={false} />
+                        <p className="text-[10px] text-slate-400 truncate">{h.author}</p>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -843,8 +901,8 @@ showToast, active }) {
                   Bình luận{comments?.count ? ` — ${comments.count.toLocaleString('vi-VN')} bình luận` : ''}
                 </span>
                 {commentsLoading ? (
-                  <span className="text-[10px] text-cyan-400 animate-pulse flex items-center gap-1 shrink-0">
-                    <Loader2 size={10} className="animate-spin" /> Đang tải (10-30 giây)...
+                  <span className="text-[10px] text-slate-400 animate-pulse flex items-center gap-1 shrink-0">
+                    <Loader2 size={10} className="animate-spin" /> {commentsSlow ? 'Vẫn đang tải (worker bận, chờ thêm)...' : 'Đang tải (10-30 giây)...'}
                   </span>
                 ) : (
                   <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${comments ? 'rotate-180' : ''}`} />
@@ -1017,8 +1075,11 @@ showToast, active }) {
                     </div>
                     <div className="min-w-0 py-0.5">
                       <p className="text-xs font-semibold text-slate-100 line-clamp-2 leading-snug">{v.title}</p>
-                      <p className="text-[11px] text-slate-400 mt-1 truncate">{v.author}</p>
-                      <p className="text-[11px] text-slate-400">{v.views > 0 ? fmtViews(v.views) : ''}</p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <ChannelAvatar channelId={v.channel_id} videoId={v.id} author={v.author} size={22} ring={false} />
+                        <p className="text-[11px] text-slate-400 truncate">{v.author}</p>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">{v.views > 0 ? fmtViews(v.views) : ''}</p>
                     </div>
                   </button>
                 ))}
