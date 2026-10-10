@@ -244,7 +244,7 @@ router.post('/admin/models', [authMiddleware, adminMiddleware], (req, res) => {
   db.run(
     `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi, kich_hoat)
      VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(ma_model) DO UPDATE SET
+     ON CONFLICT(ma_model, ma_nha_cung_cap) DO UPDATE SET
        ma_nha_cung_cap = excluded.ma_nha_cung_cap,
        ten_hien_thi = excluded.ten_hien_thi,
        loai = excluded.loai,
@@ -304,7 +304,7 @@ router.post('/admin/models/sync', [authMiddleware, adminMiddleware], async (req,
       db.run(
         `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi)
          VALUES (?, ?, ?, 'free', 0)
-         ON CONFLICT(ma_model) DO UPDATE SET
+         ON CONFLICT(ma_model, ma_nha_cung_cap) DO UPDATE SET
            ten_hien_thi = excluded.ten_hien_thi,
            ngay_cap_nhat = CURRENT_TIMESTAMP`,
         [modelId, provider, displayName]
@@ -360,7 +360,7 @@ async function fetchModelsFromProvider(provider, apiKey, baseUrl) {
   } else if (provider === 'groq') {
     const resp = await fetch('https://api.groq.com/openai/v1/models', { headers: { 'Authorization': 'Bearer ' + apiKey } });
     const data = await resp.json();
-    if (data.data && Array.isArray(data.data)) modelsList = data.data.filter(m => (m.output_modalities || []).includes('text')).map(m => m.id);
+    if (data.data && Array.isArray(data.data)) modelsList = data.data.filter(m => (!m.output_modalities || (m.output_modalities || []).includes('text'))).map(m => m.id);
     else if (data.error) return { success: false, error: 'Groq: ' + (data.error.message || JSON.stringify(data.error)) };
   } else if (provider === 'openai') {
     const resp = await fetch('https://api.openai.com/v1/models', { headers: { 'Authorization': 'Bearer ' + apiKey } });
@@ -767,7 +767,7 @@ router.post('/admin/models/verify-and-scan', [authMiddleware, adminMiddleware], 
         db.run(
           `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi, kich_hoat)
            VALUES (?, ?, ?, ?, 0, 1)
-           ON CONFLICT(ma_model) DO UPDATE SET
+           ON CONFLICT(ma_model, ma_nha_cung_cap) DO UPDATE SET
              ma_nha_cung_cap = excluded.ma_nha_cung_cap,
              ten_hien_thi = excluded.ten_hien_thi,
              loai = excluded.loai,
@@ -838,7 +838,7 @@ router.post('/admin/models/publish-active', [authMiddleware, adminMiddleware], a
       db.run(
         `INSERT INTO ai_models (ma_model, ma_nha_cung_cap, ten_hien_thi, loai, thu_tu_hien_thi, kich_hoat)
          VALUES (?, ?, ?, ?, 0, 1)
-         ON CONFLICT(ma_model) DO UPDATE SET
+         ON CONFLICT(ma_model, ma_nha_cung_cap) DO UPDATE SET
            ma_nha_cung_cap = excluded.ma_nha_cung_cap,
            ten_hien_thi = excluded.ten_hien_thi,
            loai = excluded.loai,

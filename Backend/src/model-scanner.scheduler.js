@@ -384,7 +384,7 @@ function classifyHealth(health) {
 function modalityOf(modelId) {
   const m = String(modelId).toLowerCase();
   if (/embed|rerank|\bbge-|e5-|multilingual-gemma2|retrieval|balingua/.test(m)) return 'embed';
-  if (/(sdxl|-xl|xl-|pony|dreamshaper|\bshaper\b|animerge|absolutereality|cyberrealistic|anything-v\d|nsfw|illustrious|furry|\bdeliberate\b|flat-2d|icbinp|autismmix|swamp|ampony|tunix|wai-|prefect|midjourney|stable-diffusion|seedream|dall|imagen-|\bimage|\bflux\b|anima|cute-|realistic|mix-v\d|-flax|diffusionmodel)/.test(m)) return 'image';
+  if (/(sdxl|-xl|xl-|pony|dreamshaper|\bshaper\b|animerge|absolutereality|cyberrealistic|anything-v\d|nsfw|illustrious|furry|\bdeliberate\b|flat-2d|icbinp|autismmix|swamp|ampony|tunix|wai-|prefect|midjourney|stable-diffusion|seedream|dall|imagen-|\bimage|\bflux\b|cute-|realistic|mix-v\d|-flax|diffusionmodel)/.test(m)) return 'image';
   if (/whisper|transcribe|-asr\b|speech-to-text|voxtral|audio-input|audio\.in/.test(m)) return 'stt';
   if (/(^|-|\b)tts(\b|-|$)|kokoro|speech-\d|piper|bark|elevenlabs|\bvoice\b|talking/.test(m)) return 'tts';
   return 'chat';
@@ -449,6 +449,7 @@ async function scanProvider(providerId) {
   // ─── TỐI UU HOA 2: Skip model đã test gần đây ───────────────
   const results = [];   // khai báo sớm để cả 2 luồng (skip + health test) cùng dùng
   let skipCount = 0;
+  const needsTestFirst = new Set();  // model chua co row test that -> uu tien test truoc (model moi len dau)
   for (const m of nonChatModels) {
     try { await saveScanResult(providerId, m, 'skipped', 0, `modality:${modalityOf(m)}`); } catch { /* ignore */ }
     results.push({ id: m, status: 'skipped', latency_ms: 0, reason: 'non_chat', tested: false, modality: modalityOf(m), tier: tierOf(m) || null });
@@ -471,7 +472,7 @@ async function scanProvider(providerId) {
     const skippedModels = [];  // track models skipped vì vừa test xong
     for (const m of models) {
       const prev = recentMap.get(m);
-      if (!prev || FULL_TEST) { modelsToKeep.push(m); continue; }  // chưa test (hoặc full-test) → cần test
+      if (!prev || FULL_TEST) { needsTestFirst.add(m); modelsToKeep.push(m); continue; }  // chưa test (hoặc full-test) → cần test
       const age = now - prev.time;
       if (prev.status === 'working' && age < WORKING_TTL) { skippedModels.push(m); continue; } // working 24h → skip
       if (prev.status === 'failed' && age < FAILED_TTL) { skipCount++; continue; }    // failed 6h → skip
@@ -491,9 +492,12 @@ async function scanProvider(providerId) {
     console.log(`[ModelScanner] ${cfg.name}: skipped ${skipCount} recently tested → ${models.length} to scan`);
   }
 
-  // Ưu tiên: tier free trước, paid sau cùng (probe 1 cái là đủ); rồi mới tới keyword cũ
+  // Ưu tiên: MODEL MỚI/CHƯA TEST trước (quet phai dung duoc — test pass moi active);
+  // rồi tier free trước, paid sau cùng (probe 1 cái là đủ); rồi mới tới keyword cũ
   const priorityKeywords = ['mini', 'free', 'flash', '70b', 'small', 'lite'];
   models.sort((a, b) => {
+    const aNew = needsTestFirst.has(a) ? 0 : 1, bNew = needsTestFirst.has(b) ? 0 : 1;
+    if (aNew !== bNew) return aNew - bNew;
     const aPaid = isPaidTier(a) ? 1 : 0, bPaid = isPaidTier(b) ? 1 : 0;
     if (aPaid !== bPaid) return aPaid - bPaid;
     const aPri = priorityKeywords.some(kw => a.toLowerCase().includes(kw));
@@ -640,6 +644,7 @@ async function scanProvider(providerId) {
   //   phân loại trên; chỉ GIỮ NGUYÊN khi toàn bộ là error/transient.
   let keptOld = false;
   let keptOldReason = '';
+  let newWorkingIds = [];
   const hasSignal = working > 0 || paidList.length > 0 || deadList.length > 0;
   if (hasSignal) {
     try {
@@ -672,15 +677,10 @@ async function scanProvider(providerId) {
             await tx.run('UPDATE ai_models SET kich_hoat = 0 WHERE ma_model = ? AND ma_nha_cung_cap = ?', [oldId, providerId]);
           }
         }
-        // Model mới trong live list nhưng chưa được test (early-exit skipped) → thêm active
-        // (tồn tại upstream; nếu lỗi tier sẽ bị phát hiện ở lượt quét sau hoặc lúc chat báo rõ).
-        // Riêng skipped mà tier paid → gắn cờ paid luôn (khỏi chờ test).
-        for (const m of results.filter(r => r.status === 'skipped')) {
-          if (!existingSet.has(String(m.id))) {
-            const t = String(m.tier || tierOf(String(m.id)) || '').toLowerCase();
-            await upsert(String(m.id), /^(premium|paid)$/.test(t) ? 'paid' : guessType(m.id));
-          }
-        }
+        // Chua test that thi KHONG active (tieu chi: model quet phai dung duoc) — model
+        // moi cho den khi health-test pass o luot nay hoac luot sau. Row cu giu nguyen.
+        newWorkingIds = workingList.filter(m => !existingSet.has(String(m.id))).map(m => String(m.id));
+        if (newWorkingIds.length) console.log(`[ModelScanner] ${cfg.name} MODEL MOI DUNG DUOC: ${newWorkingIds.join(', ')}`);
       });
       console.log(`[ModelScanner] ${cfg.name}: upsert xong (working ${workingList.length}, paid ${paidList.length}, dead-tắt ${deadList.length})`);
     } catch (repErr) {
@@ -692,7 +692,7 @@ async function scanProvider(providerId) {
     console.warn(`[ModelScanner] ${cfg.name}: toàn bộ lỗi tạm thời — giữ nguyên model cũ. Lý do: ${keptOldReason}`);
   }
 
-  return { success: true, provider: providerId, total: results.length, working, results, keptOld, keptOldReason };
+  return { success: true, provider: providerId, total: results.length, working, results, keptOld, keptOldReason, newModels: newWorkingIds };
 }
 
 // Quét tất cả providers tuần tự
@@ -713,8 +713,10 @@ async function scanAllProviders() {
   // Notify connected frontends via SSE
   const working = summary.reduce((a, s) => a + (s.working || 0), 0);
   const total = summary.reduce((a, s) => a + (s.total || 0), 0);
+  const newModels = summary.flatMap(s => (s.newModels || []).map(id => s.providerId + '/' + id));
+  if (newModels.length) console.log(`[ModelScanner] MODEL MOI DUNG DUOC (full): ${newModels.join(', ')}`);
   if (typeof global !== 'undefined' && global.__modelScanComplete) {
-    global.__modelScanComplete({ working, total, providers: summary.length });
+    global.__modelScanComplete({ working, total, providers: summary.length, newModels });
   }
 
   return summary;
@@ -738,8 +740,9 @@ const STARTUP_SCAN_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 // Kiểm tra provider có được quét gần đây chưa (dựa trên provider_scan_log)
 async function wasRecentlyScanned(providerId, cooldownMs) {
   try {
-    const row = await getRow('SELECT lan_quet_cuoi FROM provider_scan_log WHERE ma_nha_cung_cap = ?', [providerId]);
+    const row = await getRow('SELECT lan_quet_cuoi, tong_model FROM provider_scan_log WHERE ma_nha_cung_cap = ?', [providerId]);
     if (!row || !row.lan_quet_cuoi) return false;
+    if (!row.tong_model) return false;  // lan truoc fetch fail (0 model) -> cho retry, khong tinh cooldown
     const last = toTimeMs(row.lan_quet_cuoi);
     if (isNaN(last)) return false;
     return (Date.now() - last) < cooldownMs;
@@ -771,11 +774,13 @@ async function scanOnStartup() {
   }
   const working = summary.reduce((a, s) => a + (s.working || 0), 0);
   const total = summary.reduce((a, s) => a + (s.total || 0), 0);
+  const newModels = summary.flatMap(s => (s.newModels || []).map(id => s.providerId + '/' + id));
+  if (newModels.length) console.log(`[ModelScanner] MODEL MOI DUNG DUOC (startup): ${newModels.join(', ')}`);
   console.log(`[ModelScanner] Startup scan complete: ${working}/${total} working models from ${summary.length} providers`);
 
   // Notify connected frontends
   if (typeof global !== 'undefined' && global.__modelScanComplete) {
-    global.__modelScanComplete({ working, total, providers: summary.length, startup: true });
+    global.__modelScanComplete({ working, total, providers: summary.length, startup: true, newModels });
   }
 
   return summary;
@@ -787,8 +792,28 @@ let schedulerStarted = false;
 async function startModelScannerScheduler() {
   // Startup scan MAC DINH BAT (tat qua env ENABLE_STARTUP_SCAN=false): chay background sau boot 5s,
   // co cooldown 6h/provider (wasRecentlyScanned) nen khong dot quota + khong cham boot.
+  // Catch-up: tuan truoc miss (server sleep/tat dung T2 00:00) -> quet bu full khi boot.
+  // Neu catch-up chay thi startup scan bo qua (tranh quet trung; cooldown cung chan).
+  let catchupPlanned = false;
+  try {
+    const lastRun = await getWeeklyLastRun();
+    if (!lastRun || Date.now() - lastRun > 7 * 24 * 3600 * 1000) {
+      catchupPlanned = true;
+      console.log('[ModelScanner] Weekly catch-up: qua 7 ngay chua quet tuan -> chay bu background');
+      setTimeout(() => {
+        (async () => {
+          try {
+            await resetScanCache();
+            await scanAllProviders();
+            await setWeeklyLastRun();
+          } catch (e) { console.error('[ModelScanner] Weekly catch-up failed:', e.message); }
+        })();
+      }, 15000);
+    }
+  } catch (e) { /* ignore */ }
   if (process.env.ENABLE_STARTUP_SCAN !== 'false') {
     setTimeout(() => {
+      if (catchupPlanned) { console.log('[ModelScanner] Startup scan: skipped (weekly catch-up chay thay)'); return; }
       scanOnStartup().catch(e => console.error('[ModelScanner] Startup scan failed:', e.message));
     }, 5000);
   }
@@ -834,6 +859,21 @@ async function setWeeklySchedule(day, time) {
   } catch { return false; }
 }
 
+// Luu lan weekly full-scan gan nhat (de catch-up khi miss: server sleep/tat dung gio)
+async function getWeeklyLastRun() {
+  try {
+    const row = await getRow("SELECT gia_tri FROM app_settings WHERE khoa = 'weekly_last_run'");
+    if (row && row.gia_tri) { const t = Date.parse(row.gia_tri); if (!isNaN(t)) return t; }
+  } catch { /* ignore */ }
+  return 0;
+}
+async function setWeeklyLastRun() {
+  try {
+    await runSql(`INSERT INTO app_settings (khoa, gia_tri) VALUES ('weekly_last_run', ?)
+      ON CONFLICT(khoa) DO UPDATE SET gia_tri = excluded.gia_tri`, [new Date().toISOString()]);
+  } catch { /* ignore */ }
+}
+
 async function resetWeeklySchedule() {
   await setWeeklySchedule(DEFAULT_SCHEDULE.day, DEFAULT_SCHEDULE.time);
 }
@@ -861,24 +901,20 @@ async function msUntilNextWeeklyScan() {
   const targetMin = parseInt(minStr, 10);
 
   const now = new Date();
-  // Target ở VN timezone (UTC+7) → convert sang UTC
-  const targetUtcHour = (targetHour - 7 + 24) % 24;
-
-  // Tính số ngày tới ngày target trong tuần
-  const utcDay = now.getUTCDay();
+  // So sanh theo wall-clock VN (UTC+7): tranh lech ngay khi doi UTC tho (T2 00:00 VN = CN 17:00 UTC)
+  const vn = new Date(now.getTime() + 7 * 3600 * 1000);
+  const vnDay = vn.getUTCDay();
   let daysUntilTarget;
-  if (utcDay === day && now.getUTCHours() < targetUtcHour) {
-    daysUntilTarget = 0;
-  } else if (utcDay === day && now.getUTCHours() === targetUtcHour && now.getUTCMinutes() < targetMin) {
+  if (vnDay === day && (vn.getUTCHours() < targetHour || (vn.getUTCHours() === targetHour && vn.getUTCMinutes() < targetMin))) {
     daysUntilTarget = 0;
   } else {
-    daysUntilTarget = ((day - utcDay) + 7) % 7;
+    daysUntilTarget = ((day - vnDay) + 7) % 7;
     if (daysUntilTarget === 0) daysUntilTarget = 7;
   }
 
   const target = new Date(Date.UTC(
-    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + daysUntilTarget,
-    targetUtcHour, targetMin, 0, 0
+    vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate() + daysUntilTarget,
+    targetHour - 7, targetMin, 0, 0
   ));
 
   if (target.getTime() <= now.getTime()) {
@@ -903,6 +939,7 @@ async function scheduleWeeklyReset() {
       await resetScanCache();
       await scanAllProviders();
       console.log('[ModelScanner] ═══ WEEKLY RESET COMPLETE ═══');
+      await setWeeklyLastRun();
     } catch (e) {
       console.error('[ModelScanner] Weekly reset scan failed:', e.message);
     }
