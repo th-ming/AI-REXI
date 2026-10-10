@@ -1042,6 +1042,12 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
               const result = await model.generateContent({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });
               cauTraLoiAI = result.response.text();
             } catch (errGen) {
+              // P1-10: throttle đúng 429/5xx thật (SDK Gemini không luôn gắn .status → parse từ message)
+              const _gm = String(errGen && errGen.message || '');
+              const _gst = (errGen && errGen.status) || (parseInt((_gm.match(/\[(429|5\d\d)\D/)||[])[1], 10) || 0);
+              if (_gst === 429 || (_gst >= 500 && _gst <= 599)) {
+                try { quotaManager.recordThrottle(selectedProvider); } catch {}
+              }
               if (IS_OPENCODE_AVAILABLE) {
                 const rootDir = path.join(__dirname, '..', '..', '..');
                 await new Promise((resOp) => {
@@ -1061,6 +1067,24 @@ ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dun
                       resOp();
                   });
                 });
+              } else if (autoRouteInfo && autoRouteInfo.route && autoRouteInfo.route.candidates.length > 1) {
+                // FALLBACK CHUỖI: Gemini lỗi → thử candidate kế tiếp (giống path OpenAI-compatible)
+                try {
+                  const result = await chatExecutor.callWithFallback(autoRouteInfo.route.candidates.slice(1), {
+                    systemPrompt,
+                    history,
+                    thinkingLevel: req.body.thinking_level,
+                  });
+                  if (result.ok) {
+                    cauTraLoiAI = result.content;
+                    console.log(`[AutoFallback] ${selectedProvider} lỗi (gemini path) → đã chuyển sang ${result.provider}/${result.model}`);
+                  } else {
+                    cauTraLoiAI = chatExecutor.friendlyFail({ errors: result.errors, candidates: autoRouteInfo.route.candidates });
+                  }
+                } catch (fbErr) {
+                  console.error('[AutoFallback gemini] error:', fbErr.message);
+                  cauTraLoiAI = `Lỗi gọi Gemini và không thể sử dụng OpenCode fallback: ${errGen.message}`;
+                }
               } else {
                 cauTraLoiAI = `Lỗi gọi Gemini và không thể sử dụng OpenCode fallback: ${errGen.message}`;
               }
@@ -1639,18 +1663,41 @@ router.post('/conversations/:id/messages/stream', rateLimit({ windowMs: 60000, m
       }
       const { history, systemPrompt } = await buildChatContext(req, id, mode, noi_dung, user_location, selectedProvider);
       if (selectedProvider === 'gemini') {
-        const tempGenAI = new GoogleGenerativeAI(keyToUse);
-        let model;
-        try { model = tempGenAI.getGenerativeModel({ model: selectedModel || 'gemini-2.5-flash' }); }
-        catch (e) { model = tempGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); }
-        // QA 17/9 + M7: ảnh data-URL → inlineData, history cũ chỉ giữ 12 tin gần nhất + bỏ base64 cũ
-        const contents = chatExecutor.buildHistoryGemini(history);
-        // CHỈ gửi thinkingConfig khi thinking_level = 'deep' (xem ghi chú BUG 400 INVALID_ARGUMENT)
-        const genConfig = thinking_level === 'deep' ? { thinkingConfig: { thinkingBudget: 8192 } } : {};
-        const stream = await model.generateContentStream({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });
-        for await (const chunk of stream.stream) {
-          const t = chunk.text();
-          if (t) { fullText += t; sendSSE({ type: 'token', text: t }); }
+        try {
+          const tempGenAI = new GoogleGenerativeAI(keyToUse);
+          let model;
+          try { model = tempGenAI.getGenerativeModel({ model: selectedModel || 'gemini-2.5-flash' }); }
+          catch (e) { model = tempGenAI.getGenerativeModel({ model: 'gemini-2.5-flash' }); }
+          // QA 17/9 + M7: ảnh data-URL → inlineData, history cũ chỉ giữ 12 tin gần nhất + bỏ base64 cũ
+          const contents = chatExecutor.buildHistoryGemini(history);
+          // CHỈ gửi thinkingConfig khi thinking_level = 'deep' (xem ghi chú BUG 400 INVALID_ARGUMENT)
+          const genConfig = thinking_level === 'deep' ? { thinkingConfig: { thinkingBudget: 8192 } } : {};
+          const stream = await model.generateContentStream({ contents, systemInstruction: systemPrompt, generationConfig: genConfig });
+          for await (const chunk of stream.stream) {
+            const t = chunk.text();
+            if (t) { fullText += t; sendSSE({ type: 'token', text: t }); }
+          }
+        } catch (errGenS) {
+          // P1-10: throttle đúng 429/5xx thật
+          const _gms = String(errGenS && errGenS.message || '');
+          const _gsts = (errGenS && errGenS.status) || (parseInt((_gms.match(/\[(429|5\d\d)\D/)||[])[1], 10) || 0);
+          if (_gsts === 429 || (_gsts >= 500 && _gsts <= 599)) {
+            try { quotaManager.recordThrottle(selectedProvider); } catch {}
+          }
+          // FALLBACK CHUỖI (stream): Gemini stream lỗi ngay từ đầu (chưa token nào) → thử candidate kế tiếp.
+          // Nếu ĐÃ stream một phần → không fallback (tránh resposta trùng lặp), ném lên outer catch.
+          if (fullText.length === 0 && autoRouteInfo && autoRouteInfo.route && autoRouteInfo.route.candidates.length > 1) {
+            const fb = await chatExecutor.callWithFallback(autoRouteInfo.route.candidates.slice(1), { systemPrompt, history, thinkingLevel: thinking_level });
+            if (fb.ok) {
+              telemetry.recordFallback({ from: 'gemini', to: fb.provider, model: fb.model, reason: 'gemini stream lỗi (stream path)' });
+              fullText += fb.content;
+              sendSSE({ type: 'token', text: fb.content });
+            } else {
+              throw errGenS;
+            }
+          } else {
+            throw errGenS;
+          }
         }
       } else if (['openai', 'deepseek', 'groq', 'github', 'custom', 'xkiro', 'agentrouter', 'bai', 'kiosapi', 'unorouter', 'nvidia', 'mistral', 'cerebras', 'openrouter', 'mintrouter', 'kiraai', 'bazaarlink', 'opencode', 'kilo'].includes(selectedProvider)) {
         // ─── FALLBACK CHUỖI (stream): provider lỗi/429 → tự thử candidate kế tiếp ───
