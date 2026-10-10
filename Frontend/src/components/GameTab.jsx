@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { t, getLang } from '../i18n';
 import { Gamepad2, RefreshCw, ExternalLink, Monitor } from 'lucide-react';
 import GameFrame from './GameFrame';
 
@@ -9,6 +10,7 @@ const GAMES = [
 ];
 
 export default function GameTab({ showToast }) {
+  const lang = getLang();
   const [activeGame, setActiveGame] = useState('pacman');
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -59,14 +61,14 @@ export default function GameTab({ showToast }) {
           <button
             onClick={handleReload}
             className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-            title="Tải lại"
+            title={t(lang, 'tipReload')}
           >
             <RefreshCw size={14} className="transition-transform group-hover:rotate-90" />
           </button>
           <button
             onClick={handleOpenNewTab}
             className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all"
-            title="Mở tab mới"
+            title={t(lang, 'tipNewTab')}
           >
             <ExternalLink size={14} />
           </button>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t, getLang } from '../i18n';
 import { X, Download, Copy, Check, Loader2, Link2, FileText, MessageSquare, Layers, AlertTriangle, Play, Tv, Database, Upload, Search, Sparkles } from 'lucide-react';
 import { API_BASE } from '../config';
 
@@ -10,6 +11,7 @@ import { API_BASE } from '../config';
  * Tabs: "Cào link" (cũ) · "Kênh / Hôm nay" (list video kênh/playlist) · "RAG" (nạp + hỏi RAG).
  */
 export default function ScrapePanel({ open, onClose, token }) {
+  const lang = getLang();
   const [tab, setTab] = useState('link');
 
   // ── Tab "Cào link" (giữ nguyên) ──
@@ -502,7 +504,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 <button
                   onClick={runCommentSummary}
                   disabled={summaryLoading || !!loading}
-                  title="Crawl bình luận → tóm tắt chủ đề, sắc thái, top bình luận"
+                  title={t(lang, 'tipScrapeComments')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50"
                 >
                   {summaryLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
@@ -590,7 +592,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                     value={cq}
                     onChange={(e) => setCq(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') askComment(); }}
-                    placeholder="Hỏi về bình luận (vd: mọi người nói gì về...)"
+                    placeholder={t(lang, 'phAskComments')}
                     className="flex-1 bg-[#131417] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40"
                   />
                   <button
@@ -717,7 +719,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') runSearch(); }}
-                placeholder="vd: rexi game, @kenh, chủ đề..."
+                placeholder={t(lang, 'phScrapeSearch')}
                 className="w-full bg-[#131417] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40"
               />
               <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
@@ -756,7 +758,7 @@ export default function ScrapePanel({ open, onClose, token }) {
               <button
                 onClick={runDig}
                 disabled={digLoading}
-                title="Tự tìm + crawl kênh khớp nhất và tóm tắt chủ đề"
+                title={t(lang, 'tipAutoChannel')}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50"
               >
                 {digLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
@@ -916,7 +918,7 @@ export default function ScrapePanel({ open, onClose, token }) {
               <input
                 value={channelUrl}
                 onChange={(e) => setChannelUrl(e.target.value)}
-                placeholder="https://www.youtube.com/@channelname  hoặc  /channel/UC..."
+                placeholder={t(lang, 'phChannelUrl')}
                 className="w-full bg-[#131417] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40 font-mono"
               />
               <div className="flex items-center gap-4 text-[11px] text-slate-400">
@@ -1006,7 +1008,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 onClick={ingestToRag}
                 disabled={!!ragLoading || !ingestible()}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
-                title={ingestible() ? 'Nạp kết quả gần nhất' : 'Cào link/kênh trước'}
+                title={ingestible() ? (lang === 'vi' ? 'Nạp kết quả gần nhất' : 'Load latest results') : (lang === 'vi' ? 'Cào link/kênh trước' : 'Scrape a link/channel first')}
               >
                 {ragLoading === 'ingest' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                 Nạp kết quả vào RAG {ingestible() ? '' : '(chưa có kết quả)'}
@@ -1021,14 +1023,14 @@ export default function ScrapePanel({ open, onClose, token }) {
                 value={ragQuestion}
                 onChange={(e) => setRagQuestion(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') askRag(); }}
-                placeholder="Hỏi về dữ liệu vừa nạp…"
+                placeholder={t(lang, 'phAskData')}
                 className="w-full bg-[#131417] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40"
               />
               <div className="flex items-center gap-2">
                 <input
                   value={ragSource}
                   onChange={(e) => setRagSource(e.target.value)}
-                  placeholder="Lọc theo nguồn (tuỳ chọn)"
+                  placeholder={t(lang, 'phFilterSource')}
                   className="flex-1 bg-[#131417] border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder-slate-500 outline-none"
                 />
                 <button

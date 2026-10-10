@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { t, getLang } from '../i18n';
 import { Sparkles, Loader2, Download, Copy, Check, Trash2, Shuffle, History, X } from 'lucide-react';
 
 // Gợi ý prompt mẫu — bấm 1 phát điền
@@ -21,6 +22,7 @@ const SIZES = [
 ];
 
 export default function ImageGenTab({ API_BASE, authToken, showToast, imageModels = [] }) {
+  const lang = getLang();
   const [prompt, setPrompt] = useState('');
   const [image, setImage] = useState('');
   const [imageMeta, setImageMeta] = useState(null); // {prompt, modelLabel}
@@ -106,7 +108,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); generate(); } }}
-          placeholder="Mô tả ảnh bạn muốn tạo... Ví dụ: một chú mèo dễ thương đội mũ chef đang nấu ăn trong bếp hiện đại, phong cách anime"
+          placeholder={t(lang, 'phImgPrompt')}
           className="w-full min-h-[90px] bg-[#131416] border border-white/10 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 resize-none"
         />
         {/* Chips gợi ý — bấm điền nhanh */}
@@ -123,7 +125,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             value={picked}
             onChange={(e) => setPicked(e.target.value)}
             className="bg-[#131416] border border-white/10 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500/50 max-w-[280px]"
-            title="Model tạo ảnh (mặc định: Gemini builtin)"
+            title={t(lang, 'tipImgModel')}
           >
             <option value="">🖼️ Gemini (builtin — nhanh, free)</option>
             {imageModels.map(m => (
@@ -151,7 +153,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             {loading ? 'Đang tạo ảnh...' : 'Tạo ảnh'}
           </button>
           {prompt.trim() && !loading && (
-            <button onClick={generate} title="Tạo lại với cùng mô tả — được ảnh khác"
+            <button onClick={generate} title={t(lang, 'tipRegen')}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-200 text-xs border border-white/10 transition-all">
               <Shuffle size={14} /> Biến thể
             </button>
@@ -219,7 +221,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
                   <img src={h.image} alt={h.prompt} className="w-full h-full object-cover" />
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setHistory((arr) => arr.filter((_, j) => j !== i)); }}
-                  title="Xóa khỏi lịch sử"
+                  title={t(lang, 'tipDelImg')}
                   className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#26282b] border border-white/10 text-slate-400 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
                   <X size={11} />
                 </button>

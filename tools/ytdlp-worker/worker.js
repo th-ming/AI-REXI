@@ -258,6 +258,45 @@ async function downloadAudioFile(idOrUrl) {
   return { file, title, duration };
 }
 
+// Lấy SUBTITLE (manual subs) — chuẩn 100% (auto-captions kém Whisper trên
+// nhạc). --skip-download --write-subs --convert-subs srt; ưu tiên en > vi.
+// Trả { lang, ext, content, title, duration }; throw 'no-subs' nếu video
+// không có manual subs (route trả ok:false, service fallback Whisper).
+async function downloadSubsFile(idOrUrl) {
+  const url = watchUrl(idOrUrl);
+  const hasCookies = fs.existsSync(COOKIES_FILE);
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const outTpl = path.join(TMP_DIR, `subs_${stamp}`);
+  const args = [
+    '--skip-download', '--write-subs', '--convert-subs', 'srt',
+    '--no-playlist', '--no-warnings', '--socket-timeout', '20',
+    '--newline', '--print-json',
+    '-o', outTpl,
+  ];
+  if (hasCookies) args.push('--cookies', COOKIES_FILE);
+  args.push(url);
+  const out = await run(YTDLP, args, 120000);
+  let title = '', duration = null;
+  for (const line of out.split('\n').map(l => l.trim()).filter(Boolean)) {
+    try {
+      const j = JSON.parse(line);
+      if (j && (j.title || j.duration != null)) {
+        title = j.title || title;
+        duration = (j.duration == null ? duration : j.duration);
+      }
+    } catch (e) { /* dòng progress — bỏ qua */ }
+  }
+  const files = fs.readdirSync(TMP_DIR).filter(f => f.startsWith(`subs_${stamp}.`));
+  if (!files.length) throw new Error('no-subs');
+  const pick = files.find(f => /\.en\.srt$/i.test(f)) || files.find(f => /\.vi\.srt$/i.test(f)) || files[0];
+  const m = pick.match(/\.([A-Za-z-]{2,10})\.(srt|vtt)$/i);
+  const full = path.join(TMP_DIR, pick);
+  const content = fs.readFileSync(full, 'utf8');
+  try { fs.unlinkSync(full); } catch (e) { /* ignore */ }
+  return { lang: m ? m[1] : 'en', ext: m ? m[2].toLowerCase() : 'srt', content, title, duration };
+}
+
 async function audioHandler(req, res, idOrUrl) {
   const started = Date.now();
   try {
@@ -530,6 +569,20 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/audio') {
       if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id/url' })); }
       return await audioHandler(req, res, id);
+    }
+    if (u.pathname === '/subs') {
+      if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id/url' })); }
+      const started = Date.now();
+      try {
+        const cap = await downloadSubsFile(id);
+        console.log(`[worker] subs ok: ${cap.lang} ${cap.ext} "${cap.title}", ${Date.now() - started}ms`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: true, ...cap, ms: Date.now() - started }));
+      } catch (e) {
+        console.log(`[worker] subs fail: ${e.message}`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
     }
     if (u.pathname === '/comments') {
       if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id/url' })); }

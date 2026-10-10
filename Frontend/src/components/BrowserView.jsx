@@ -1,9 +1,11 @@
 import { apiFetch, API_BASE } from '../config';
+import { t, getLang } from '../i18n';
 import React, { useEffect, useRef, useState } from 'react';
 import { Maximize2, X, RefreshCw, Search, Loader2, Zap, Bot } from 'lucide-react';
 
 
 export default function BrowserView({ onClose }) {
+  const lang = getLang();
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
   const intentionalCloseRef = useRef(false);
@@ -247,7 +249,7 @@ export default function BrowserView({ onClose }) {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && navigate()}
-                placeholder="Nhập URL..."
+                placeholder={t(lang, 'phUrl')}
                 className="w-full pl-8 pr-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/50"
               />
             </div>
@@ -289,7 +291,7 @@ export default function BrowserView({ onClose }) {
               value={aiInstruction}
               onChange={(e) => setAiInstruction(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && runAIAction()}
-              placeholder="VD: Đăng nhập Facebook, Tìm kiếm 'AI news'..."
+              placeholder={t(lang, 'phTask')}
               className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-amber-500/50"
             />
             <button
@@ -369,7 +371,7 @@ export default function BrowserView({ onClose }) {
             <button
               onClick={() => canvasRef.current?.requestFullscreen()}
               className="p-1.5 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-              title="Toàn màn hình"
+              title={t(lang, 'tipFullscreen')}
             >
               <Maximize2 size={14} />
             </button>

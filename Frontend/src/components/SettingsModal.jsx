@@ -1,4 +1,5 @@
 import { API_BASE } from '../config';
+import { t, getLang } from '../i18n';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Settings, Eye, EyeOff, RefreshCw, Zap } from 'lucide-react';
 import SocialConnect from './SocialConnect';
@@ -22,6 +23,7 @@ export default function SettingsModal({
   provider, setProvider, modelName, setModelName,
   apiKey, setApiKey, baseUrl, setBaseUrl, showToast
 }) {
+  const lang = getLang();
   const [showApiKey, setShowApiKey] = useState(false);
   const [dynamicProviders, setDynamicProviders] = useState([]);
   const [loadingProviders, setLoadingProviders] = useState(false);
@@ -141,7 +143,7 @@ export default function SettingsModal({
             <Settings size={18} className="text-cyan-500" /> Cài Đặt Hệ Thống Rexi AI
           </h2>
           <div className="flex items-center gap-2">
-            <button onClick={fetchProviders} title="Tải lại danh sách Provider" className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">
+            <button onClick={fetchProviders} title={t(lang, 'tipProvReload')} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">
               <RefreshCw size={14} className={loadingProviders ? 'animate-spin text-cyan-500' : ''} />
             </button>
             <button onClick={() => setSettingsOpen(false)} className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white"><X size={16} /></button>
@@ -172,7 +174,7 @@ export default function SettingsModal({
               <label className="text-xs font-medium text-slate-400">Model AI (Tự quét từ API)</label>
               <div className="flex items-center gap-2">
                 {scanning && <span className="text-[10px] text-cyan-400 animate-pulse">Đang quét...</span>}
-                <button type="button" onClick={runScan} title="Quét lại danh sách model từ API"
+                <button type="button" onClick={runScan} title={t(lang, 'tipModelScan')}
                   className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
                   <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Quét lại
                 </button>
@@ -193,7 +195,7 @@ export default function SettingsModal({
                 type="text"
                 value={modelName}
                 onChange={e => { setModelName(e.target.value); localStorage.setItem('rexi_model', e.target.value); }}
-                placeholder={scanError ? 'Quét lỗi — nhập model tay hoặc sửa URL/key...' : 'Dán Base URL + API Key để tự quét model...'}
+                placeholder={scanError ? t(lang, 'phScanErr') : t(lang, 'phScan')}
                 className="w-full px-3 py-2.5 bg-[#0e0f16] border border-white/10 rounded-xl text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-cyan-400 font-mono"
               />
             )}
@@ -213,7 +215,7 @@ export default function SettingsModal({
                   type={showApiKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={e => { setApiKey(e.target.value); try { sessionStorage.setItem('rexi_api_key', e.target.value); } catch (err) { console.warn('[rexi] storage save failed', err); } }}
-                  placeholder={currentInfo.placeholder || 'Nhập API Key...'}
+                  placeholder={currentInfo.placeholder || t(lang, 'phApiKey')}
                   className="w-full px-3 py-2.5 bg-[#0e0f16] border border-white/10 rounded-xl text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-cyan-400 pr-10"
                 />
                 <button type="button" onClick={() => setShowApiKey(!showApiKey)}

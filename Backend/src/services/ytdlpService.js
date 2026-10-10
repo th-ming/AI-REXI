@@ -442,6 +442,78 @@ function extractVideoId(urlOrId) {
   return m ? m[1] : null;
 }
 
+// ── Captions-first (manual subs qua worker /subs) ─────────────────────────
+// Manual captions chuẩn 100% (auto-captions kém hơn Whisper trên nhạc) — có
+// manual subs thì trả srt + title + duration, route skip download+STT.
+async function fetchCaptionsSrt(vid, timeoutMs = 120000) {
+  if (!vid || !workerEnabled()) return null;
+  const q = new URLSearchParams({ id: vid });
+  if (WORKER_TOKEN) q.set('token', WORKER_TOKEN);
+  try {
+    const res = await fetch(`${WORKER_URL}/subs?${q.toString()}`, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data || !data.ok || !data.content) return null;
+    let srt = String(data.content);
+    if (data.ext === 'vtt') srt = vttToSrt(srt);
+    return { ok: true, lang: data.lang, ext: data.ext, srt, title: data.title, duration: data.duration };
+  } catch (e) {
+    console.log(`[ytdlpService] fetchCaptionsSrt(${vid}) failed: ${(e && e.message) || e}`);
+    return null;
+  }
+}
+
+// VTT → SRT text (phòng khi YouTube chỉ có vtt): cue id → số thứ tự, "." → ","
+function vttToSrt(vtt) {
+  const blocks = String(vtt || '').replace(/^WEBVTT[^\n]*\r?\n/, '').split(/\r?\n\r?\n/);
+  const out = [];
+  let n = 0;
+  for (const b of blocks) {
+    let lines = b.split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) continue;
+    if (!lines[0].includes('-->') && lines[1] && lines[1].includes('-->')) lines = lines.slice(1);
+    const ts = lines.find(l => l.includes('-->'));
+    if (!ts) continue;
+    const textLines = lines.filter(l => l !== ts);
+    n++;
+    out.push(String(n), ts.replace(/\./g, ','), ...textLines, '');
+  }
+  return out.join('\n').trim() + '\n';
+}
+
+// SRT → plain text cho LLM summarize (bỏ cue numbers + timestamps, ghép dòng)
+function transcriptFromSrt(srt) {
+  const lines = String(srt || '').split(/\r?\n/);
+  const out = [];
+  for (const line of lines) {
+    const l = line.trim();
+    if (!l) continue;
+    if (/^\d+$/.test(l)) continue;
+    if (l.includes('-->')) continue;
+    out.push(l);
+  }
+  return out.join(' ').replace(/ {2,}/g, ' ').trim();
+}
+
+// Dọn artifact transcript (STT/captions): collapse spaces, bỏ dòng lặp liên tiếp
+function cleanTranscriptText(text) {
+  const t = String(text || '').replace(/\r/g, '').replace(/[ \t]{2,}/g, ' ');
+  const lines = t.split('\n').map(l => l.trim());
+  const out = [];
+  for (const l of lines) {
+    if (l && out.length && out[out.length - 1] === l) continue;
+    out.push(l);
+  }
+  return out.join('\n').trim();
+}
+
+// Dọn SRT artifact: bỏ header WEBVTT sót
+function cleanSrtArtifacts(srt) {
+  if (!srt) return null;
+  const text = String(srt).replace(/^WEBVTT[^\n]*\r?\n?/i, '').trim();
+  return text ? text + '\n' : null;
+}
+
 // Probe stream thật: Range request 1KB — chỉ nhận 200/206 + content-type video|audio.
 async function probeStream(url) {
   try {
@@ -786,4 +858,4 @@ function isYouTubeProxyHost(host) {
   return known.includes(h);
 }
 
-module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, getLadderErrors, warmPotProvider, isYouTubeProxyHost };
+module.exports = { searchVideos, getVideoStream, downloadAudio, getStatus, getLadderErrors, warmPotProvider, isYouTubeProxyHost, extractVideoId, fetchCaptionsSrt, transcriptFromSrt, cleanTranscriptText, cleanSrtArtifacts };

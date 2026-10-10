@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { t, getLang } from '../i18n';
 import { Search, Play, Loader2, ArrowLeft, MonitorPlay, Clock, Eye, Sparkles, FileText, ChevronDown, ChevronUp , Subtitles, Download, AlertTriangle, ThumbsUp, ThumbsDown, Share2, MessageSquare, History, PictureInPicture2, Gauge, Check } from 'lucide-react';
 import Hls from 'hls.js';
 import { API_BASE } from '../config';
@@ -172,6 +173,7 @@ function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
 
 export default function YouTubeTab({ API_BASE: _api, authToken,
 showToast, active }) {
+  const lang = getLang();
   const [query, setQuery] = useState('');
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -698,7 +700,7 @@ showToast, active }) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Tìm video, nhạc, phim, bài giảng... (không quảng cáo)"
+                  placeholder={t(lang, 'phYtSearch')}
                   className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 outline-none"
                 />
                 <button
@@ -830,7 +832,7 @@ showToast, active }) {
             {!loading && videos.length === 0 && !error && (
               <div className="max-w-2xl mx-auto mt-10 text-center">
                 <MonitorPlay size={44} className="mx-auto text-slate-700" />
-                <p className="text-sm text-slate-500 mt-3 font-medium">Xem YouTube không quảng cáo, hoàn toàn miễn phí</p>
+                <p className="text-sm text-slate-500 mt-3 font-medium">{t(lang, 'ytFreeBanner')}</p>
                 <p className="text-[11px] text-slate-600 mt-1">Gõ từ khóa ở trên để bắt đầu. Dùng chính backend yt-dlp — không ads, không tracking.</p>
               </div>
             )}
@@ -870,7 +872,7 @@ showToast, active }) {
                     <button
                       onClick={() => tryPlay(true)}
                       className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 hover:bg-black/50 transition-colors"
-                      title="Bấm để phát"
+                      title={t(lang, 'tipClickPlay')}
                     >
                       <span className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-2xl transition-all">
                         <Play size={26} className="text-white ml-1" fill="currentColor" />
@@ -923,7 +925,7 @@ showToast, active }) {
                   >
                     <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} /> Thích
                   </button>
-                  <button className="px-3.5 py-2 text-white hover:bg-white/10 transition-all" title="Không thích">
+                  <button className="px-3.5 py-2 text-white hover:bg-white/10 transition-all" title={t(lang, 'tipDislike')}>
                     <ThumbsDown size={13} />
                   </button>
                 </div>
@@ -937,7 +939,7 @@ showToast, active }) {
                   <button
                     onClick={enterPip}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
-                    title="Mở cửa sổ nổi để vừa xem vừa làm việc khác"
+                    title={t(lang, 'tipPopout')}
                   >
                     <PictureInPicture2 size={13} /> {pipActive ? 'Đang phát nền' : 'Phát nền'}
                   </button>
@@ -947,7 +949,7 @@ showToast, active }) {
                     onClick={downloadVideo}
                     disabled={downloading}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all disabled:opacity-50"
-                    title="Tải file video về máy"
+                    title={t(lang, 'tipDownloadVid')}
                   >
                     {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} {downloading ? 'Đang tải...' : 'Tải xuống'}
                   </button>
@@ -997,7 +999,7 @@ showToast, active }) {
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
-                        placeholder="Viết bình luận trong app... (Enter để gửi)"
+                        placeholder={t(lang, 'phYtComment')}
                         rows={commentRows}
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/60 resize-none"
                       />
@@ -1051,7 +1053,7 @@ showToast, active }) {
                         value={commentText}
                         onChange={(e) => setCommentText(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
-                        placeholder="Hãy là người đầu tiên bình luận trong app... (Enter để gửi)"
+                        placeholder={t(lang, 'phYtCommentFirst')}
                         rows={commentRows}
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-400/60 resize-none"
                       />
@@ -1098,7 +1100,7 @@ showToast, active }) {
                         <button
                           onClick={downloadSrt}
                           className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
-                          title="Tải file .srt"
+                          title={t(lang, 'tipDownloadSrt')}
                         >
                           <Download size={11} /> SRT
                         </button>

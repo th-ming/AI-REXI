@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { t, getLang } from '../i18n';
 import { FileText, Upload, Loader2, Trash2, RefreshCw, File, CheckCircle2 } from 'lucide-react';
 
 export default function DocumentsTab({ API_BASE, authToken, showToast }) {
+  const lang = getLang();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -140,7 +142,7 @@ export default function DocumentsTab({ API_BASE, authToken, showToast }) {
                 </p>
               </div>
               <button onClick={() => removeDoc(d.ma_tai_lieu, d.ten_file)}
-                className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-500" title="Xóa">
+                className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-500" title={t(lang, 'tipDelete')}>
                 <Trash2 size={16} />
               </button>
             </div>

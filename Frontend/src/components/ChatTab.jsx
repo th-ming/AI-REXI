@@ -184,7 +184,7 @@ export default function ChatTab({
                         <span>{copiedId === msg.ma_tin_nhan ? t(lang, 'copied') : t(lang, 'copy')}</span>
                       </button>
                       <div className="relative">
-                        <button onClick={doShare} className="flex items-center gap-1 hover:text-cyan-400 transition-colors" title="Chia sẻ hội thoại (tạo link gửi bạn bè)">
+                        <button onClick={doShare} className="flex items-center gap-1 hover:text-cyan-400 transition-colors" title={t(lang, 'tipShare')}>
                           <Share2 size={13} />
                           <span>Chia sẻ</span>
                         </button>
@@ -221,11 +221,11 @@ export default function ChatTab({
                   )}
                   {msg.vai_tro === 'user' && (
                     <div className="flex items-center justify-end gap-3 mt-2 text-[11px] text-white/70 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                      <button onClick={() => copyToClipboard(msg.noi_dung, msg.ma_tin_nhan)} className="flex items-center gap-1 hover:text-white transition-colors" title="Sao chép">
+                      <button onClick={() => copyToClipboard(msg.noi_dung, msg.ma_tin_nhan)} className="flex items-center gap-1 hover:text-white transition-colors" title={t(lang, 'tipCopy')}>
                         {copiedId === msg.ma_tin_nhan ? <Check size={12} /> : <Copy size={12} />}
                         <span>{copiedId === msg.ma_tin_nhan ? 'Đã chép' : 'Chép'}</span>
                       </button>
-                      <button onClick={() => { setInputText?.(msg.noi_dung || ''); taRef.current?.focus(); }} className="flex items-center gap-1 hover:text-white transition-colors" title="Sửa & gửi lại">
+                      <button onClick={() => { setInputText?.(msg.noi_dung || ''); taRef.current?.focus(); }} className="flex items-center gap-1 hover:text-white transition-colors" title={t(lang, 'tipEditResend')}>
                         <Pencil size={12} />
                         <span>Sửa</span>
                       </button>
@@ -257,12 +257,12 @@ export default function ChatTab({
           {(showScrollTop || showScrollBottom) && (
             <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-30 flex items-center gap-1 p-1 rounded-full bg-[var(--bg-card)]/95 backdrop-blur border border-[var(--border-color)] shadow-lg">
               {showScrollTop && (
-                <button onClick={scrollToTopSmooth} title="Về đầu đoạn chat" className="w-8 h-8 rounded-full text-[var(--text-sub)] hover:text-cyan-500 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-all">
+                <button onClick={scrollToTopSmooth} title={t(lang, 'tipToTop')} className="w-8 h-8 rounded-full text-[var(--text-sub)] hover:text-cyan-500 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-all">
                   <ArrowUp size={15} />
                 </button>
               )}
               {showScrollBottom && (
-                <button onClick={scrollToBottomSmooth} title="Xuống tin mới nhất" className="w-8 h-8 rounded-full text-[var(--text-sub)] hover:text-cyan-500 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-all">
+                <button onClick={scrollToBottomSmooth} title={t(lang, 'tipToLatest')} className="w-8 h-8 rounded-full text-[var(--text-sub)] hover:text-cyan-500 hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-all">
                   <ArrowDown size={15} />
                 </button>
               )}
@@ -292,7 +292,7 @@ export default function ChatTab({
                   </div>
                 )}
               </div>
-              <button onClick={() => onRemoveFile?.(i)} className="shrink-0 text-slate-400 hover:text-rose-400 transition-colors" title="Bỏ tệp">
+              <button onClick={() => onRemoveFile?.(i)} className="shrink-0 text-slate-400 hover:text-rose-400 transition-colors" title={t(lang, 'tipRemoveFile')}>
                 <X size={13} />
               </button>
             </div>
@@ -471,14 +471,14 @@ export default function ChatTab({
             className="flex-1 bg-transparent text-sm text-slate-200 placeholder-slate-500 outline-none resize-none max-h-32 px-2 py-1.5 leading-6"
           />
 
-          <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-white/5 transition-all" title="Đính kèm file (PDF/Word/hình ảnh — AI tự đọc nội dung khi gửi)">
+          <button onClick={() => fileInputRef.current?.click()} className="p-2 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-white/5 transition-all" title={t(lang, 'tipAttach')}>
             <Paperclip size={16} />
           </button>
 
           <button
             onClick={hasSendText ? () => handleSendMessage() : startVoice}
             disabled={hasSendText && loading}
-            title={hasSendText ? 'Gửi tin nhắn' : 'Nhập bằng giọng nói: bấm → nói tiếng Việt → chữ tự điền vào ô chat'}
+            title={hasSendText ? (lang === 'vi' ? 'Gửi tin nhắn' : 'Send message') : t(lang, 'voiceInput')}
             className={`ml-1.5 p-2.5 rounded-xl transition-all shrink-0 ${
               hasSendText
                 ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-40 text-white shadow-md'

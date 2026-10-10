@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { t, getLang } from '../i18n';
 import { Loader2, RefreshCw, Bot, Wifi, WifiOff, Send, ChevronDown, Camera } from 'lucide-react';
 import { OPENCUT_URL } from '../config';
 
 export default function OpenCutTab({ authToken, showToast }) {
+  const lang = getLang();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [key, setKey] = useState(0);
@@ -134,7 +136,7 @@ function AgentBridgePanel({ token, showToast }) {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
               rows={2}
-              placeholder="vd: tạo project mới, rồi liệt kê các nút đang có"
+              placeholder={t(lang, 'phOpencut')}
               className="w-full resize-none rounded-lg bg-black/30 border border-white/10 text-[12px] text-slate-100 px-2.5 py-2 focus:outline-none focus:border-cyan-400/50 placeholder:text-slate-600"
             />
             <div className="flex items-center gap-2 mt-2">

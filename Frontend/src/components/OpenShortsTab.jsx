@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { t, getLang } from '../i18n';
 import { Scissors, Loader2, Download, Copy, Sparkles, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import { apiFetch } from '../config';
 
@@ -11,6 +12,7 @@ function fullVideoUrl(u) {
 }
 
 export default function OpenShortsTab({ authToken, showToast }) {
+  const lang = getLang();
   const [url, setUrl] = useState('');
   const [targetClips, setTargetClips] = useState('');
   const [captions, setCaptions] = useState(true);
@@ -160,7 +162,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
         <span className="text-[10px] text-slate-500 whitespace-nowrap hidden sm:inline">Video dài → Shorts 9:16 tự động</span>
         <div className="flex-1" />
         {quota && (
-          <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 whitespace-nowrap" title="Quota miễn phí: 20 phút mỗi tháng">
+          <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 whitespace-nowrap" title={t(lang, 'tipQuota')}>
             <Clock size={11} className="inline mr-1 -mt-0.5" />
             {quota.remaining}/{quota.plan_allowance} phút
           </span>
@@ -175,7 +177,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=... (video ≥45 giây)"
+              placeholder={t(lang, 'phShortsUrl')}
               className="flex-1 min-w-0 bg-[var(--bg-main)] border border-white/10 rounded-lg px-3 py-2 text-xs text-[var(--text-main)] placeholder-slate-500 outline-none focus:border-fuchsia-500/40 font-mono"
             />
             <button
@@ -289,7 +291,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
                   />
                   <div className="p-2.5 flex flex-col gap-1.5 flex-1">
                     <div className="flex items-start gap-2">
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 shrink-0" title="Điểm viral dự đoán">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 shrink-0" title={t(lang, 'tipViral')}>
                         {c.predicted_score ?? '?'}/10
                       </span>
                       <span className="text-xs font-semibold text-[var(--text-main)] leading-snug">{c.video_title_for_youtube_short}</span>

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { t, getLang } from '../i18n';
 import { Play, Pause, Download, Volume2, Mic, RotateCw, Loader2, Clock, Type, Hash, User, MapPin, Upload, Sparkles } from 'lucide-react';
 
 // Giọng THẬT của engine Microsoft Edge TTS (lấy đúng từ voices/list — không bịa).
@@ -31,6 +32,7 @@ const VOICE_COLORS = {
 const COLOR_KEYS = Object.keys(VOICE_COLORS);
 
 export default function StudioTab({ API_BASE, authToken, showToast }) {
+  const lang = getLang();
   const [text, setText] = useState('');
   const [voice, setVoice] = useState('vi-VN-HoaiMyNeural');
   const [voices, setVoices] = useState(FALLBACK_VOICES);
@@ -396,7 +398,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
               {[
                 ...(vieneuAvailable ? [['vieneu', 'VieNeu', 'VieNeu v3 Turbo (tự host, có clone giọng)']] : []),
                 ['edge-tts', 'Edge', 'Microsoft Edge TTS'],
-                ['ahm', 'ahm', 'ahm7xmakki TTS (miễn phí) — giọng Việt, không cần key'],
+                ['ahm', 'ahm', t(lang, 'stAhm')],
               ].map(([eng, lab, tip]) => (
                 <button
                   key={eng}
@@ -413,7 +415,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
             {engine === 'ahm' && (
               <span
                 className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold"
-                title="ahm7xmakki TTS — provider miễn phí, giọng Việt."
+                title={t(lang, 'stAhmTip')}
               >
                 Free
               </span>
@@ -447,7 +449,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
                 ref={textareaRef}
                 value={text}
                 onChange={e => setText(e.target.value)}
-                placeholder="Nhập nội dung cần chuyển thành giọng nói..."
+                placeholder={t(lang, 'phTts')}
                 className="w-full h-40 p-4 bg-[#12131a] border border-white/10 rounded-2xl text-sm text-slate-200 placeholder-slate-500 outline-none resize-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 transition-all font-sans leading-relaxed"
                 maxLength={1000}
               />
@@ -507,7 +509,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
                             ? 'bg-red-500/20 text-red-400'
                             : `${vc.bg} ${vc.text} opacity-0 group-hover:opacity-100`
                         }`}
-                        title={isPreviewing ? 'Dừng' : 'Nghe thử'}
+                        title={isPreviewing ? (lang === 'vi' ? 'Dừng' : 'Stop') : t(lang, 'tipTryVoice')}
                       >
                         {isPreviewing ? <Pause size={10} /> : <Play size={10} className="ml-0.5" />}
                       </button>
@@ -639,14 +641,14 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
                   <textarea
                     value={cloneText}
                     onChange={e => setCloneText(e.target.value)}
-                    placeholder="Câu cần đọc bằng giọng clone..."
+                    placeholder={t(lang, 'phClone')}
                     maxLength={1000}
                     className="w-full h-20 p-3 bg-[#12131a] border border-white/10 rounded-xl text-sm text-slate-200 placeholder-slate-500 outline-none resize-none focus:border-fuchsia-500/50 transition-all"
                   />
                   <input
                     value={cloneRefText}
                     onChange={e => setCloneRefText(e.target.value)}
-                    placeholder="(Tùy chọn) Nội dung đúng của file mẫu — giúp clone chính xác hơn"
+                    placeholder={t(lang, 'phRefText')}
                     maxLength={500}
                     className="w-full px-3 py-2 bg-[#12131a] border border-white/10 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-fuchsia-500/50 transition-all"
                   />
@@ -705,7 +707,7 @@ export default function StudioTab({ API_BASE, authToken, showToast }) {
                       <input
                         value={voiceName}
                         onChange={e => setVoiceName(e.target.value)}
-                        placeholder="Tên giọng (VD: Giọng anh Tuấn)..."
+                        placeholder={t(lang, 'phVoiceName')}
                         maxLength={60}
                         className="flex-1 px-3 py-2 bg-[#12131a] border border-white/10 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/50 transition-all"
                       />

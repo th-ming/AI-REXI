@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t, getLang } from '../i18n';
 import { Loader2, ExternalLink, GraduationCap, RefreshCw } from 'lucide-react';
 
 // OpenMAIC (THU-MAIC, MIT) — "Open Multi-Agent Interactive Classroom":
@@ -9,6 +10,7 @@ import { Loader2, ExternalLink, GraduationCap, RefreshCw } from 'lucide-react';
 const OPENMAIC_URL = 'https://open.maic.chat/';
 
 export default function ClassroomTab() {
+  const lang = getLang();
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [proxySrc, setProxySrc] = useState('');
@@ -39,7 +41,7 @@ export default function ClassroomTab() {
           <button
             onClick={() => setReloadKey(k => k + 1)}
             className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-card)] border border-white/10 text-[11px] text-slate-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1"
-            title="Tải lại lớp học"
+            title={t(lang, 'clsReload')}
           >
             <RefreshCw size={12} /> Tải lại
           </button>
@@ -48,7 +50,7 @@ export default function ClassroomTab() {
             target="_blank"
             rel="noopener noreferrer"
             className="px-2.5 py-1.5 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 text-[11px] font-medium hover:bg-teal-500/25 transition-all flex items-center gap-1"
-            title="Mở OpenMAIC trong tab mới (đăng nhập đầy đủ hơn)"
+            title={t(lang, 'clsNewTab')}
           >
             <ExternalLink size={12} /> Tab mới
           </a>
@@ -67,7 +69,7 @@ export default function ClassroomTab() {
           <iframe
             key={reloadKey}
             src={proxySrc}
-            title="Lớp Học AI — OpenMAIC"
+            title={t(lang, 'clsTitle')}
             className="w-full h-full border-0"
             allow="autoplay; fullscreen; clipboard-write; microphone; camera"
             onLoad={() => setLoading(false)}

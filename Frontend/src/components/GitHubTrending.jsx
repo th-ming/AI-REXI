@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { t, getLang } from '../i18n';
 import { API_BASE, apiFetch } from '../config';
 import { mdToHtml, sanitizeHtml } from '../utils/sanitize';
 import {
@@ -82,7 +83,7 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
           {/* Rank + Name */}
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-[10px] font-bold text-slate-500 w-5 text-right">#{repo.rank || index + 1}</span>
-            <button onClick={() => onOpenDetail(repo)} title="Xem chi tiết"
+            <button onClick={() => onOpenDetail(repo)} title={t(lang, 'tipDetail')}
               className="text-sm font-semibold text-cyan-400 hover:text-cyan-300 truncate flex items-center gap-1.5 transition-colors text-left">
               <GithubIcon size={13} className="shrink-0" />
               {repo.full_name}
@@ -135,7 +136,7 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
               <button
                 onClick={() => onStarRepo(repo)}
                 disabled={starringKey === repo.full_name}
-                title={isStarred ? 'Bỏ star' : 'Star repo này'}
+                title={isStarred ? (lang === 'vi' ? 'Bỏ star' : 'Unstar') : (lang === 'vi' ? 'Star repo này' : 'Star this repo')}
                 className={`p-0.5 rounded transition-all ${
                   isStarred
                     ? 'text-yellow-300 hover:text-yellow-200'
@@ -199,7 +200,7 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
           {/* TTS Button */}
           <button
             onClick={() => onSpeak(repo)}
-            title={isSpeaking ? 'Dừng đọc' : 'Đọc mô tả repo'}
+            title={isSpeaking ? (lang === 'vi' ? 'Dừng đọc' : 'Stop reading') : (lang === 'vi' ? 'Đọc mô tả repo' : 'Read repo description')}
             className={`p-2 rounded-lg border transition-all flex items-center justify-center ${
               isSpeaking
                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30 animate-pulse'
@@ -213,7 +214,7 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
           <button
             onClick={() => onStarRepo(repo)}
             disabled={starringKey === repo.full_name}
-            title={isStarred ? 'Bỏ star trên GitHub' : 'Star trên GitHub'}
+            title={isStarred ? (lang === 'vi' ? 'Bỏ star trên GitHub' : 'Unstar on GitHub') : (lang === 'vi' ? 'Star trên GitHub' : 'Star on GitHub')}
             className={`p-2 rounded-lg border transition-all disabled:opacity-40 flex items-center justify-center ${
               isStarred
                 ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/30'
@@ -466,6 +467,7 @@ function RepoDetailModal({ repo, token, onClose }) {
 
 // ══════════════════════════════════════════════════════════
 export default function GitHubTrending({ token, showToast }) {
+  const lang = getLang();
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1009,7 +1011,7 @@ export default function GitHubTrending({ token, showToast }) {
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
               <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Tìm repo..."
+                placeholder={t(lang, 'phRepoSearch')}
                 className="pl-8 pr-3 py-2 bg-[#131417] border border-white/10 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-purple-500/50 w-40" />
             </div>
             <button type="submit" disabled={searching || !searchQuery.trim()}

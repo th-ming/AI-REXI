@@ -1,10 +1,12 @@
 import React from 'react';
+import { t, getLang } from '../i18n';
 import { Play, Save, Eye } from 'lucide-react';
 
 export default function CodeEditorTab({
   selectedFile, fileContent = '', setFileContent,
   savingFile, handleSaveFile, liveHtml = '', setLiveHtml
 }) {
+  const lang = getLang();
   return (
     <div className="flex h-full w-full">
       {/* Code Editor Left */}
@@ -27,7 +29,7 @@ export default function CodeEditorTab({
         <textarea
           value={fileContent}
           onChange={e => setFileContent?.(e.target.value)}
-          placeholder="Chọn file từ tab Files, hoặc nhập HTML/CSS để preview..."
+          placeholder={t(lang, 'phCode')}
           className="flex-1 p-4 bg-[#0d0e11] font-mono text-xs text-slate-200 outline-none resize-none"
         />
       </div>

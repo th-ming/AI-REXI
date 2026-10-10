@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { t, getLang } from '../i18n';
 import { Share2, RefreshCw, CheckCircle2, Link2, Send } from 'lucide-react';
 import { API_BASE } from '../config';
 
@@ -15,6 +16,7 @@ const PLATFORM_META = {
  * Guard mọi fetch: lỗi/503 → hiện thông báo, KHÔNG crash tab khác.
  */
 export default function SocialConnect({ showToast }) {
+  const lang = getLang();
   const [platforms, setPlatforms] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -99,7 +101,7 @@ export default function SocialConnect({ showToast }) {
         <button
           type="button"
           onClick={load}
-          title="Tải lại trạng thái"
+          title={t(lang, 'tipStatusReload')}
           className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white"
         >
           <RefreshCw size={13} className={loading ? 'animate-spin text-cyan-500' : ''} />
@@ -146,7 +148,7 @@ export default function SocialConnect({ showToast }) {
                   value={drafts[p] || ''}
                   onChange={(e) => setDrafts((s) => ({ ...s, [p]: e.target.value }))}
                   rows={2}
-                  placeholder={`Viết nội dung đăng lên ${meta.label}...`}
+                  placeholder={(lang === 'vi' ? 'Viết nội dung đăng lên ' : 'Write the post content for ') + meta.label + '...'}
                   className="w-full px-3 py-2 bg-[#141522] border border-white/10 rounded-lg text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400 resize-none"
                 />
                 <button

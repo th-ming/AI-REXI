@@ -2,6 +2,7 @@
 // ADMIN PANEL - Rexi AI OS (Auto-Reloaded & Synced)
 // ═══════════════════════════════════════════════════════════
 import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { t, getLang } from './i18n';
 import {
   Shield, Users, MessageSquare, Key, Layers, Settings, Home,
   Activity, Trash2, Search, RefreshCw, ChevronLeft, ChevronRight,
@@ -200,7 +201,7 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
               type="text"
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              placeholder="Tìm email, tên người dùng..."
+              placeholder={t(lang, 'phAdminSearch')}
               className="pl-9 pr-3 py-2 bg-[#0d0e14] border border-white/10 rounded-xl text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 w-full sm:w-64 transition-all"
             />
           </div>
@@ -422,11 +423,11 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
                   </div>
                   <div className="flex items-center gap-1">
                     {convTab === 'all' ? (
-                      <button onClick={(e) => { e.stopPropagation(); deleteConv(c.ma_hoi_thoai); }} className="text-slate-500 hover:text-rose-400 p-1" title="Xoá mềm"><Trash2 size={12} /></button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteConv(c.ma_hoi_thoai); }} className="text-slate-500 hover:text-rose-400 p-1" title={t(lang, 'tipSoftDel')}><Trash2 size={12} /></button>
                     ) : (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); restoreConv(c.ma_hoi_thoai); }} className="text-slate-500 hover:text-emerald-400 p-1" title="Khôi phục"><RefreshCw size={12} /></button>
-                        <button onClick={(e) => { e.stopPropagation(); permanentDelete(c.ma_hoi_thoai); }} className="text-slate-500 hover:text-rose-400 p-1" title="Xoá vĩnh viễn"><Trash2 size={12} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); restoreConv(c.ma_hoi_thoai); }} className="text-slate-500 hover:text-emerald-400 p-1" title={t(lang, 'tipRestore')}><RefreshCw size={12} /></button>
+                        <button onClick={(e) => { e.stopPropagation(); permanentDelete(c.ma_hoi_thoai); }} className="text-slate-500 hover:text-rose-400 p-1" title={t(lang, 'tipHardDel')}><Trash2 size={12} /></button>
                       </>
                     )}
                   </div>
@@ -720,7 +721,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                   {weeklySchedule.label}
                 </button>
                 <button onClick={resetWeeklySchedule}
-                  className="text-[9px] text-slate-500 hover:text-violet-300 transition-colors" title="Reset về mặc định">↺</button>
+                  className="text-[9px] text-slate-500 hover:text-violet-300 transition-colors" title={t(lang, 'tipResetDef')}>↺</button>
               </>
             )}
           </div>
@@ -737,7 +738,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
               }
             }}
             className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors border border-rose-500/20 hover:border-rose-500/40"
-            title="Reset ngay — cache tự động reset hàng tuần CN→T2 00:00"
+            title={t(lang, 'tipResetNow')}
           >
             <Trash2 size={12} />
             Reset Cache
@@ -790,7 +791,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
             value={newKey}
             onChange={e => setNewKey(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && saveKey()}
-            placeholder="Nhập API Key mới (sk-..., AIzaSy..., gsk_...)"
+            placeholder={t(lang, 'phAdminKey')}
             className="flex-1 min-w-[220px] px-3.5 py-2 bg-[#0d0e14] border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 outline-none focus:border-amber-500/50 font-mono transition-all"
           />
 
@@ -860,12 +861,12 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                             </span>
                           )}
                           {(cache.needs_balance?.length || 0) > 0 && (
-                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/20" title="Model tồn tại nhưng trả phí — nạp tiền là dùng được">
+                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/20" title={t(lang, 'tipPaidAdmin')}>
                               {cache.needs_balance.length} Trả phí
                             </span>
                           )}
                           {(cache.skipped?.length || 0) > 0 && (
-                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-400 font-semibold border border-slate-500/20" title="Model không dùng cho chat (embed/stt/tts/ảnh) — không phải lỗi">
+                            <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-400 font-semibold border border-slate-500/20" title={t(lang, 'tipNonChat')}>
                               {cache.skipped.length} Khác loại
                             </span>
                           )}
@@ -924,7 +925,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                                   <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
                                   <span className="font-mono text-slate-400 truncate">{m.ma_model}</span>
                                 </div>
-                                <span className="text-[10px] text-rose-400 truncate max-w-[220px]" title={m.loi_chi_tiet}>❌ {m.loi_chi_tiet || 'Lỗi kết nối'}</span>
+                                <span className="text-[10px] text-rose-400 truncate max-w-[220px]" title={m.loi_chi_tiet}>❌ {m.loi_chi_tiet || (lang === 'vi' ? 'Lỗi kết nối' : 'Connection error')}</span>
                               </div>
                             ))}
                             {(cache.needs_balance || []).map(m => (
@@ -933,7 +934,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                                   <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
                                   <span className="font-mono text-slate-400 truncate">{m.ma_model}</span>
                                 </div>
-                                <span className="text-[10px] text-amber-400 truncate max-w-[220px]" title={m.loi_chi_tiet}>💰 {m.loi_chi_tiet || 'Trả phí'}</span>
+                                <span className="text-[10px] text-amber-400 truncate max-w-[220px]" title={m.loi_chi_tiet}>💰 {m.loi_chi_tiet || (lang === 'vi' ? 'Trả phí' : 'Paid')}</span>
                               </div>
                             ))}
                             {(cache.skipped || []).map(m => (
@@ -1030,7 +1031,7 @@ const SkillsTab = memo(function SkillsTab({ token, showToast }) {
                   <button
                     onClick={() => toggleSkill(s)}
                     disabled={toggling === s.ma_ky_nang}
-                    title={isActive ? 'Tắt kỹ năng này' : 'Bật kỹ năng này'}
+                    title={isActive ? (lang === 'vi' ? 'Tắt kỹ năng này' : 'Disable this skill') : (lang === 'vi' ? 'Bật kỹ năng này' : 'Enable this skill')}
                     className={`shrink-0 w-10 h-5 rounded-full transition-all relative ${
                       toggling === s.ma_ky_nang ? 'opacity-50' : ''
                     } ${isActive ? 'bg-purple-500' : 'bg-white/10'}`}
@@ -1117,7 +1118,7 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
           <div className="px-3 py-2 border-b border-white/5 text-[10px] text-slate-400 uppercase font-semibold">Danh sách hội thoại</div>
           <div className="px-3 py-2 border-b border-white/5">
             <input type="text" value={convSearch} onChange={e => setConvSearch(e.target.value)}
-              placeholder="Lọc theo email / tiêu đề..." className="w-full px-2.5 py-1.5 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] text-white placeholder-slate-500 outline-none" />
+              placeholder={t(lang, 'phAdminFilter')} className="w-full px-2.5 py-1.5 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] text-white placeholder-slate-500 outline-none" />
           </div>
           {convs.filter(c => {
             const q = convSearch.trim().toLowerCase();
@@ -1151,7 +1152,7 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
               </div>
               <div className="p-3 border-t border-white/5 flex gap-2">
                 <input type="text" value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendReply()}
-                  placeholder="Nhập phản hồi..." className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 outline-none" />
+                  placeholder={t(lang, 'phFeedback')} className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 outline-none" />
                 <button onClick={sendReply} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1"><Send size={12} /> Gửi</button>
               </div>
             </>
@@ -1250,7 +1251,7 @@ const SettingsTab = memo(function SettingsTab({ token, showToast }) {
           <h3 className="text-xs font-bold text-emerald-400 mb-3 flex items-center gap-1.5"><Terminal size={14} /> Terminal Exec</h3>
           <div className="flex gap-2">
             <input type="text" value={execCmd} onChange={e => setExecCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && runExec()}
-              placeholder="Nhập lệnh..." className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-500 outline-none font-mono" />
+              placeholder={t(lang, 'phAdminCmd')} className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-500 outline-none font-mono" />
             <button onClick={runExec} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold">Chạy</button>
           </div>
           {execOutput && <pre className="mt-2 p-2 bg-black/40 rounded-lg text-[11px] text-slate-300 font-mono max-h-32 overflow-auto">{execOutput}</pre>}
@@ -1566,7 +1567,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
             <div className="flex items-center gap-1.5 bg-[#0d0e11] border border-white/10 rounded-lg px-2 py-1">
               <Search size={12} className="text-slate-500" />
               <input value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value, page: 1 }))}
-                placeholder="Tìm kênh..." className="bg-transparent text-[11px] text-slate-200 placeholder-slate-500 outline-none w-28" />
+                placeholder={t(lang, 'phAdminCh')} className="bg-transparent text-[11px] text-slate-200 placeholder-slate-500 outline-none w-28" />
             </div>
           </div>
           <div className="max-h-[420px] overflow-y-auto">
@@ -1593,8 +1594,8 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
                     <td className="px-4 py-2 text-right text-slate-400">{ch.latency_ms > 0 ? `${ch.latency_ms}ms` : '—'}</td>
                     <td className="px-2 py-2 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(ch)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-sky-400" title="Sửa"><Pencil size={12} /></button>
-                        <button onClick={() => deleteChannel(ch)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-rose-400" title="Xóa"><Trash2 size={12} /></button>
+                        <button onClick={() => openEdit(ch)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-sky-400" title={t(lang, 'tipEdit')}><Pencil size={12} /></button>
+                        <button onClick={() => deleteChannel(ch)} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-rose-400" title={t(lang, 'tipDelete')}><Trash2 size={12} /></button>
                       </div>
                     </td>
                   </tr>
@@ -1660,7 +1661,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
                 <label className="block text-[11px] font-semibold text-slate-400 mb-1">Tên kênh *</label>
                 <input value={form.channel_name} onChange={e => setForm(f => ({ ...f, channel_name: e.target.value }))}
                   className="w-full px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-sm text-white outline-none focus:border-sky-500"
-                  placeholder="VD: VTV1 HD - Thời Sự" />
+                  placeholder={t(lang, 'phAdminVtv')} />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-slate-400 mb-1">URL stream *</label>
@@ -1825,6 +1826,7 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
 });
 
 export default function AdminPanel(props) {
+  const lang = getLang();
   const token = props.token || (() => { try { return localStorage.getItem('rexi_token') || null; } catch { return null; } })();
   const [currentUser, setCurrentUser] = useState(() => {
     if (props.currentUser) return props.currentUser;
@@ -1952,7 +1954,7 @@ export default function AdminPanel(props) {
 
             <button
               onClick={() => fetchStats()}
-              title="Làm mới dữ liệu"
+              title={t(lang, 'tipRefresh')}
               className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-slate-400 hover:text-white transition-all active:scale-95"
             >
               <RefreshCw size={14} className={statsLoading ? 'animate-spin text-cyan-400' : ''} />
@@ -1961,7 +1963,7 @@ export default function AdminPanel(props) {
             {onClose && (
               <button
                 onClick={onClose}
-                title="Đóng Admin Panel"
+                title={t(lang, 'tipCloseAdmin')}
                 className="p-2 rounded-xl bg-white/5 hover:bg-rose-500/20 border border-white/5 text-slate-400 hover:text-rose-300 transition-all active:scale-95"
               >
                 <X size={14} />

@@ -1,4 +1,5 @@
 import React from 'react';
+import { t, getLang } from '../i18n';
 import { X, Terminal, GitBranch, Activity, Trash2, Zap } from 'lucide-react';
 
 export default function SuperToolsModal({
@@ -7,10 +8,11 @@ export default function SuperToolsModal({
   gitStatus, _gitDiff, fetchGitStatus, fetchGitDiff,
   memories, newMemory, setNewMemory, handleAddMemory, handleDeleteMemory
 }) {
+  const lang = getLang();
   if (!superToolsOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{backgroundColor:'rgba(0,0,0,.10)', transition:'background-color .2s'}} onClick={() => setSuperToolsOpen(false)}>
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
+      <div className="rexi-lightfix bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Zap size={16} className="text-amber-500" /> Super Tools (Terminal Exec, Git & Memory)
@@ -27,7 +29,7 @@ export default function SuperToolsModal({
           <div className="flex gap-2">
             <input type="text" value={execCommand} onChange={e => setExecCommand(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleExecCommand()}
-              placeholder="Nhập lệnh terminal..." className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 outline-none font-mono" />
+              placeholder={t(lang, 'phTerminal')} className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 outline-none font-mono" />
             <button onClick={handleExecCommand} className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium">Chạy</button>
           </div>
           {execOutput && <pre className="mt-2 p-2 bg-slate-100 rounded-lg text-[11px] text-slate-700 font-mono max-h-32 overflow-auto">{execOutput}</pre>}
@@ -53,7 +55,7 @@ export default function SuperToolsModal({
           <div className="flex gap-2 mb-2">
             <input type="text" value={newMemory} onChange={e => setNewMemory(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddMemory()}
-              placeholder="Thêm ghi chú..." className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 outline-none" />
+              placeholder={t(lang, 'phNote')} className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 outline-none" />
             <button onClick={handleAddMemory} className="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-medium">+ Lưu</button>
           </div>
           <div className="space-y-1 max-h-32 overflow-y-auto">

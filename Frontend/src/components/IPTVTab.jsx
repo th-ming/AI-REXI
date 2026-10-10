@@ -1,4 +1,5 @@
 import { API_BASE } from '../config';
+import { t, getLang } from '../i18n';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Tv, Globe, Play, Radio, Search } from 'lucide-react';
 import { ALL_IPTV_COUNTRIES } from '../data/iptvCountries.js';
@@ -72,6 +73,7 @@ export default function IPTVTab({
   hlsRef,
   fetchIPTV, iptvVideoRef,
 }) {
+  const lang = getLang();
   const safeChannels = iptvChannels || [];
 
   // Filter states
@@ -350,7 +352,7 @@ export default function IPTVTab({
                   type="text"
                   value={countrySearch}
                   onChange={e => setCountrySearch(e.target.value)}
-                  placeholder="Tìm quốc gia..."
+                  placeholder={t(lang, 'phCountry')}
                   className="w-full pl-6 pr-2 py-1 bg-[#1a1b24] border border-white/5 rounded text-[10px] text-white placeholder-slate-600 outline-none focus:border-rose-500/30"
                 />
               </div>
@@ -390,7 +392,7 @@ export default function IPTVTab({
             type="text"
             value={iptvSearch || ''}
             onChange={e => setIptvSearch?.(e.target.value)}
-            placeholder="Tìm kênh..."
+            placeholder={t(lang, 'phIptvChannel')}
             className="w-full mt-2 px-2 py-1.5 bg-[#1a1b24] border border-white/5 rounded-lg text-[10px] text-white placeholder-slate-600 outline-none focus:border-rose-500/30"
           />
         </div>
@@ -431,7 +433,7 @@ export default function IPTVTab({
       <div
         onMouseDown={handleMouseDown}
         className="w-1.5 h-full cursor-col-resize hover:bg-rose-500/30 active:bg-rose-500 transition-colors shrink-0 z-10 flex items-center justify-center group"
-        title="Kéo để co dãn"
+        title={t(lang, 'tipResize')}
       >
         <div className="w-0.5 h-8 bg-white/10 group-hover:bg-rose-300 rounded-full" />
       </div>
@@ -457,7 +459,7 @@ export default function IPTVTab({
                   className={`px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1.5 transition-all min-w-[86px] justify-center ${
                     embeddedSubOn ? 'bg-emerald-500/80 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
                   }`}
-                  title={embeddedSubOn ? 'Tắt phụ đề kênh (đồng bộ)' : `Bật phụ đề kênh: ${iptvEmbeddedSubs.map(s => s.name).join(', ')} (đồng bộ 100%, miễn phí)`}
+                  title={embeddedSubOn ? (lang === 'vi' ? 'Tắt phụ đề kênh (đồng bộ)' : 'Turn off channel subs (synced)') : `${t(lang, 'iptvSubOff')}: ${iptvEmbeddedSubs.map(s => s.name).join(', ')} (100% synced)`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${embeddedSubOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
                   <span className="truncate">Phụ Đề Kênh</span>
@@ -476,7 +478,7 @@ export default function IPTVTab({
                 className={`px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1.5 transition-all min-w-[80px] justify-center ${
                   iptvSubtitleOn ? 'bg-rose-500/80 text-white' : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
                 }`}
-                title="Phụ đề AI (nghe + dịch): TRỄ ~7-10s so với hình, mỗi giờ xem tốn ~720 request Whisper. Chỉ nên bật cho kênh ngoại ngữ cần dịch sang tiếng Việt."
+                title={lang === 'vi' ? 'Phụ đề AI (nghe + dịch): TRỄ ~7-10s so với hình, mỗi giờ xem tốn ~720 request Whisper. Chỉ nên bật cho kênh ngoại ngữ cần dịch sang tiếng Việt.' : 'AI subtitles (listen + translate): ~7-10s LAG behind video, ~720 Whisper requests per hour of viewing. Only enable for foreign-language channels you need translated.'}
               >
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${iptvSubtitleOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
                 <span className="truncate">Phụ Đề AI</span>

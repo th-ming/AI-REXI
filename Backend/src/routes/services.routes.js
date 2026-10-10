@@ -2199,12 +2199,6 @@ router.post('/youtube/summarize', async (req, res) => {
   try {
     // Tên file duy nhất — tránh đụng nhau giữa 2 request đồng thời
     const outPath = path.join(tempDir, `ytsum_${Date.now()}_${Math.random().toString(36).slice(2)}`);
-    const dl = await downloadAudio(url, outPath);
-    audioPath = dl && dl.file;
-
-    if (!audioPath || !fs.existsSync(audioPath)) {
-      return res.status(500).json({ success: false, error: 'Không tải được audio của video. Thử video khác.' });
-    }
 
     const groq = await getGroqClient();
     if (!groq) {
@@ -2215,32 +2209,64 @@ router.post('/youtube/summarize', async (req, res) => {
       });
     }
 
-    // ── Bước 1: Nhận diện giọng nói (Groq → fallback Gemini) ──
+    // ── Bước 0: Captions-first (manual subs qua worker /subs) — chuẩn 100%,
+    // auto-captions kém Whisper trên nhạc. Có manual subs → skip download+STT.
+    let videoTitle = '';
     let transcript = '';
     let sttSource = '';
     let srt = '';
     try {
-      const groqRes = await transcribeWithGroq(groq, audioPath);
-      transcript = groqRes.text;
-      srt = segmentsToSrt(groqRes.segments);
-      sttSource = 'groq';
-    } catch (e) {
-      console.log('[YouTube] Groq STT fail, fallback Gemini:', e.message);
-    }
-    if (!transcript) {
-      const gemini = await getGeminiClient(); // lấy lazily — chỉ khi cần fallback
-      if (gemini) {
-        try {
-          transcript = await transcribeWithGemini(gemini, audioPath);
-          sttSource = 'gemini';
-        } catch (e2) {
-          console.error('[YouTube] Gemini STT fail:', e2.message);
+      const vid0 = ytdlp.extractVideoId(url);
+      if (vid0) {
+        const cap = await ytdlp.fetchCaptionsSrt(vid0);
+        if (cap && cap.srt) {
+          srt = cap.srt;
+          transcript = ytdlp.transcriptFromSrt(srt);
+          videoTitle = cap.title || '';
+          sttSource = 'captions:' + (cap.lang || 'en');
         }
       }
+    } catch (e) {
+      console.log('[YouTube] captions-first fail, fallback STT:', e.message);
     }
+
     if (!transcript) {
-      return res.status(502).json({ success: false, error: 'Không nhận diện được giọng nói (cả Groq lẫn Gemini đều lỗi). Thử video khác.' });
+      const dl = await downloadAudio(url, outPath);
+      audioPath = dl && dl.file;
+
+      if (!audioPath || !fs.existsSync(audioPath)) {
+        return res.status(500).json({ success: false, error: 'Không tải được audio của video. Thử video khác.' });
+      }
+
+      // ── Bước 1: Nhận diện giọng nói (Groq → fallback Gemini) ──
+      try {
+        const groqRes = await transcribeWithGroq(groq, audioPath);
+        transcript = groqRes.text;
+        srt = segmentsToSrt(groqRes.segments);
+        sttSource = 'groq';
+      } catch (e) {
+        console.log('[YouTube] Groq STT fail, fallback Gemini:', e.message);
+      }
+      if (!transcript) {
+        const gemini = await getGeminiClient(); // lấy lazily — chỉ khi cần fallback
+        if (gemini) {
+          try {
+            transcript = await transcribeWithGemini(gemini, audioPath);
+            sttSource = 'gemini';
+          } catch (e2) {
+            console.error('[YouTube] Gemini STT fail:', e2.message);
+          }
+        }
+      }
+      if (!transcript) {
+        return res.status(502).json({ success: false, error: 'Không nhận diện được giọng nói (cả Groq lẫn Gemini đều lỗi). Thử video khác.' });
+      }
+      if (!videoTitle) videoTitle = dl?.title || '';
     }
+
+    // Dọn artifact cho CẢ 2 nguồn (captions/STT): collapse spaces + dòng lặp
+    transcript = ytdlp.cleanTranscriptText(transcript);
+    srt = ytdlp.cleanSrtArtifacts(srt);
 
     // ── Bước 2: Tóm tắt bằng LLM (Groq → fallback Gemini) ──
     // P1-11: summarizeWithGroq là async → phải await, bọc try/catch, validate string
@@ -2262,7 +2288,7 @@ router.post('/youtube/summarize', async (req, res) => {
       if (typeof summary !== 'string') summary = '';
     }
 
-    res.json({ success: true, title: dl?.title || '', transcript, summary, srt, stt_source: sttSource });
+    res.json({ success: true, title: videoTitle, transcript, summary, srt, stt_source: sttSource });
   } catch (err) {
     console.error('[YouTube] Summarize error:', err.message);
     // Lỗi có nguyên nhân rõ (bot-check, thiếu key, audio lỗi) → trả thẳng message

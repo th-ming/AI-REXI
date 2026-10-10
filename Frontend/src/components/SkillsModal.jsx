@@ -5,7 +5,7 @@ export default function SkillsModal({ skillsOpen, setSkillsOpen, dbSkills }) {
   if (!skillsOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" style={{backgroundColor:'rgba(0,0,0,.10)', transition:'background-color .2s'}} onClick={() => setSkillsOpen(false)}>
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
+      <div className="rexi-lightfix bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
             <Layers size={16} className="text-purple-500" /> Quản Lý Gói Kỹ Năng Agent (Skills Manager)

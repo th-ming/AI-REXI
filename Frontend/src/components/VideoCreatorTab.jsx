@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { t, getLang } from '../i18n';
 import {
   Video, Download, Loader2, Code,
   Sparkles, Check, ArrowLeft, ArrowRight, Info,
@@ -375,6 +376,7 @@ function utf8ToBase64(str) {
 }
 
 export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
+  const lang = getLang();
   const [step, setStep] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState(EASY_TEMPLATES[0]);
   const [fields, setFields] = useState(() => {
@@ -560,7 +562,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   ];
 
   return (
-    <div className="flex flex-col h-full w-full bg-white overflow-hidden">
+    <div className="rexi-lightfix flex flex-col h-full w-full bg-white overflow-hidden">
       {/* Header */}
       <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -625,7 +627,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                         ? 'text-emerald-400 hover:bg-slate-100'
                         : 'text-slate-600'
                   }`}
-                  title={s.n < step ? 'Quay lại bước này' : s.label}
+                  title={s.n < step ? (lang === 'vi' ? 'Quay lại bước này' : 'Go back to this step') : s.label}
                 >
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
                     step > s.n ? 'bg-emerald-500 text-white' : step === s.n ? 'bg-[#4a7dff] text-white' : 'bg-slate-200/10 text-slate-500'
@@ -672,7 +674,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
                 rows={2}
-                placeholder="VD: chú mèo vàng đội kính râm đi dạo trên bãi biển lúc hoàng hôn"
+                placeholder={t(lang, 'phVcPrompt')}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
               />
               <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -694,7 +696,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 <input
                   value={aiImageUrl}
                   onChange={(e) => setAiImageUrl(e.target.value)}
-                  placeholder="(tuỳ chọn) URL ảnh để tạo video từ ảnh"
+                  placeholder={t(lang, 'phVcImg')}
                   className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
                 />
                 <button
@@ -940,7 +942,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                  onChange={e => { setAdvHtml(e.target.value); }}
                  rows={6}
                  className="w-full p-3 bg-slate-900 text-green-300 font-mono text-[11px] leading-relaxed outline-none resize-none border border-slate-200 rounded-xl placeholder-slate-500"
-                 placeholder="Dán HTML của bạn vào đây..."
+                 placeholder={t(lang, 'phVcHtml')}
                  spellCheck={false}
                />
              </div>

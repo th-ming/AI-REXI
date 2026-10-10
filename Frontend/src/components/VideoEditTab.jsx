@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { t, getLang } from '../i18n';
 import { Loader2, UploadCloud, Wand2, Download, Film, Scissors, Type, Music, Crop, Gauge, Volume2, Image as ImageIcon } from 'lucide-react';
 
 const OPS = [
@@ -17,6 +18,7 @@ const field = 'w-full rounded-lg bg-black/30 border border-white/10 text-[12.5px
 const label = 'text-[11px] font-semibold text-slate-400 mb-1 block';
 
 export default function VideoEditTab({ authToken, showToast }) {
+  const lang = getLang();
   const [url, setUrl] = useState('');
   const [upPath, setUpPath] = useState('');
   const [upName, setUpName] = useState('');
@@ -96,7 +98,7 @@ export default function VideoEditTab({ authToken, showToast }) {
         {/* Nguồn */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mb-4">
           <span className={label}>Nguồn video</span>
-          <input className={field} placeholder="Dán URL video (https://...mp4)" value={url} onChange={e => { setUrl(e.target.value); setUpPath(''); }} />
+          <input className={field} placeholder={t(lang, 'phVeUrl')} value={url} onChange={e => { setUrl(e.target.value); setUpPath(''); }} />
           <div className="flex items-center gap-3 mt-2.5">
             <button onClick={() => fileRef.current && fileRef.current.click()} disabled={uploading}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-slate-200 text-[12px] font-semibold hover:bg-white/10 disabled:opacity-50">
@@ -121,40 +123,40 @@ export default function VideoEditTab({ authToken, showToast }) {
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             {op === 'trim' && (<>
-              <div><span className={label}>Bắt đầu (ss hoặc mm:ss)</span><input className={field} placeholder="0:05" value={p.start || ''} onChange={e => set('start', e.target.value)} /></div>
-              <div><span className={label}>Độ dài</span><input className={field} placeholder="0:30" value={p.duration || ''} onChange={e => set('duration', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veStart')}</span><input className={field} placeholder="0:05" value={p.start || ''} onChange={e => set('start', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veDur')}</span><input className={field} placeholder="0:30" value={p.duration || ''} onChange={e => set('duration', e.target.value)} /></div>
               <label className="col-span-2 flex items-center gap-2 text-[11.5px] text-slate-300 cursor-pointer">
                 <input type="checkbox" checked={!!p.loop} onChange={e => set('loop', e.target.checked)} /> Lặp nguồn cho đủ độ dài (video ngắn muốn kéo dài)
               </label>
             </>)}
             {op === 'concat' && (<>
-              <div className="col-span-2"><span className={label}>Thêm clip (mỗi dòng 1 URL)</span><textarea rows={3} className={field} placeholder="https://...mp4&#10;https://...mp4" value={p.extra || ''} onChange={e => set('extra', e.target.value)} /></div>
+              <div className="col-span-2"><span className={label}>{t(lang, 'veAddClip')}</span><textarea rows={3} className={field} placeholder="https://...mp4&#10;https://...mp4" value={p.extra || ''} onChange={e => set('extra', e.target.value)} /></div>
             </>)}
             {op === 'add_text' && (<>
-              <div className="col-span-2"><span className={label}>Nội dung chữ</span><input className={field} placeholder="Xin chào" value={p.text || ''} onChange={e => set('text', e.target.value)} /></div>
+              <div className="col-span-2"><span className={label}>{t(lang, 'veText')}</span><input className={field} placeholder={t(lang, 'phVeText')} value={p.text || ''} onChange={e => set('text', e.target.value)} /></div>
               <div><span className={label}>Vị trí</span>
                 <select className={field} value={p.position || 'bottom'} onChange={e => set('position', e.target.value)}><option value="top">Trên</option><option value="center">Giữa</option><option value="bottom">Dưới</option></select>
               </div>
-              <div><span className={label}>Màu (vd white, yellow)</span><input className={field} placeholder="white" value={p.color || ''} onChange={e => set('color', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veColor')}</span><input className={field} placeholder="white" value={p.color || ''} onChange={e => set('color', e.target.value)} /></div>
             </>)}
             {op === 'add_audio' && (<>
-              <div className="col-span-2"><span className={label}>Nhạc (URL mp3)</span><input className={field} placeholder="https://...mp3" value={p.audio || ''} onChange={e => set('audio', e.target.value)} /></div>
-              <div><span className={label}>Âm lượng nhạc (0–1)</span><input className={field} placeholder="0.3" value={p.mix || ''} onChange={e => set('mix', e.target.value)} /></div>
+              <div className="col-span-2"><span className={label}>{t(lang, 'veMusic')}</span><input className={field} placeholder="https://...mp3" value={p.audio || ''} onChange={e => set('audio', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veMusicVol')}</span><input className={field} placeholder="0.3" value={p.mix || ''} onChange={e => set('mix', e.target.value)} /></div>
             </>)}
             {op === 'resize' && (<>
-              <div><span className={label}>Rộng</span><input className={field} placeholder="1080" value={p.width || ''} onChange={e => set('width', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veWidth')}</span><input className={field} placeholder="1080" value={p.width || ''} onChange={e => set('width', e.target.value)} /></div>
               <div><span className={label}>Cao</span><input className={field} placeholder="1920" value={p.height || ''} onChange={e => set('height', e.target.value)} /></div>
             </>)}
             {op === 'speed' && (<>
-              <div><span className={label}>Hệ số tốc độ (vd 1.5)</span><input className={field} placeholder="1.5" value={p.speed || ''} onChange={e => set('speed', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veSpeed')}</span><input className={field} placeholder="1.5" value={p.speed || ''} onChange={e => set('speed', e.target.value)} /></div>
             </>)}
             {op === 'thumbnail' && (<>
-              <div><span className={label}>Lấy ảnh tại (giây)</span><input className={field} placeholder="1" value={p.at || ''} onChange={e => set('at', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veFrameAt')}</span><input className={field} placeholder="1" value={p.at || ''} onChange={e => set('at', e.target.value)} /></div>
             </>)}
             {op === 'make_video' && (<>
-              <div className="col-span-2"><span className={label}>Các slide (mỗi dòng: Tiêu đề | Phụ đề)</span><textarea rows={4} className={field} placeholder={"REXI AI | Trợ lý AI toàn năng\nDựng Video | Tự động từ 1 câu lệnh\nrexiai.bot.cd | Làm mọi thứ"} value={p.slides || ''} onChange={e => set('slides', e.target.value)} /></div>
-              <div><span className={label}>Giây mỗi slide</span><input className={field} placeholder="3" value={p.secondsPerSlide || ''} onChange={e => set('secondsPerSlide', e.target.value)} /></div>
-              <div><span className={label}>Nhạc nền (URL mp3, tùy chọn)</span><input className={field} placeholder="https://...mp3" value={p.music || ''} onChange={e => set('music', e.target.value)} /></div>
+              <div className="col-span-2"><span className={label}>{t(lang, 'veSlides')}</span><textarea rows={4} className={field} placeholder={"REXI AI | All-in-one AI assistant\nVideo Builder | Auto from one command\nrexiai.bot.cd | Do everything"} value={p.slides || ''} onChange={e => set('slides', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veSecPerSlide')}</span><input className={field} placeholder="3" value={p.secondsPerSlide || ''} onChange={e => set('secondsPerSlide', e.target.value)} /></div>
+              <div><span className={label}>{t(lang, 'veMusicBg')}</span><input className={field} placeholder="https://...mp3" value={p.music || ''} onChange={e => set('music', e.target.value)} /></div>
             </>)}
           </div>
 

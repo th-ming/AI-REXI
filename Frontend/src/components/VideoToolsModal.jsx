@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { t, getLang } from '../i18n';
 import { X, Play, Volume2, Wifi, ExternalLink, Copy } from 'lucide-react';
 
 const VIDEO_TOOLS = [
@@ -40,6 +41,7 @@ const VIDEO_TOOLS = [
 ];
 
 export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API_BASE, authToken, showToast }) {
+  const lang = getLang();
   const [copiedLink, setCopiedLink] = useState(null);
 
   const handleTTSTest = async () => {
@@ -136,7 +138,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
                         <button
                           onClick={handleTTSTest}
                           className="p-1 rounded-lg bg-cyan-500/20 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-500/30 transition-all"
-                          title="Thử giọng nói"
+                          title={t(lang, 'tipTryVoice')}
                         >
                           <Play size={12} />
                         </button>
@@ -145,7 +147,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
                         <button
                           onClick={() => handleCopyRepo(`https://github.com/${tool.name.split(' ')[0].toLowerCase()}`, tool.name)}
                           className="p-1 rounded-lg bg-slate-500/20 text-slate-400 hover:text-white hover:bg-slate-500/30 transition-all"
-                          title="Sao chép repo link"
+                          title={t(lang, 'tipCopyRepo')}
                         >
                           {copiedLink === tool.name ? <Copy size={11} className="text-emerald-400" /> : <ExternalLink size={11} />}
                         </button>
