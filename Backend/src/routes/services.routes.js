@@ -2152,23 +2152,55 @@ async function transcribeWithGemini(genAI, audioPath) {
   }
 }
 
-// Tóm tắt bằng Groq llama (có timeout)
+// Tóm tắt bằng Groq (thử nhiều model — model có thể bị Groq gỡ bất cứ lúc nào)
+const GROQ_SUMMARY_MODELS = ['llama-3.1-8b-instant', 'openai/gpt-oss-20b', 'qwen/qwen3-32b'];
 async function summarizeWithGroq(groq, text) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
+  if (!groq) return '';
+  for (const m of GROQ_SUMMARY_MODELS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 60000);
+    try {
+      const res = await groq.chat.completions.create({
+        model: m,
+        messages: [{ role: 'user', content: buildSummaryPrompt(text) }],
+        temperature: 0.4,
+        max_tokens: 1800,
+      }, { signal: controller.signal });
+      const out = String(res?.choices?.[0]?.message?.content || '').trim();
+      if (out) return out;
+    } catch (e) {
+      console.error('[YouTube] Groq LLM summarize error (' + m + '):', e.message);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return '';
+}
+
+// Tóm tắt bằng xkiro (nấc cuối — key trong DB, đã dùng ổn cho quickSummarize)
+async function summarizeWithXkiro(text) {
   try {
-    const res = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: buildSummaryPrompt(text) }],
-      temperature: 0.4,
-      max_tokens: 1800,
-    }, { signal: controller.signal });
-    return String(res?.choices?.[0]?.message?.content || '').trim();
+    const row = await new Promise((res) => db.get("SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = 'xkiro' LIMIT 1", [], (err, r) => res(r)));
+    if (!row || !row.gia_tri_khoa) return '';
+    let key = row.gia_tri_khoa;
+    try { key = decryptKey(key).trim(); } catch { key = String(key).trim(); }
+    if (!key) return '';
+    const r = await fetch('https://api.xkiro.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'mistralai/ministral-8b',
+        messages: [{ role: 'user', content: buildSummaryPrompt(text) }],
+        temperature: 0.4,
+        max_tokens: 1800
+      }),
+      signal: AbortSignal.timeout(60000)
+    });
+    const j = await r.json();
+    return String((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
   } catch (e) {
-    console.error('[YouTube] Groq LLM summarize error:', e.message);
+    console.error('[YouTube] xkiro summarize error:', e.message);
     return '';
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -2284,6 +2316,14 @@ router.post('/youtube/summarize', async (req, res) => {
         if (gemini) summary = await summarizeWithGemini(gemini, transcript);
       } catch (e) {
         console.error('[YouTube] Gemini summarize throw:', e.message);
+      }
+      if (typeof summary !== 'string') summary = '';
+    }
+    if (!summary) {
+      try {
+        summary = await summarizeWithXkiro(transcript);
+      } catch (e) {
+        console.error('[YouTube] xkiro summarize throw:', e.message);
       }
       if (typeof summary !== 'string') summary = '';
     }
