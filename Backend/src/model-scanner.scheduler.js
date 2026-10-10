@@ -391,6 +391,23 @@ function modalityOf(modelId) {
   return 'chat';
 }
 
+// Dem fetch-fail lien tiep theo provider (luu app_settings, khoi migration DB).
+// Fetch fail 3 lan lien tiep -> model khong kiem chung duoc -> TAT (song lai tu bat).
+async function getFailCount(providerId) {
+  try {
+    const row = await getRow('SELECT gia_tri FROM app_settings WHERE khoa = ?', ['scan_fail_' + providerId]);
+    const n = row ? parseInt(row.gia_tri, 10) : 0;
+    return isNaN(n) ? 0 : n;
+  } catch { return 0; }
+}
+async function setFailCount(providerId, n) {
+  try {
+    if (n <= 0) { await runSql('DELETE FROM app_settings WHERE khoa = ?', ['scan_fail_' + providerId]); return; }
+    await runSql(`INSERT INTO app_settings (khoa, gia_tri) VALUES (?, ?)
+      ON CONFLICT(khoa) DO UPDATE SET gia_tri = excluded.gia_tri`, ['scan_fail_' + providerId, String(n)]);
+  } catch { /* ignore */ }
+}
+
 async function scanProvider(providerId) {
   const cfg = PROVIDER_ENDPOINTS[providerId];
   if (!cfg) return { success: false, error: 'Unknown provider' };
@@ -411,8 +428,15 @@ async function scanProvider(providerId) {
   let { success, models, tiers, error } = await fetchModels(providerId, apiKey, cfg.endpoint, cfg.auth);
   if (!success) {
     console.error(`[ModelScanner] ${cfg.name} fetch failed: ${error}`);
+    const fails = await getFailCount(providerId) + 1;
+    await setFailCount(providerId, fails);
+    if (fails >= 3) {
+      const n = await runSql('UPDATE ai_models SET kich_hoat = 0 WHERE ma_nha_cung_cap = ? AND kich_hoat <> 0', [providerId]);
+      if (n) console.log(`[ModelScanner] ${cfg.name}: fetch fail ${fails} lan lien tiep -> tat ${n} model khong kiem chung duoc (endpoint/key song lai se tu bat)`);
+    }
     return { success: false, error };
   }
+  await setFailCount(providerId, 0);
   tiers = tiers || {};
 
   // Tier-aware (đọc từ listing, khỏi đốt call): free → lấy thẳng (không test);
