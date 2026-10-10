@@ -312,14 +312,24 @@ showToast, active }) {
         const res = await fetch(`${API_BASE}/services/youtube/status?_=${Date.now()}`, { headers: headers(), cache: 'no-store' });
         const data = await res.json();
         if (cancelled) return;
+        if (data.success && !data.ready) {
+          // Render free cold-start: instance vừa thức dậy báo chưa ready (binary/pot
+          // chưa warm). Tự thử lại thay vì khóa tab bằng banner — thường sẵn sàng sau vài giây.
+          if (retries < 4) {
+            retries += 1;
+            setEngineNote(`Engine YouTube đang khởi động — tự kiểm tra lại (${retries}/4)...`);
+            setTimeout(() => { if (!cancelled) check(); }, 5000);
+            return;
+          }
+        }
         setEngineReady(!!(data.success && data.ready));
         setEngineNote(data.note || (data.success && !data.ready ? 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.' : ''));
       } catch {
         if (!cancelled) {
           // Lỗi thoáng chốc (Render restart / mạng) — tự thử lại thay vì khóa banner vĩnh viễn
-          if (retries < 3) {
+          if (retries < 4) {
             retries += 1;
-            setEngineNote(`Không kiểm tra được engine YouTube — tự thử lại (${retries}/3)...`);
+            setEngineNote(`Không kiểm tra được engine YouTube — tự thử lại (${retries}/4)...`);
             setTimeout(() => { if (!cancelled) check(); }, 4000);
             return;
           }
