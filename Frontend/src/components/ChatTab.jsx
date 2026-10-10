@@ -54,16 +54,16 @@ export default function ChatTab({
     setSharePop({ open: true, loading: true, url: '', err: '' });
     try {
       const url = await onShare?.();
-      if (!url) throw new Error('Không tạo được link');
+      if (!url) throw new Error(t(lang, 'Không tạo được link'));
       setSharePop({ open: true, loading: false, url, err: '' });
     } catch (e) {
-      setSharePop({ open: true, loading: false, url: '', err: e.message || 'Lỗi tạo link' });
+      setSharePop({ open: true, loading: false, url: '', err: e.message || t(lang, 'Lỗi tạo link') });
     }
   };
 
   const shareTargets = (url) => {
     const u = encodeURIComponent(url);
-    const tx = encodeURIComponent('Xem hội thoại này trên Rexi AI');
+    const tx = encodeURIComponent(t(lang, 'Xem hội thoại này trên Rexi AI'));
     return [
       ['Telegram', `https://t.me/share/url?url=${u}&text=${tx}`],
       ['Messenger', `https://www.facebook.com/dialog/send?link=${u}&app_id=291494419107518&redirect_uri=${u}`],
@@ -164,7 +164,7 @@ export default function ChatTab({
                     <div className="bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-500/30 rounded-xl p-4">
                       <div className="flex items-center gap-1.5 mb-2 text-[11px] text-amber-400 font-semibold">
                         <span className="inline-block w-2 h-2 rounded-full bg-amber-400"></span>
-                        Phản hồi từ Admin
+                        {t(lang, 'Phản hồi từ Admin')}
                       </div>
                       <div dangerouslySetInnerHTML={{ __html: sanitizeMarkdown(msg.noi_dung || '') }} />
                     </div>
@@ -186,25 +186,25 @@ export default function ChatTab({
                       <div className="relative">
                         <button onClick={doShare} className="flex items-center gap-1 hover:text-cyan-400 transition-colors" title={t(lang, 'tipShare')}>
                           <Share2 size={13} />
-                          <span>Chia sẻ</span>
+                          <span>{t(lang, 'Chia sẻ')}</span>
                         </button>
                         {sharePop.open && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setSharePop(s => ({ ...s, open: false }))} />
                             <div className="absolute right-0 bottom-full mb-2 w-72 bg-[#141522] border border-white/10 rounded-xl shadow-2xl p-3 z-50 text-left">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Chia sẻ hội thoại</span>
+                                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{t(lang, 'Chia sẻ hội thoại')}</span>
                                 <button onClick={() => setSharePop(s => ({ ...s, open: false }))} className="text-slate-500 hover:text-white"><X size={13} /></button>
                               </div>
                               {sharePop.loading ? (
-                                <div className="text-[11px] text-slate-400 flex items-center gap-2"><Loader2 size={13} className="animate-spin" /> đang tạo link…</div>
+                                <div className="text-[11px] text-slate-400 flex items-center gap-2"><Loader2 size={13} className="animate-spin" /> {t(lang, 'đang tạo link…')}</div>
                               ) : sharePop.err ? (
                                 <div className="text-[11px] text-rose-400">{sharePop.err}</div>
                               ) : (
                                 <>
                                   <div className="flex gap-1.5">
                                     <input readOnly value={sharePop.url} className="flex-1 min-w-0 bg-[#0e0f16] border border-white/10 rounded-md px-2 py-1.5 text-[10px] text-slate-300 outline-none" />
-                                    <button onClick={() => copyToClipboard(sharePop.url, 'share')} className="px-2.5 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[10px] font-semibold hover:bg-cyan-500/30">{copiedId === 'share' ? 'Đã chép' : 'Chép'}</button>
+                                    <button onClick={() => copyToClipboard(sharePop.url, 'share')} className="px-2.5 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[10px] font-semibold hover:bg-cyan-500/30">{copiedId === 'share' ? t(lang, 'Đã chép') : t(lang, 'Chép')}</button>
                                   </div>
                                   <div className="grid grid-cols-2 gap-1.5 mt-2">
                                     {shareTargets(sharePop.url).map(([n, href]) => (
@@ -223,11 +223,11 @@ export default function ChatTab({
                     <div className="flex items-center justify-end gap-3 mt-2 text-[11px] text-white/70 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                       <button onClick={() => copyToClipboard(msg.noi_dung, msg.ma_tin_nhan)} className="flex items-center gap-1 hover:text-white transition-colors" title={t(lang, 'tipCopy')}>
                         {copiedId === msg.ma_tin_nhan ? <Check size={12} /> : <Copy size={12} />}
-                        <span>{copiedId === msg.ma_tin_nhan ? 'Đã chép' : 'Chép'}</span>
+                        <span>{copiedId === msg.ma_tin_nhan ? t(lang, 'Đã chép') : t(lang, 'Chép')}</span>
                       </button>
                       <button onClick={() => { setInputText?.(msg.noi_dung || ''); taRef.current?.focus(); }} className="flex items-center gap-1 hover:text-white transition-colors" title={t(lang, 'tipEditResend')}>
                         <Pencil size={12} />
-                        <span>Sửa</span>
+                        <span>{t(lang, 'Sửa')}</span>
                       </button>
                     </div>
                   )}
@@ -248,7 +248,7 @@ export default function ChatTab({
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-bounce"></span>
                 <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce [animation-delay:0.2s]"></span>
                 <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce [animation-delay:0.4s]"></span>
-                <span className="ml-2 font-medium">Rexi đang phân tích...</span>
+                <span className="ml-2 font-medium">{t(lang, 'Rexi đang phân tích...')}</span>
               </div>
             </div>
           )}
@@ -282,13 +282,13 @@ export default function ChatTab({
               <div className="min-w-0">
                 <div className="truncate max-w-[150px] font-medium">{f.name}</div>
                 <div className="text-[10px] text-slate-400">
-                  {f.isImage ? 'ảnh' : f.textContent ? `${Math.round((f.textContent.length || 0) / 1000)}k ký tự` : 'tệp'}
-                  {f.qr && f.qr.length ? ' · có QR' : ''}
+                  {f.isImage ? t(lang, 'ảnh') : f.textContent ? `${Math.round((f.textContent.length || 0) / 1000)}k ${t(lang, 'ký tự')}` : t(lang, 'tệp')}
+                  {f.qr && f.qr.length ? t(lang, ' · có QR') : ''}
                 </div>
                 {f.qr && f.qr.length > 0 && (
                   <div className="text-[10px] text-amber-300 break-all max-w-[210px]">
                     QR: {f.qr.join('  |  ')}
-                    {/^(https?:\/\/|www\.)/i.test(f.qr[0] || '') && <span className="text-rose-400"> ⚠ link — kiểm tra kỹ</span>}
+                    {/^(https?:\/\/|www\.)/i.test(f.qr[0] || '') && <span className="text-rose-400">{t(lang, '⚠ link — kiểm tra kỹ')}</span>}
                   </div>
                 )}
               </div>
@@ -308,9 +308,9 @@ export default function ChatTab({
             <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
           </span>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-bold text-rose-300 flex items-center gap-1.5"><Mic size={12} /> Đang nghe... Hãy nói tiếng Việt</p>
+            <p className="text-[11px] font-bold text-rose-300 flex items-center gap-1.5"><Mic size={12} /> {t(lang, 'Đang nghe... Hãy nói tiếng Việt')}</p>
             <p className="text-[11px] text-rose-200/70 truncate">
-              {voiceTranscript || 'Lời nói của bạn sẽ hiện ra ở đây...'}
+              {voiceTranscript || t(lang, 'Lời nói của bạn sẽ hiện ra ở đây...')}
             </p>
           </div>
           <button
@@ -352,7 +352,7 @@ export default function ChatTab({
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setChatModeOpen(false)} />
                 <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#141522] border border-white/10 rounded-2xl shadow-2xl p-1.5 z-50">
-                  <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 px-2.5 pt-1 pb-1.5">Chế độ trò chuyện</div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 px-2.5 pt-1 pb-1.5">{t(lang, 'Chế độ trò chuyện')}</div>
 
                   <button
                     type="button"
@@ -366,7 +366,7 @@ export default function ChatTab({
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-xs font-bold text-slate-100">Chat AI</span>
-                      <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">Trò chuyện AI thông thường</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">{t(lang, 'Trò chuyện AI thông thường')}</span>
                     </span>
                     {executionMode !== 'agent' && <Check size={14} className="text-cyan-300 shrink-0" />}
                   </button>
@@ -383,14 +383,14 @@ export default function ChatTab({
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-xs font-bold text-slate-100">Agent Mode</span>
-                      <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">Tự động thực thi code &amp; tác vụ</span>
+                      <span className="block text-[10px] text-slate-400 mt-0.5 leading-tight">{t(lang, 'Tự động thực thi code & tác vụ')}</span>
                     </span>
                     {executionMode === 'agent' && <Check size={14} className="text-purple-300 shrink-0" />}
                   </button>
 
                   {executionMode === 'agent' && (
                     <div className="mt-2 pt-1.5 border-t border-white/10">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 px-2.5 pb-1">Engine xử lý</div>
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-500 px-2.5 pb-1">{t(lang, 'Engine xử lý')}</div>
 
                       <button
                         type="button"
@@ -403,8 +403,8 @@ export default function ChatTab({
                           <Bot size={12} />
                         </span>
                         <span className="flex-1 min-w-0">
-                          <span className="block text-[11px] font-bold text-slate-200">Auto (tự chọn engine)</span>
-                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">Task ngắn → DSH nhanh, task dài → OpenCode</span>
+                          <span className="block text-[11px] font-bold text-slate-200">{t(lang, 'Auto (tự chọn engine)')}</span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">{t(lang, 'Task ngắn → DSH nhanh, task dài → OpenCode')}</span>
                         </span>
                         {agentEngine === 'auto' && <Check size={13} className="text-emerald-400 shrink-0" />}
                       </button>
@@ -421,7 +421,7 @@ export default function ChatTab({
                         </span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-[11px] font-bold text-slate-200">OpenCode</span>
-                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">Nhiều model, ổn định (mặc định)</span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">{t(lang, 'Nhiều model, ổn định (mặc định)')}</span>
                         </span>
                         {agentEngine === 'opencode' && <Check size={13} className="text-cyan-400 shrink-0" />}
                       </button>
@@ -438,7 +438,7 @@ export default function ChatTab({
                         </span>
                         <span className="flex-1 min-w-0">
                           <span className="block text-[11px] font-bold text-slate-200">DeepSeek Harness</span>
-                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">Nhanh hơn ~30% (thử nghiệm — server cloud tự chạy Agent nội bộ)</span>
+                          <span className="block text-[10px] text-slate-500 mt-0.5 leading-tight">{t(lang, 'Nhanh hơn ~30% (thử nghiệm — server cloud tự chạy Agent nội bộ)')}</span>
                         </span>
                         {agentEngine === 'dsh' && <Check size={13} className="text-purple-400 shrink-0" />}
                       </button>
