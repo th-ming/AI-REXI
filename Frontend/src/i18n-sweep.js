@@ -222,5 +222,9 @@ Object.assign(extra.en, {
 "Hủy": "Cancel",
 "clip đã cắt": "clips cut",
 "Tải MP4": "Download MP4",
-"Dán URL video YouTube (podcast, livestream, phỏng vấn…) → OpenShorts tự tìm khoảnh khắc viral, cắt clip 9:16, thêm phụ đề và hook.": "Paste a YouTube URL (podcast, livestream, interview…) → OpenShorts finds viral moments, cuts 9:16 clips, adds subtitles and hooks."
+"Dán URL video YouTube (podcast, livestream, phỏng vấn…) → OpenShorts tự tìm khoảnh khắc viral, cắt clip 9:16, thêm phụ đề và hook.": "Paste a YouTube URL (podcast, livestream, interview…) → OpenShorts finds viral moments, cuts 9:16 clips, adds subtitles and hooks.",
+"👤 KHÁCH HÀNG": "👤 CUSTOMER",
+"🛡️ ADMIN PHẢN HỒI": "🛡️ ADMIN REPLY",
+"🤖 TRỢ LÝ AI": "🤖 AI ASSISTANT",
+"Đang scan...": "Scanning..."
 });

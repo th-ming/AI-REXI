@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import React, { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { t, getLang } from './i18n';
+import { tx } from './i18n-sweep';
 import {
   Shield, Users, MessageSquare, Key, Layers, Settings, Home,
   Activity, Trash2, Search, RefreshCw, ChevronLeft, ChevronRight,
@@ -456,7 +457,7 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
                             : 'bg-[#131417]/40 border-white/5 text-slate-300'
                       }`}>
                         <div className="flex items-center justify-between mb-1.5 text-[10px] font-bold text-slate-400">
-                          <span>{isUser ? '👤 KHÁCH HÀNG' : isAdmin ? '🛡️ ADMIN PHẢN HỒI' : '🤖 TRỢ LÝ AI'}</span>
+                          <span>{isUser ? tx(getLang(), '👤 KHÁCH HÀNG') : isAdmin ? tx(getLang(), '🛡️ ADMIN PHẢN HỒI') : tx(getLang(), '🤖 TRỢ LÝ AI')}</span>
                         </div>
                         <p className="text-xs leading-relaxed whitespace-pre-wrap font-sans">{m.noi_dung}</p>
                       </div>
@@ -1451,7 +1452,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
         <div className="flex items-center gap-2">
           {status?.is_running && (
             <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-              <Radar size={12} className="animate-pulse" /> Đang scan...
+              <Radar size={12} className="animate-pulse" /> {tx(getLang(), 'Đang scan...')}
             </span>
           )}
           <button onClick={openAdd}
