@@ -73,6 +73,23 @@ function renderMarkdown(text) {
 // 16 request cùng lúc → nghẽn worker → avatar mãi không về (user thấy chữ cái).
 // Fix: hàng đợi giới hạn concurrency (3) + retry + dedupe request trùng.
 const avatarMemCache = new Map();   // channelId -> avatar_url
+// Nạp cache từ localStorage (avatar hiếm đổi) — reload không phải fetch lại từ đầu.
+try {
+  const raw = localStorage.getItem('rexi_yt_avatars');
+  if (raw) { const obj = JSON.parse(raw); Object.keys(obj).forEach((k) => avatarMemCache.set(k, obj[k])); }
+} catch { /* ignore */ }
+let avatarSaveTimer = null;
+function persistAvatarCache() {
+  if (avatarSaveTimer) return;
+  avatarSaveTimer = setTimeout(() => {
+    avatarSaveTimer = null;
+    try {
+      const obj = {};
+      for (const [k, v] of avatarMemCache) obj[k] = v;
+      localStorage.setItem('rexi_yt_avatars', JSON.stringify(obj));
+    } catch { /* ignore */ }
+  }, 800);
+}
 const avatarPending = new Map();    // queryKey -> Promise (dedupe request đang bay)
 const avatarQueue = { active: 0, max: 3, q: [] };
 function pumpAvatarQueue() {
@@ -87,7 +104,8 @@ function enqueueAvatar(task) {
 }
 async function fetchAvatarAttempt(query) {
   const ctl = new AbortController();
-  const to = setTimeout(() => ctl.abort(), 20000);
+  // Lần đầu resolve kênh qua worker (IP nhà) có thể tới ~22s → 20s cũ quá ngắn.
+  const to = setTimeout(() => ctl.abort(), 45000);
   try {
     const res = await fetch(`${API_BASE}/services/youtube/channel-avatar?${query}`, { signal: ctl.signal });
     const data = await res.json().catch(() => null);
@@ -122,7 +140,7 @@ function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
     loadAvatar(q)
       .then((data) => {
         if (cancelled || !data || !data.avatar_url) return;
-        if (data.channel_id) avatarMemCache.set(data.channel_id, data.avatar_url);
+        if (data.channel_id) { avatarMemCache.set(data.channel_id, data.avatar_url); persistAvatarCache(); }
         setSrc(data.avatar_url);
       })
       .catch(() => { /* giữ chữ cái fallback */ });
@@ -488,11 +506,16 @@ showToast, active }) {
     setShowTranscript(false);
     setShowSrt(false);
     setSummaryStep('Đang tải audio từ video...');
+    const ctl = new AbortController();
+    // Video dài: tải audio + STT (Groq→Gemini) có thể mất 2-3 phút. Cap để nút
+    // không treo vô hạn nếu backend/worker kẹt.
+    const hardTo = setTimeout(() => ctl.abort(), 240000);
     try {
       const res = await fetch(`${API_BASE}/services/youtube/summarize`, {
         method: 'POST',
         headers: headers(),
         body: JSON.stringify({ url: selected.id }),
+        signal: ctl.signal,
       });
       const raw = await res.text();
       let data;
@@ -502,8 +525,10 @@ showToast, active }) {
       setSummary({ title: data.title || selected.title, transcript: data.transcript || '', summary: data.summary || '', srt: data.srt || '' });
       if (!data.summary) setError('Video không có lời thoại để tóm tắt.');
     } catch (err) {
-      setError('Lỗi tóm tắt: ' + err.message);
+      if (err.name === 'AbortError') setError('Tóm tắt quá lâu (video dài hoặc server bận). Thử lại hoặc chọn video ngắn hơn.');
+      else setError('Lỗi tóm tắt: ' + err.message);
     } finally {
+      clearTimeout(hardTo);
       setSummarizing(false);
       setSummaryStep('');
     }
