@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { t, getLang } from '../i18n';
 import { X, BookOpen, ChevronDown, Mic, Video, Tv, Monitor, FolderOpen, Zap, MessageSquare, Sparkles, Clapperboard, MonitorPlay, Scissors } from 'lucide-react';
 
 const SECTIONS = [
@@ -144,8 +145,8 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
               <BookOpen size={18} className="text-white" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-800">Trung Tâm Trợ Giúp</h2>
-              <p className="text-[10px] text-slate-500">Hướng dẫn sử dụng Rexi AI từ A đến Z</p>
+              <h2 className="text-sm font-bold text-slate-800">{t(getLang(), 'Trung Tâm Trợ Giúp')}</h2>
+              <p className="text-[10px] text-slate-500">{t(getLang(), 'Hướng dẫn sử dụng Rexi AI từ A đến Z')}</p>
             </div>
           </div>
           <button onClick={() => setHelpOpen(false)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
@@ -159,13 +160,13 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
             onClick={() => setActiveTab('guide')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'guide' ? 'bg-cyan-50 text-cyan-600 border border-cyan-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
-            📖 Hướng dẫn tính năng
+            📖 {t(getLang(), 'Hướng dẫn tính năng')}
           </button>
           <button
             onClick={() => setActiveTab('faq')}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeTab === 'faq' ? 'bg-cyan-50 text-cyan-600 border border-cyan-200' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'}`}
           >
-            ❓ Câu hỏi thường gặp
+            ❓ {t(getLang(), 'Câu hỏi thường gặp')}
           </button>
         </div>
 
@@ -180,7 +181,7 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-100 transition-colors"
                   >
                     <span className="shrink-0">{section.icon}</span>
-                    <span className="flex-1 text-xs font-bold text-slate-700">{section.title}</span>
+                    <span className="flex-1 text-xs font-bold text-slate-700">{t(getLang(), section.title)}</span>
                     <ChevronDown size={14} className={`text-slate-400 transition-transform ${openSection === section.id ? 'rotate-180' : ''}`} />
                   </button>
                   {openSection === section.id && (
@@ -188,7 +189,7 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
                       {section.steps.map((step, i) => (
                         <div key={i} className="flex gap-2.5 text-[11px] text-slate-600 leading-relaxed">
                           <span className="shrink-0 w-4 h-4 rounded-full bg-cyan-100 text-cyan-600 text-[9px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
-                          <span>{step}</span>
+                          <span>{t(getLang(), step)}</span>
                         </div>
                       ))}
                     </div>
@@ -200,8 +201,8 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
             <div className="space-y-2">
               {FAQS.map((faq, i) => (
                 <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-bold text-slate-700 mb-1.5">❓ {faq.q}</p>
-                  <p className="text-[11px] text-slate-600 leading-relaxed">{faq.a}</p>
+                  <p className="text-xs font-bold text-slate-700 mb-1.5">❓ {t(getLang(), faq.q)}</p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">{t(getLang(), faq.a)}</p>
                 </div>
               ))}
             </div>
@@ -210,12 +211,12 @@ export default function HelpModal({ helpOpen, setHelpOpen }) {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between bg-white">
-          <p className="text-[10px] text-slate-500">Vẫn thắc mắc? Gõ câu hỏi vào chat, Rexi AI sẽ hướng dẫn bạn.</p>
+          <p className="text-[10px] text-slate-500">{t(getLang(), 'Vẫn thắc mắc? Gõ câu hỏi vào chat, Rexi AI sẽ hướng dẫn bạn.')}</p>
           <button
             onClick={() => setHelpOpen(false)}
             className="px-4 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200 text-cyan-600 text-xs font-medium hover:bg-cyan-100 transition-colors"
           >
-            Đã hiểu 👍
+            {t(getLang(), 'Đã hiểu 👍')}
           </button>
         </div>
       </div>

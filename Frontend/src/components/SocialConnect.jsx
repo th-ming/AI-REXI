@@ -37,7 +37,7 @@ export default function SocialConnect({ showToast }) {
       if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setPlatforms(data.platforms || {});
     } catch (e) {
-      setError(e.message || 'Không tải được trạng thái mạng xã hội.');
+      setError(e.message || t(lang, 'Không tải được trạng thái mạng xã hội.'));
       setPlatforms(null);
     } finally {
       setLoading(false);
@@ -53,7 +53,7 @@ export default function SocialConnect({ showToast }) {
 
   const post = async (p) => {
     const text = (drafts[p] || '').trim();
-    if (!text) { showToast?.('Nhập nội dung bài đăng trước.', 'error'); return; }
+    if (!text) { showToast?.(t(lang, 'Nhập nội dung bài đăng trước.'), 'error'); return; }
     setPosting((s) => ({ ...s, [p]: true }));
     try {
       const res = await fetch(`${API_BASE}/social/${p}/post`, {
@@ -67,10 +67,10 @@ export default function SocialConnect({ showToast }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      showToast?.(`Đã đăng lên ${PLATFORM_META[p].label}!`, 'success');
+      showToast?.(`${t(lang, 'Đã đăng lên ')}${PLATFORM_META[p].label}!`, 'success');
       setDrafts((s) => ({ ...s, [p]: '' }));
     } catch (e) {
-      showToast?.(`Đăng lên ${PLATFORM_META[p].label} lỗi: ${e.message}`, 'error');
+      showToast?.(`${t(lang, 'Đăng lên ')}${PLATFORM_META[p].label} ${t(lang, 'lỗi: ')}${e.message}`, 'error');
     } finally {
       setPosting((s) => ({ ...s, [p]: false }));
     }
@@ -78,12 +78,12 @@ export default function SocialConnect({ showToast }) {
 
   const statusPill = (info) => {
     if (!info || !info.configured) {
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/15 text-slate-400 border border-white/10">Chưa cấu hình</span>;
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-500/15 text-slate-400 border border-white/10">{t(lang, 'Chưa cấu hình')}</span>;
     }
     if (info.connected) {
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Đã kết nối</span>;
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{t(lang, 'Đã kết nối')}</span>;
     }
-    return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">Chưa kết nối</span>;
+    return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">{t(lang, 'Chưa kết nối')}</span>;
   };
 
   // Nếu CHƯA có nền tảng nào sẵn sàng -> ẩn HẲN mục này.
@@ -96,7 +96,7 @@ export default function SocialConnect({ showToast }) {
     <div className="border-t border-white/10 pt-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-          <Share2 size={16} className="text-cyan-500" /> Mạng xã hội
+          <Share2 size={16} className="text-cyan-500" /> {t(lang, 'Mạng xã hội')}
         </h3>
         <button
           type="button"
@@ -115,7 +115,7 @@ export default function SocialConnect({ showToast }) {
       )}
 
       {!platforms && !error && (
-        <p className="text-[11px] text-slate-400">Đang tải...</p>
+        <p className="text-[11px] text-slate-400">{t(lang, 'Đang tải...')}</p>
       )}
 
       {platforms && PLATFORM_ORDER.filter((p) => platforms[p] && platforms[p].configured).map((p) => {
@@ -134,7 +134,7 @@ export default function SocialConnect({ showToast }) {
                   onClick={() => connect(p)}
                   className="text-[11px] font-medium text-cyan-400 hover:text-cyan-300 flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-cyan-500/10 transition-colors"
                 >
-                  <Link2 size={12} /> Kết nối
+                  <Link2 size={12} /> {t(lang, 'Kết nối')}
                 </button>
               )}
             </div>
@@ -142,7 +142,7 @@ export default function SocialConnect({ showToast }) {
             {info.connected && (
               <div className="space-y-2">
                 {info.account && (
-                  <p className="text-[10px] text-slate-400">Tài khoản: <span className="text-cyan-300">{info.account}</span></p>
+                  <p className="text-[10px] text-slate-400">{t(lang, 'Tài khoản:')} <span className="text-cyan-300">{info.account}</span></p>
                 )}
                 <textarea
                   value={drafts[p] || ''}
@@ -157,13 +157,13 @@ export default function SocialConnect({ showToast }) {
                   disabled={posting[p]}
                   className="text-[11px] font-medium text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5 transition-all"
                 >
-                  {posting[p] ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />} Đăng
+                  {posting[p] ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />} {t(lang, 'Đăng')}
                 </button>
               </div>
             )}
 
             {info.configured && !info.connected && (
-              <p className="text-[10px] text-slate-500">Bấm "Kết nối" để cấp quyền đăng bài.</p>
+              <p className="text-[10px] text-slate-500">{t(lang, 'Bấm "Kết nối" để cấp quyền đăng bài.')}</p>
             )}
           </div>
         );

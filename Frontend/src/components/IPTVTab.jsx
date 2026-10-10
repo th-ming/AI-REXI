@@ -137,13 +137,13 @@ export default function IPTVTab({
     if (!video) {
       // Kênh YouTube (dùng iframe) hoặc video chưa mount → không lấy được audio
       setSubtitleStatus('unsupported');
-      setSubtitleError('Kênh YouTube không hỗ trợ phụ đề AI (video không cho lấy audio).');
+      setSubtitleError(t(lang, 'Kênh YouTube không hỗ trợ phụ đề AI (video không cho lấy audio).'));
       return;
     }
     if (typeof MediaRecorder === 'undefined') {
       // HTTP thường / trình duyệt cũ không có MediaRecorder
       setSubtitleStatus('unsupported');
-      setSubtitleError('Trình duyệt này không hỗ trợ ghi âm (cần HTTPS hoặc trình duyệt mới hơn).');
+      setSubtitleError(t(lang, 'Trình duyệt này không hỗ trợ ghi âm (cần HTTPS hoặc trình duyệt mới hơn).'));
       return;
     }
 
@@ -169,7 +169,7 @@ export default function IPTVTab({
             retryTimer = setTimeout(startRecorder, 1000);
           } else {
             setSubtitleStatus('unsupported');
-            setSubtitleError('Kênh này chưa phát audio hoặc trình duyệt không lấy được audio từ stream.');
+            setSubtitleError(t(lang, 'Kênh này chưa phát audio hoặc trình duyệt không lấy được audio từ stream.'));
           }
           return;
         }
@@ -207,7 +207,7 @@ export default function IPTVTab({
               const data = await r.json().catch(() => null);
               if (!r.ok) {
                 // Backend trả lỗi (CHƯA_CÓ_KEY / 401 / 500...) → hiện thông báo rõ ràng thay vì im lặng
-                const msg = data?.message || data?.error || `Lỗi server (HTTP ${r.status})`;
+                const msg = data?.message || data?.error || `${t(lang, 'Lỗi server (HTTP ')}${r.status})`;
                 setSubtitleStatus('error');
                 setSubtitleError(msg);
                 return;
@@ -227,8 +227,8 @@ export default function IPTVTab({
             .catch(err => {
               setSubtitleStatus('error');
               setSubtitleError(err?.name === 'TimeoutError'
-                ? 'Yêu cầu phụ đề quá hạn (20s). Tự thử lại giây sau.'
-                : 'Không kết nối được server. Kiểm tra backend đang chạy.');
+                ? t(lang, 'Yêu cầu phụ đề quá hạn (20s). Tự thử lại giây sau.')
+                : t(lang, 'Không kết nối được server. Kiểm tra backend đang chạy.'));
               console.warn('[Caption] fetch error:', err);
             })
             .finally(() => { sendingRef.current = false; });
@@ -236,7 +236,7 @@ export default function IPTVTab({
 
         recorder.onerror = () => {
           setSubtitleStatus('error');
-          setSubtitleError('Lỗi ghi âm từ video. Thử tắt/bật lại phụ đề.');
+          setSubtitleError(t(lang, 'Lỗi ghi âm từ video. Thử tắt/bật lại phụ đề.'));
         };
         recorder.onstop = () => {
           if (cancelled) return;
@@ -250,7 +250,7 @@ export default function IPTVTab({
       } catch (e) {
         console.error('[Caption] Failed to start:', e);
         setSubtitleStatus('error');
-        setSubtitleError('Không lấy được âm thanh từ video (có thể do CORS/cross-origin).');
+        setSubtitleError(t(lang, 'Không lấy được âm thanh từ video (có thể do CORS/cross-origin).'));
       }
     };
 
@@ -319,10 +319,10 @@ export default function IPTVTab({
           </h3>
           <div className="flex gap-1 bg-[#131417] rounded-lg p-0.5 mt-2">
             <button onClick={() => { setIptvTab?.('category'); setIptvSearch?.(''); fetchIPTV?.(iptvCategory); }} className={`flex-1 py-1 rounded text-[10px] font-medium transition-all ${iptvTab === 'category' ? 'bg-rose-500/20 text-rose-400' : 'text-slate-500 hover:text-white'}`}>
-              <Globe size={10} className="inline mr-1" />Thể Loại
+              <Globe size={10} className="inline mr-1" />{t(lang, 'Thể Loại')}
             </button>
             <button onClick={() => { setIptvTab?.('country'); setIptvSearch?.(''); fetchIPTV?.(null, iptvCountry); }} className={`flex-1 py-1 rounded text-[10px] font-medium transition-all ${iptvTab === 'country' ? 'bg-rose-500/20 text-rose-400' : 'text-slate-500 hover:text-white'}`}>
-              🌍 Quốc Gia
+              🌍 {t(lang, 'Quốc Gia')}
             </button>
           </div>
 
@@ -337,7 +337,7 @@ export default function IPTVTab({
                     iptvCategory === cat.id ? 'bg-rose-500/20 text-rose-300' : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  {cat.name}
+                  {t(lang, cat.name)}
                 </button>
               ))}
             </div>
@@ -365,7 +365,7 @@ export default function IPTVTab({
                     !iptvCountry ? 'bg-rose-500/20 text-rose-300' : 'text-slate-400 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  🌍 Tất cả ({ALL_IPTV_COUNTRIES.length} quốc gia)
+                  🌍 {t(lang, 'Tất cả')} ({ALL_IPTV_COUNTRIES.length} {t(lang, 'quốc gia')})
                 </button>
                 <div className="border-t border-white/5 my-0.5" />
                 {filteredCountries.map(c => (
@@ -382,7 +382,7 @@ export default function IPTVTab({
                   </button>
                 ))}
                 {filteredCountries.length === 0 && (
-                  <div className="text-[9px] text-slate-600 text-center py-2">Không tìm thấy quốc gia</div>
+                  <div className="text-[9px] text-slate-600 text-center py-2">{t(lang, 'Không tìm thấy quốc gia')}</div>
                 )}
               </div>
             </div>
@@ -399,7 +399,7 @@ export default function IPTVTab({
         <div className="flex-1 overflow-y-auto">
           {safeChannels.length === 0 && (
             <div className="text-[10px] text-slate-600 text-center py-8">
-              Chọn thể loại hoặc quốc gia để xem kênh
+              {t(lang, 'Chọn thể loại hoặc quốc gia để xem kênh')}
             </div>
           )}
           {safeChannels.map((ch, i) => (
@@ -462,7 +462,7 @@ export default function IPTVTab({
                   title={embeddedSubOn ? (lang === 'vi' ? 'Tắt phụ đề kênh (đồng bộ)' : 'Turn off channel subs (synced)') : `${t(lang, 'iptvSubOff')}: ${iptvEmbeddedSubs.map(s => s.name).join(', ')} (100% synced)`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${embeddedSubOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
-                  <span className="truncate">Phụ Đề Kênh</span>
+                  <span className="truncate">{t(lang, 'Phụ Đề Kênh')}</span>
                 </button>
               )}
               {/* Phụ đề AI — nghe rồi dịch: TRỄ ~7-10s + tốn quota, chỉ nên dùng cho kênh ngoại ngữ */}
@@ -481,7 +481,7 @@ export default function IPTVTab({
                 title={lang === 'vi' ? 'Phụ đề AI (nghe + dịch): TRỄ ~7-10s so với hình, mỗi giờ xem tốn ~720 request Whisper. Chỉ nên bật cho kênh ngoại ngữ cần dịch sang tiếng Việt.' : 'AI subtitles (listen + translate): ~7-10s LAG behind video, ~720 Whisper requests per hour of viewing. Only enable for foreign-language channels you need translated.'}
               >
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${iptvSubtitleOn ? 'bg-white animate-pulse' : 'bg-white/20'}`}></span>
-                <span className="truncate">Phụ Đề AI</span>
+                <span className="truncate">{t(lang, 'Phụ Đề AI')}</span>
               </button>
             </div>
           </div>
@@ -508,7 +508,7 @@ export default function IPTVTab({
             <div className="flex-1 h-full flex items-center justify-center text-slate-500 text-xs">
               <div className="text-center space-y-2">
                 <Tv size={40} className="mx-auto text-slate-600" />
-                <p>Chọn kênh để phát trực tiếp</p>
+                <p>{t(lang, 'Chọn kênh để phát trực tiếp')}</p>
               </div>
             </div>
           )}
@@ -548,9 +548,9 @@ export default function IPTVTab({
                 }`}></span>
                 <span className="truncate" title={subtitleError || undefined}>
                   {subtitleStatus === 'listening' ? 'Đang nghe...' :
-                   subtitleStatus === 'error' ? (subtitleError || 'Lỗi microphone') :
-                   subtitleStatus === 'unsupported' ? (subtitleError || 'Trình duyệt không hỗ trợ') :
-                   'Đang khởi động...'}
+                   subtitleStatus === 'error' ? (subtitleError || t(lang, 'Lỗi microphone')) :
+                   subtitleStatus === 'unsupported' ? (subtitleError || t(lang, 'Trình duyệt không hỗ trợ')) :
+                   t(lang, 'Đang khởi động...')}
                 </span>
               </div>
             </div>

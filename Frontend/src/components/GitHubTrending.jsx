@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { t, getLang } from '../i18n';
+const T = t; // alias tránh bị che bởi biến tab 't'
 import { API_BASE, apiFetch } from '../config';
 import { mdToHtml, sanitizeHtml } from '../utils/sanitize';
 import {
@@ -101,7 +102,7 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
             <div className="ml-7 mb-2 px-3 py-2 rounded-lg bg-gradient-to-r from-purple-500/8 to-cyan-500/8 border border-purple-500/15">
               <div className="flex items-center gap-1.5 mb-1">
                 <Sparkles size={11} className="text-purple-400" />
-                <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider">AI Tóm Tắt</span>
+                <span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider">{T(getLang(), 'AI Tóm Tắt')}</span>
               </div>
               <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">{repo.ai_summary}</p>
             </div>
@@ -242,7 +243,7 @@ function RepoCard({ repo, index, isStarred, onStarRepo, starringKey, speakingKey
 function StarChart({ points }) {
   const [w, h, pad] = [360, 140, 8];
   const data = (points || []).slice(-30);
-  if (!data.length) return <div className="text-[11px] text-slate-500 py-6 text-center">Chưa có dữ liệu lịch sử. Bấm "Lưu snapshot" để bắt đầu theo dõi.</div>;
+  if (!data.length) return <div className="text-[11px] text-slate-500 py-6 text-center">{T(getLang(), 'Chưa có dữ liệu lịch sử. Bấm "Lưu snapshot" để bắt đầu theo dõi.')}</div>;
   const stars = data.map(d => d.stars);
   const min = Math.min(...stars), max = Math.max(...stars);
   const range = (max - min) || 1;
@@ -255,7 +256,7 @@ function StarChart({ points }) {
     <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] text-slate-400">
-          {data.length} điểm · {first.created_at} → {last.created_at}
+          {data.length} {T(getLang(), 'điểm')} · {first.created_at} → {last.created_at}
         </span>
         <span className={`text-[11px] font-bold ${gain >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
           {gain >= 0 ? '+' : ''}{gain.toLocaleString()} ★
@@ -373,39 +374,39 @@ function RepoDetailModal({ repo, token, onClose }) {
               className={`flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-[11px] font-semibold transition-colors ${
                 tab === t.id ? 'bg-white/5 text-purple-300 border-b-2 border-purple-500' : 'text-slate-500 hover:text-slate-300'
               }`}>
-              <t.icon size={11} /> {t.label}
+              <t.icon size={11} /> {T(getLang(), t.label)}
             </button>
           ))}
         </div>
 
         {/* Body */}
         <div className="p-5 overflow-y-auto flex-1">
-          {loading && <div className="text-center py-10 text-slate-400 text-xs"><RefreshCw size={18} className="animate-spin mx-auto mb-2 text-purple-400" />Đang tải...</div>}
+          {loading && <div className="text-center py-10 text-slate-400 text-xs"><RefreshCw size={18} className="animate-spin mx-auto mb-2 text-purple-400" /> {T(getLang(), 'Đang tải...')}</div>}
           {error && <div className="text-center py-10 text-rose-400 text-xs">{error}</div>}
           {!loading && !error && tab === 'readme' && (
             <div>
               {detail?.ai_summary && (
                 <div className="mb-3 px-3 py-2 rounded-lg bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/15">
-                  <div className="flex items-center gap-1.5 mb-1"><Sparkles size={11} className="text-purple-400" /><span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider">AI Tóm Tắt</span></div>
+                  <div className="flex items-center gap-1.5 mb-1"><Sparkles size={11} className="text-purple-400" /><span className="text-[10px] font-semibold text-purple-300 uppercase tracking-wider">{T(getLang(), 'AI Tóm Tắt')}</span></div>
                   <p className="text-[12px] text-slate-200">{detail.ai_summary}</p>
                 </div>
               )}
               {readmeHtml
                 ? <div className="text-slate-200 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h1]:font-bold [&_h2]:font-bold [&_h3]:font-semibold [&_h1]:mt-3 [&_h2]:mt-2.5 [&_h3]:mt-2 [&_h1]:mb-1.5 [&_h2]:mb-1 [&_h3]:mb-1 [&_a]:text-cyan-400 [&_a:hover]:underline" dangerouslySetInnerHTML={{ __html: readmeHtml }} />
-                : <div className="text-center py-8 text-slate-500 text-xs">Repo không có README.</div>}
+                : <div className="text-center py-8 text-slate-500 text-xs">{T(getLang(), 'Repo không có README.')}</div>}
             </div>
           )}
           {!loading && !error && tab === 'stars' && (
             <div>
               {starsLoading
-                ? <div className="text-center py-8 text-slate-400 text-xs"><RefreshCw size={16} className="animate-spin mx-auto mb-2 text-purple-400" />Đang tải...</div>
+                ? <div className="text-center py-8 text-slate-400 text-xs"><RefreshCw size={16} className="animate-spin mx-auto mb-2 text-purple-400" /> {T(getLang(), 'Đang tải...')}</div>
                 : <StarChart points={stars} />}
             </div>
           )}
           {!loading && !error && tab === 'contributors' && (
             <div className="space-y-2">
               {(!detail?.contributors || detail.contributors.length === 0)
-                ? <div className="text-center py-8 text-slate-500 text-xs">Không có dữ liệu contributors.</div>
+                ? <div className="text-center py-8 text-slate-500 text-xs">{T(getLang(), 'Không có dữ liệu contributors.')}</div>
                 : detail.contributors.map((c, i) => (
                   <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5">
                     <div className="flex items-center gap-2.5">
@@ -431,10 +432,10 @@ function RepoDetailModal({ repo, token, onClose }) {
                     {detail.latest_release.name && <p className="text-xs text-slate-300 font-medium">{detail.latest_release.name}</p>}
                     {detail.latest_release.body
                       ? <div className="text-slate-300 [&_h1]:text-sm [&_h2]:text-sm [&_h1]:font-bold [&_h2]:font-bold [&_h1]:mt-2 [&_h2]:mt-2 [&_h1]:mb-1 [&_h2]:mb-1 [&_a]:text-cyan-400 [&_a:hover]:underline" dangerouslySetInnerHTML={{ __html: sanitizeHtml(mdToHtml(detail.latest_release.body)) }} />
-                      : <div className="text-center py-6 text-slate-500 text-xs">Release không có mô tả.</div>}
+                      : <div className="text-center py-6 text-slate-500 text-xs">{T(getLang(), 'Release không có mô tả.')}</div>}
                   </div>
                 )
-                : <div className="text-center py-8 text-slate-500 text-xs">Repo chưa có release nào.</div>}
+                : <div className="text-center py-8 text-slate-500 text-xs">{T(getLang(), 'Repo chưa có release nào.')}</div>}
             </div>
           )}
         </div>
@@ -444,7 +445,7 @@ function RepoDetailModal({ repo, token, onClose }) {
           <div className="flex items-center gap-2">
             {tab === 'stars' && (
               <button onClick={loadStars} className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-colors">
-                <RefreshCw size={10} className="inline mr-1" />Làm mới
+                <RefreshCw size={10} className="inline mr-1" />{T(getLang(), 'Làm mới')}
               </button>
             )}
             {detail?.homepage && (
@@ -456,7 +457,7 @@ function RepoDetailModal({ repo, token, onClose }) {
           <div className="flex items-center gap-2">
             <a href={`https://github.com/${fullName}`} target="_blank" rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-semibold transition-colors flex items-center gap-1.5">
-              <ExternalLink size={11} /> Mở trên GitHub
+              <ExternalLink size={11} /> {T(getLang(), 'Mở trên GitHub')}
             </a>
           </div>
         </div>
@@ -728,11 +729,11 @@ export default function GitHubTrending({ token, showToast }) {
       }
     } catch (e) {
       // Hiển thị lỗi rõ cho user — thường là thiếu GITHUB_TOKEN
-      const msg = e.message || 'Lỗi star repo';
+      const msg = e.message || T(getLang(), 'Lỗi star repo');
       if (msg.includes('GitHub Personal Access Token') || msg.includes('GITHUB_TOKEN')) {
-        setError('⚠️ Cần GitHub Token: Thêm GITHUB_TOKEN vào .env hoặc nhập GitHub API Key trong Admin → API Keys');
+        setError(T(getLang(), '⚠️ Cần GitHub Token: Thêm GITHUB_TOKEN vào .env hoặc nhập GitHub API Key trong Admin → API Keys'));
       } else {
-        setError('❌ Star thất bại: ' + msg);
+        setError(T(getLang(), '❌ Star thất bại: ') + msg);
       }
     } finally {
       setStarringKey(null);
@@ -757,10 +758,10 @@ export default function GitHubTrending({ token, showToast }) {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      showToast?.(`Đã export ${type} (${format.toUpperCase()}).`, 'success');
+      showToast?.(`${T(getLang(), 'Đã export ')}${type} (${format.toUpperCase()}).`, 'success');
     } catch (e) {
       setError(e.message);
-      showToast?.('Export thất bại: ' + e.message, 'error');
+      showToast?.(T(getLang(), 'Export thất bại: ') + e.message, 'error');
     } finally {
       setExporting(null);
     }
@@ -788,7 +789,7 @@ export default function GitHubTrending({ token, showToast }) {
       fetchNotifications();
     } catch (e) {
       console.error('[GitHubTrending] Đánh dấu đã đọc thất bại:', e.message);
-      showToast?.('Không đánh dấu đã đọc được: ' + (e.message || 'lỗi mạng'), 'error');
+      showToast?.(T(getLang(), 'Không đánh dấu đã đọc được: ') + (e.message || T(getLang(), 'lỗi mạng')), 'error');
     }
   };
 
@@ -818,7 +819,7 @@ export default function GitHubTrending({ token, showToast }) {
     if (repo.homepage) parts.push(`Homepage: ${repo.homepage}.`);
     const ok = speakText(parts.join(' '));
     if (!ok) {
-      showToast?.('Thiết bị không có giọng đọc tiếng Anh (voice EN).', 'error');
+      showToast?.(T(getLang(), 'Thiết bị không có giọng đọc tiếng Anh (voice EN).'), 'error');
       return;
     }
     setSpeakingKey(repo.full_name);
@@ -893,14 +894,14 @@ export default function GitHubTrending({ token, showToast }) {
               <div className="absolute right-0 top-full mt-2 w-80 bg-[#1a1b24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
                   <span className="text-xs font-bold text-white flex items-center gap-2">
-                    <Bell size={13} className="text-purple-400" /> Thông báo Trending
+                    <Bell size={13} className="text-purple-400" /> {T(getLang(), 'Thông báo Trending')}
                   </span>
                   {unreadCount > 0 && (
                     <button
                       onClick={() => markNotificationsRead([])}
                       className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
                     >
-                      <CheckCheck size={11} /> Đọc tất cả
+                      <CheckCheck size={11} /> {T(getLang(), 'Đọc tất cả')}
                     </button>
                   )}
                 </div>
@@ -908,7 +909,7 @@ export default function GitHubTrending({ token, showToast }) {
                   {notifications.length === 0 ? (
                     <div className="px-4 py-8 text-center text-slate-500 text-xs">
                       <BellOff size={20} className="mx-auto mb-2 opacity-50" />
-                      Chưa có thông báo mới
+                      {T(getLang(), 'Chưa có thông báo mới')}
                     </div>
                   ) : (
                     notifications.map(n => (
@@ -949,7 +950,7 @@ export default function GitHubTrending({ token, showToast }) {
           <button onClick={() => { setSearchResults(null); refreshAll(); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-slate-300 hover:text-white transition-colors">
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">Làm mới</span>
+            <span className="hidden sm:inline">{T(getLang(), 'Làm mới')}</span>
           </button>
           {/* Export dropdown */}
           {(view === 'saved' || view === 'starred') && (
@@ -978,11 +979,11 @@ export default function GitHubTrending({ token, showToast }) {
             <>
           {/* Language Filter */}
           <div className="flex-1 min-w-[140px]">
-            <label className="block text-[10px] text-slate-500 mb-1 font-semibold uppercase">Ngôn ngữ</label>
+            <label className="block text-[10px] text-slate-500 mb-1 font-semibold uppercase">{T(getLang(), 'Ngôn ngữ')}</label>
             <div className="relative">
               <select value={language} onChange={e => setLanguage(e.target.value)}
                 className="w-full appearance-none px-3 py-2 bg-[#131417] border border-white/10 rounded-lg text-xs text-slate-200 focus:outline-none focus:border-purple-500/50 pr-8 cursor-pointer">
-                <option value="">Tất cả</option>
+                <option value="">{T(getLang(), 'Tất cả')}</option>
                 {LANGUAGES.filter(Boolean).map(l => (
                   <option key={l} value={l}>{l}</option>
                 ))}
@@ -1001,7 +1002,7 @@ export default function GitHubTrending({ token, showToast }) {
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}>
                 <p.icon size={12} />
-                {p.label}
+                {T(getLang(), p.label)}
               </button>
             ))}
           </div>
@@ -1017,7 +1018,7 @@ export default function GitHubTrending({ token, showToast }) {
             <button type="submit" disabled={searching || !searchQuery.trim()}
               className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white text-xs rounded-lg font-semibold transition-colors flex items-center gap-1">
               {searching ? <RefreshCw size={11} className="animate-spin" /> : <Search size={11} />}
-              Tìm
+              {T(getLang(), 'Tìm')}
             </button>
             {searchResults && (
               <button type="button" onClick={() => { setSearchResults(null); setSearchQuery(''); }}
@@ -1034,7 +1035,7 @@ export default function GitHubTrending({ token, showToast }) {
         {loading && view === 'trending' && (
           <div className="text-center py-12 text-slate-400 text-sm flex flex-col items-center gap-3">
             <RefreshCw size={22} className="animate-spin text-purple-400" />
-            Đang tải trending repos...
+            {T(getLang(), 'Đang tải trending repos...')}
           </div>
         )}
 
@@ -1042,7 +1043,7 @@ export default function GitHubTrending({ token, showToast }) {
         {savedLoading && view === 'saved' && (
           <div className="text-center py-12 text-slate-400 text-sm flex flex-col items-center gap-3">
             <RefreshCw size={22} className="animate-spin text-amber-400" />
-            Đang tải repos đã lưu...
+            {T(getLang(), 'Đang tải repos đã lưu...')}
           </div>
         )}
 
@@ -1060,8 +1061,8 @@ export default function GitHubTrending({ token, showToast }) {
             {displayRepos.length === 0 ? (
               <div className="text-center py-12 text-slate-500 text-xs">
                 {view === 'saved'
-                  ? 'Chưa có repo nào được lưu. Vào tab Trending và bấm nút bookmark để lưu.'
-                  : 'Không có repo nào. Thử lại sau.'}
+                  ? T(getLang(), 'Chưa có repo nào được lưu. Vào tab Trending và bấm nút bookmark để lưu.')
+                  : T(getLang(), 'Không có repo nào. Thử lại sau.')}
               </div>
             ) : (
               displayRepos.map((repo, i) => (
