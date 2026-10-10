@@ -1346,14 +1346,26 @@ async function resolveProviderAndKey(req, provider, model_name, client_api_key) 
 }
 
 // ─── AUTO WEB SEARCH + TÓM TẮT HỘI THOẠI DÀI (dùng chung cho 2 route) ───
+const _webCache = new Map();
+function webCacheGet(k) { const e = _webCache.get(k); if (e && Date.now() < e.exp) return e.v; if (e) _webCache.delete(k); return null; }
+function webCacheSet(k, v) { _webCache.set(k, { v, exp: Date.now() + 600000 }); if (_webCache.size > 60) { _webCache.delete(_webCache.keys().next().value); } }
+
 async function buildAutoContext(req, id, noi_dung) {
   const out = { webSearchText: '', summaryText: '' };
-  // 1) Auto web search khi câu hỏi cần thông tin mới (tin tức, giá cả, thời tiết...)
+  // 1) Auto web search: (a) câu hỏi cần thông tin mới, (b) ý định tìm kiếm,
+  //    (c) câu hỏi nghi vấn đủ dài. Kết quả cache 10 phút theo query.
+  const q = String(noi_dung || '');
   const newsRe = /tin tức|thời sự|giá vàng|giá xăng|thời tiết|dự báo|bão|chứng khoán|tỷ giá|bitcoin|crypto|mới nhất|hôm nay|vừa ra mắt|năm 2026|tin nóng|news|today|latest|weather|forecast|stock market|price of|breaking|election|world cup/i;
-  if (newsRe.test(String(noi_dung || ''))) {
+  const searchIntentRe = /tìm kiếm|tìm giúp|tìm cho|tìm hộ|search|tra cứu|look ?up|google|kiểm tra|thông tin về|info about|tin về/i;
+  const questionRe = /\?|(^|\s)(là ai|là gì|ở đâu|khi nào|bao giờ|bao nhiêu|vì sao|tại sao|như thế nào|ra sao|who is|what is|where is|when is|how much|how many|why is)\b/i;
+  const words = q.trim().split(/\s+/).filter(Boolean);
+  const shouldSearch = words.length >= 3 && (newsRe.test(q) || searchIntentRe.test(q) || questionRe.test(q));
+  if (shouldSearch) {
     try {
       const { searchWebTool } = require('../services/agentService');
-      const s = await searchWebTool(noi_dung);
+      const ck = 'ws:' + q.trim().toLowerCase().slice(0, 140);
+      let s = webCacheGet(ck);
+      if (!s) { s = await searchWebTool(q); webCacheSet(ck, s); }
       if (s && s.results && s.results.length) {
         out.webSearchText = '\n\n🌐 THÔNG TIN MỚI TỪ WEB (trả lời dựa trên nội dung này nếu liên quan):\n' +
           s.results.slice(0, 5).map(r => `- ${r.title}: ${r.snippet}`).join('\n');
@@ -1460,16 +1472,18 @@ ${ragText}${webSearchText}${summaryText}
 BỘ NHỚ DÀI HẠN VỀ NGƯỜI DÙNG & QUY TẮC CỦA REXI:
 ${memoryText || '- Người dùng thích làm việc chuyên nghiệp, nội dung ngắn gọn, súc tích, thực tế và chính xác.'}
 
+- NĂNG LỰC INTERNET: Bạn CÓ khả năng tìm kiếm internet — hệ thống Rexi TỰ ĐỘNG tìm web trước mỗi câu trả lời. Khi có khối "🌐 THÔNG TIN MỚI TỪ WEB", hãy dựa vào nó cho câu hỏi về tin tức, thời tiết, giá cả, sự kiện mới. TUYỆT ĐỐI KHÔNG nói bạn không truy cập được internet.
+
 - NGUYÊN TẮC QUAN TRỌNG: Không lặp lại các câu miễn trừ trách nhiệm. Hãy trả lời thẳng vấn đề, tự nhiên, thân thiện, chu đáo và nâng cao trải nghiệm người dùng đến tận răng.${skillInstruction}`;
 
-  const MAX_SYSTEM_PROMPT = 6000;
+  const MAX_SYSTEM_PROMPT = 9000;
   if (systemPrompt.length > MAX_SYSTEM_PROMPT) {
     systemPrompt = systemPrompt.substring(0, MAX_SYSTEM_PROMPT) + '\n\n[...đã cắt ngắn system prompt để phù hợp context limit...]';
   }
 
   // AgentRouter chặn nội dung không phải tiếng Anh → gửi system prompt tiếng Anh
   if (provider === 'agentrouter') {
-    systemPrompt = `You are Rexi, an all-in-one AI assistant. Current time: ${nowFormatted} (Vietnam time). User's estimated location: ${locationStr}.\n${ragText}\nLONG-TERM MEMORY ABOUT THE USER & REXI RULES:\n${memoryText || '- The user prefers professional, concise, practical and accurate answers.'}\n\n- IMPORTANT RULE: Do not repeat disclaimers. Answer directly, naturally, friendly and helpfully.${skillInstruction}`;
+    systemPrompt = `You are Rexi, an all-in-one AI assistant. Current time: ${nowFormatted} (Vietnam time). User's estimated location: ${locationStr}.\n${ragText}${webSearchText}${summaryText}\n\nINTERNET ACCESS: You DO have internet access — Rexi's system automatically searches the web before every reply. When a block "🌐 THÔNG TIN MỚI TỪ WEB" (or its English equivalent) is present, base answers about news, weather, prices or recent events on it. NEVER claim you cannot access the internet.\n\nLONG-TERM MEMORY ABOUT THE USER & REXI RULES:\n${memoryText || '- The user prefers professional, concise, practical and accurate answers.'}\n\n- IMPORTANT RULE: Do not repeat disclaimers. Answer directly, naturally, friendly and helpfully.${skillInstruction}`;
   }
 
   return { history, systemPrompt };
