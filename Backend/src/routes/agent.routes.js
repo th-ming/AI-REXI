@@ -24,6 +24,40 @@ router.post('/chat', async (req, res) => {
   }
 });
 
+// ========== AGENT CHAIN (doi provider/model agent khong can deploy) ==========
+router.get('/chain', async (req, res) => {
+  try {
+    const { getAgentChain } = require('../services/agentService');
+    res.json({ success: true, chain: await getAgentChain() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/chain', async (req, res) => {
+  try {
+    const { chain } = req.body;
+    if (!Array.isArray(chain) || !chain.length || chain.length > 10) {
+      return res.status(400).json({ error: 'chain phai la mang 1-10 phan tu {provider, model}' });
+    }
+    for (const c of chain) {
+      if (!c || typeof c.provider !== 'string' || typeof c.model !== 'string' || !c.provider.trim() || !c.model.trim()) {
+        return res.status(400).json({ error: 'moi phan tu can {provider, model} dang chuoi' });
+      }
+    }
+    const db = require('../config/db');
+    const val = JSON.stringify(chain.map(c => ({ provider: c.provider.trim().toLowerCase(), model: c.model.trim() })));
+    await new Promise((resolve, reject) => db.run(
+      `INSERT INTO app_settings (khoa, gia_tri) VALUES ('agent_chain', ?)
+       ON CONFLICT(khoa) DO UPDATE SET gia_tri = excluded.gia_tri`, [val],
+      (e) => e ? reject(e) : resolve()));
+    const { getAgentChain } = require('../services/agentService');
+    res.json({ success: true, chain: await getAgentChain() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ========== DANH SÁCH TOOLS ==========
 router.get('/tools', (req, res) => {
   res.json({ tools: TOOL_REGISTRY.map(t => ({ name: t.name, description: t.description })) });

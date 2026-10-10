@@ -545,12 +545,9 @@ async function callAI(prompt, m) {
       if (!rows.length) return process.env[`${prov.toUpperCase()}_API_KEY`] || null;
       try { return decryptKey(rows[0].gia_tri_khoa).trim(); } catch { return rows[0].gia_tri_khoa; }
     };
-    const chain = [];
-    if (process.env.AGENT_PROVIDER && process.env.AGENT_MODEL) {
-      chain.push({ provider: String(process.env.AGENT_PROVIDER).toLowerCase(), model: process.env.AGENT_MODEL });
-    }
-    chain.push({ provider: 'xkiro', model: 'mistralai/mistral-small-2603' });
-    chain.push({ provider: 'kiosapi', model: 'sensenova-6.8-flash' });
+    // Chain agent KHONG chot cung: env AGENT_PROVIDER/MODEL -> DB app_settings(agent_chain)
+    // -> mac dinh (deepseek truoc, roi xkiro/kiosapi). Doi qua API PUT /api/agent/chain, khong can deploy.
+    const chain = await getAgentChain();
     for (const c of chain) {
       try {
         const key = await getCKey(c.provider);
@@ -577,5 +574,34 @@ async function callAI(prompt, m) {
   return 'Lỗi AI: Không có nguồn AI khả dụng (OpenCode chưa cài / OmniRoute chưa chạy / cloud LLM đều fail).';
 }
 
-module.exports = { executeTool, TOOL_REGISTRY, callAI, searchWebTool };
+// Chain agent dong: env -> DB setting -> mac dinh. Export de API GET/PUT.
+async function getAgentChain() {
+  const chain = [];
+  const seen = new Set();
+  const push = (provider, model) => {
+    provider = String(provider || '').toLowerCase();
+    model = String(model || '');
+    const k = provider + '|' + model;
+    if (provider && model && !seen.has(k)) { seen.add(k); chain.push({ provider, model }); }
+  };
+  if (process.env.AGENT_PROVIDER && process.env.AGENT_MODEL) {
+    push(process.env.AGENT_PROVIDER, process.env.AGENT_MODEL);
+  }
+  try {
+    const db = require('../config/db');
+    const row = await new Promise((res) => db.get("SELECT gia_tri FROM app_settings WHERE khoa = 'agent_chain'", [], (e, r) => res(e ? null : r)));
+    if (row && row.gia_tri) {
+      const arr = JSON.parse(row.gia_tri);
+      if (Array.isArray(arr)) for (const c of arr) {
+        if (c && c.provider && c.model) push(c.provider, c.model);
+      }
+    }
+  } catch (e) { console.warn('[Agent] doc agent_chain fail:', e.message); }
+  push('unorouter', 'deepseek-v4.1-flash:free');
+  push('xkiro', 'mistralai/mistral-small-2603');
+  push('kiosapi', 'sensenova-6.8-flash');
+  return chain;
+}
+
+module.exports = { executeTool, TOOL_REGISTRY, callAI, searchWebTool, getAgentChain };
 
