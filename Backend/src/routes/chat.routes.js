@@ -1372,7 +1372,7 @@ async function buildAutoContext(req, id, noi_dung) {
       console.log('[AutoWeb] q="' + sq.slice(0, 80) + '" n=' + n + ' src=' + (s && s.source ? s.source : 'none') + ' first=' + (n ? String(s.results[0].title).slice(0, 80) : '-'));
       if (n) {
         out.webSearchText = '\n\n🌐 THÔNG TIN MỚI TỪ WEB — BẮT BUỘC dùng khối này để trả lời câu hỏi (trích số liệu cụ thể, KHÔNG trả lời chung chung, KHÔNG chỉ đưa link):\n' +
-          s.results.slice(0, 5).map(r => `- ${r.title}: ${String(r.snippet || '').slice(0, 220)}` + (r.url ? ` (Nguồn: ${r.url})` : '')).join('\n');
+          s.results.slice(0, 5).map(r => `- ${r.title}: ${String(r.snippet || '').slice(0, 220)}` + ((r.url && !r.url.includes('news.google.com/rss')) ? ` (Nguồn: ${r.url})` : '')).join('\n');
       }
     } catch (e) { console.log('[AutoWeb] error:', e.message); }
   }
