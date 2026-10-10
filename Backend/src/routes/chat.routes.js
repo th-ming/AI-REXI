@@ -806,7 +806,7 @@ router.post('/conversations/:id/messages', rateLimit({ windowMs: 60000, max: 60 
           // (ReAct qua API provider — internalAgent) thay vì trả lỗi chết.
           try {
             const { runInternalAgent } = require('../services/internalAgent');
-            const result = await runInternalAgent(noi_dung, {});
+            const result = await runInternalAgent(noi_dung, { model: model_name, provider });
             if (result && result.success && result.answer) {
               return saveAIMessageAndRespond(id, result.answer + '\n\n> ⚙️ _Chạy bằng Agent nội bộ (engine ngoài không có trên server)._', res);
             }

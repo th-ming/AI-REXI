@@ -85,7 +85,7 @@ import ScrapePanel from './components/ScrapePanel';
 // (marked/highlight render markdown nằm trong Frontend/src/utils/sanitize.js — ChatTab dùng sanitizeMarkdown)
 
 // Popover UI Chẩn Trận & Chọn Model Đẳng Cấp Chuyên Nghiệp (Glassmorphism & Grouped)
-const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setProvider }) => {
+const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setProvider, executionMode }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef(null);
@@ -118,7 +118,10 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
 
   const groupedModels = useMemo(() => {
     const map = {};
+    const isAgent = executionMode === 'agent';
     const filtered = availableModels.filter(m => {
+      // Agent Mode: tu an model chua verify chay duoc agent (co agent_ok tu scanner probe)
+      if (isAgent && !m.agent) return false;
       const query = search.toLowerCase().trim();
       if (!query) return true;
       return (m.name || '').toLowerCase().includes(query) ||
@@ -132,7 +135,7 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
       map[pKey].push(m);
     });
     return map;
-  }, [availableModels, search]);
+  }, [availableModels, search, executionMode]);
 
   const selectModel = (m) => {
     setModelName(m.id);
@@ -185,9 +188,14 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
                 <Cpu size={14} className="text-cyan-400 animate-pulse" /> {t(msLang, 'msTitle')}
               </span>
               <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
-                {availableModels.length} Models
+                {executionMode === 'agent' ? Object.values(groupedModels).reduce((a, g) => a + g.length, 0) : availableModels.length} Models
               </span>
             </div>
+            {executionMode === 'agent' && (
+              <div className="text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 rounded-lg px-2 py-1">
+                {tx(msLang, 'Agent Mode — chỉ hiện model chạy được agent')}
+              </div>
+            )}
 
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
@@ -409,6 +417,20 @@ export default function App() {
   const [aiSpecialty, setAiSpecialty] = useState('general');
   const [executionMode, setExecutionMode] = useState('chat'); // 'chat' | 'agent'
   const [agentEngine, setAgentEngine] = useState('auto'); // 'auto' | 'opencode' | 'dsh'
+  // Bat Agent Mode ma model dang chon khong chay duoc agent -> tu chuyen sang con agent dau tien
+  useEffect(() => {
+    if (executionMode !== 'agent' || modelName === 'auto') return;
+    const cur = availableModels.find(m => m.id === modelName);
+    if (cur && !cur.agent) {
+      const first = availableModels.find(m => m.agent);
+      if (first) {
+        setModelName(first.id);
+        if (first.provider) setProvider(first.provider);
+        localStorage.setItem('rexi_model', first.id);
+        if (first.provider) localStorage.setItem('rexi_provider', first.provider);
+      }
+    }
+  }, [executionMode]);
   const [chatModeOpen, setChatModeOpen] = useState(false);
   const [thinkingLevel, setThinkingLevel] = useState('standard'); // 'standard' | 'deep'
   const [currentTheme, setCurrentTheme] = useState(() => localStorage.getItem('rexi_theme_v2') || 'light');
@@ -1731,6 +1753,7 @@ useEffect(() => {
                 modelName={modelName}
                 setModelName={setModelName}
                 setProvider={setProvider}
+                executionMode={executionMode}
               />
 
               <select

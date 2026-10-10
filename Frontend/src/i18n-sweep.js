@@ -226,5 +226,6 @@ Object.assign(extra.en, {
 "👤 KHÁCH HÀNG": "👤 CUSTOMER",
 "🛡️ ADMIN PHẢN HỒI": "🛡️ ADMIN REPLY",
 "🤖 TRỢ LÝ AI": "🤖 AI ASSISTANT",
-"Đang scan...": "Scanning..."
+"Đang scan...": "Scanning...",
+"Agent Mode — chỉ hiện model chạy được agent": "Agent Mode — only agent-capable models shown"
 });

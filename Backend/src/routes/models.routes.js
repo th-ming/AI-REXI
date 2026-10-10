@@ -33,7 +33,8 @@ router.get('/', (req, res) => {
   const provider = (req.query.provider || '').trim();
   let sql = `
     SELECT m.ma_model, m.ma_nha_cung_cap, COALESCE(p.ten_hien_thi, m.ma_nha_cung_cap) as provider_name,
-           m.ten_hien_thi, m.loai, COALESCE(m.modality, 'chat') as modality, m.thu_tu_hien_thi
+           m.ten_hien_thi, m.loai, COALESCE(m.modality, 'chat') as modality, m.thu_tu_hien_thi,
+           COALESCE((SELECT c.agent_ok FROM model_agent_cap c WHERE LOWER(c.ma_nha_cung_cap) = LOWER(m.ma_nha_cung_cap) AND c.ma_model = m.ma_model), 0) as agent_ok
     FROM ai_models m
     LEFT JOIN ai_providers p ON LOWER(m.ma_nha_cung_cap) = LOWER(p.ma_nha_cung_cap)
     WHERE m.kich_hoat = 1
@@ -52,6 +53,10 @@ router.get('/', (req, res) => {
   if (provider) {
     sql += ' AND LOWER(m.ma_nha_cung_cap) = LOWER(?)';
     params.push(provider);
+  }
+  // Agent Mode: chi hien model da verify chay duoc agent (ReAct JSON probe, bang model_agent_cap)
+  if (String(req.query.for_agent || '') === '1') {
+    sql += ` AND EXISTS (SELECT 1 FROM model_agent_cap c WHERE LOWER(c.ma_nha_cung_cap) = LOWER(m.ma_nha_cung_cap) AND c.ma_model = m.ma_model AND c.agent_ok = 1)`;
   }
   // Sắp xếp: provider theo thứ tự key trong khoa_api (giống trang Admin),
   // model dùng được (working) trước, model trả phí sau, rồi tên A→Z.
@@ -90,9 +95,10 @@ router.get('/', (req, res) => {
               id: r.ma_model,
               name: r.ma_model.includes('/') ? r.ma_model.split('/').pop() : r.ma_model,
               type: r.ma_model.includes('pro') || r.ma_model.includes('gpt-4') ? 'pro' : 'free',
-              provider: pKey,
-              providerName: pKey.toUpperCase(),
-            });
+            provider: pKey,
+            providerName: pKey.toUpperCase(),
+            agent: 0,
+          });
           }
           return res.json({ success: true, models: Object.fromEntries(map) });
         }
@@ -122,6 +128,7 @@ router.get('/', (req, res) => {
         modality: mod,
         provider: pKey,
         providerName: r.provider_name,
+        agent: r.agent_ok ? 1 : 0,
       });
     }
     res.json({ success: true, models: Object.fromEntries(map) });

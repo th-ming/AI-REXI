@@ -2,26 +2,45 @@
 // nên hoạt động cả trên Linux/container (Render/VPS). Protocol: ReAct JSON — model bắt buộc
 // trả 1 object JSON mỗi bước hoặc file → parse được. executeTool + stop: model nào cũng dùng được.
 
-const { executeTool, TOOL_REGISTRY } = require('./agentService');
+const { executeTool, TOOL_REGISTRY, getAgentChain } = require('./agentService');
 const db = require('../config/db');
 const { decryptKey } = require('../utils/cryptoKeys');
 const { PROVIDER_ENDPOINTS } = require('../model-scanner.scheduler');
 
-const AGENT_PROVIDER = (process.env.AGENT_PROVIDER || 'bai').toLowerCase();
-const AGENT_MODEL = process.env.AGENT_MODEL || 'qwen3.8-flash';
+const AGENT_PROVIDER = (process.env.AGENT_PROVIDER || 'unorouter').toLowerCase();
+const AGENT_MODEL = process.env.AGENT_MODEL || 'deepseek-v4.1-flash:free';
 const MAX_STEPS = parseInt(process.env.AGENT_MAX_STEPS || '6');
 const TOTAL_DEADLINE_MS = parseInt(process.env.AGENT_DEADLINE_MS || '120000'); // 2 phút: luôn trả lời trước khi proxy timeout
 const TOOL_TIMEOUT_MS = parseInt(process.env.AGENT_TOOL_TIMEOUT_MS || '40000'); // tool nặng (browser) fail nhanh
 
-// QA 17/9/2026: provider default (bai) hết credit → agent chết 400 không failover.
-// Chain failover: thử lần lượt các provider OpenAI-compatible CÓ key trong khoa_api.
-const FALLBACK_PROVIDERS = [
-  { provider: 'xkiro', model: 'mistralai/mistral-small-2603' },
-  { provider: 'kiosapi', model: 'sensenova-6.8-flash' },
-  { provider: 'bai', model: 'qwen3.8-flash' },
-  { provider: 'groq', model: 'openai/gpt-oss-120b' },
-  { provider: 'mistral', model: 'mistral-small-latest' },
-];
+// Fallback chain DONG (thay FALLBACK_PROVIDERS cung): lay tu getAgentChain()
+// (env -> DB agent_chain -> mac dinh deepseek/xkiro/kiosapi). Doi qua API, khong can deploy.
+async function getFallbackChain(excludeProvider, excludeModel) {
+  try {
+    const chain = await getAgentChain();
+    return chain.filter(f => !(f.provider === excludeProvider && f.model === excludeModel));
+  } catch {
+    return [
+      { provider: 'unorouter', model: 'deepseek-v4.1-flash:free' },
+      { provider: 'xkiro', model: 'mistralai/mistral-small-2603' },
+      { provider: 'kiosapi', model: 'sensenova-6.8-flash' },
+    ].filter(f => !(f.provider === excludeProvider && f.model === excludeModel));
+  }
+}
+
+// Tim provider tu model id user chon (ai_models, uu tien dang active)
+async function resolveModelProvider(modelId) {
+  try {
+    const m = String(modelId || '').trim();
+    if (!m) return null;
+    const short = m.includes('/') ? m.split('/').pop() : m;
+    const rows = await new Promise((res) => db.all(
+      'SELECT ma_nha_cung_cap FROM ai_models WHERE (LOWER(ma_model) = LOWER(?) OR LOWER(ma_model) = LOWER(?)) AND kich_hoat = 1 ORDER BY thu_tu_hien_thi LIMIT 1',
+      [m, short], (e, r) => res(e ? [] : (r || []))));
+    if (rows.length) return String(rows[0].ma_nha_cung_cap).toLowerCase();
+  } catch { /* ignore */ }
+  return null;
+}
 
 async function getKey(provider) {
   const rows = await new Promise((res) => db.all(
@@ -97,10 +116,16 @@ async function callModel(baseUrl, key, model, messages) {
   return String(content);
 }
 
-async function runInternalAgent(prompt, { provider = AGENT_PROVIDER, model = AGENT_MODEL, onEvent, allowedTools } = {}) {
-  // Chain: provider được chỉ định trước, sau đó fallback các provider còn lại có key
+async function runInternalAgent(prompt, { provider, model, onEvent, allowedTools } = {}) {
+  // Dung model user chon (resolve provider tu DB); fallback chain dong
+  model = model || AGENT_MODEL;
+  if (!provider || provider === 'auto') {
+    provider = (await resolveModelProvider(model)) || AGENT_PROVIDER;
+  }
+  provider = String(provider).toLowerCase();
+  // Chain: model user chon truoc, sau do fallback dong (env/DB/mac dinh)
   const chain = [{ provider, model }]
-    .concat(FALLBACK_PROVIDERS.filter(f => f.provider !== provider));
+    .concat(await getFallbackChain(provider, model));
   let lastErr = null;
   for (const cand of chain) {
     try {

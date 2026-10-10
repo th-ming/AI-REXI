@@ -408,6 +408,68 @@ async function setFailCount(providerId, n) {
   } catch { /* ignore */ }
 }
 
+// Agent-capability probe: model co tra JSON ReAct dung format khong.
+// Dung de picker Agent Mode chi hien model that su chay duoc agent (thay vi doan mo).
+async function probeAgentJson(providerId, apiKey, modelId) {
+  const sys = 'You are a test harness. Reply with EXACTLY one JSON object and nothing else.';
+  const usr = 'Reply {"thought":"probe","answer":"ok"}';
+  try {
+    let url, headers = { 'Content-Type': 'application/json' }, payload;
+    if (providerId === 'gemini') {
+      url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      payload = { contents: [{ role: 'user', parts: [{ text: sys + '\n' + usr }] }], generationConfig: { maxOutputTokens: 120, temperature: 0 } };
+    } else if (providerId === 'claude') {
+      url = 'https://api.anthropic.com/v1/messages';
+      headers = { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
+      payload = { model: modelId, max_tokens: 120, temperature: 0, system: sys, messages: [{ role: 'user', content: usr }] };
+    } else if (providerId === 'opencode') {
+      return { ok: false };
+    } else {
+      const cfg = PROVIDER_ENDPOINTS[providerId];
+      if (!cfg || !cfg.endpoint) return { ok: false };
+      url = cfg.endpoint.replace(/\/models\/?$/, '') + '/chat/completions';
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+      payload = { model: modelId, messages: [{ role: 'system', content: sys }, { role: 'user', content: usr }], temperature: 0, max_tokens: 120 };
+    }
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(20000) });
+    if (res.status === 429) return { ok: false, rateLimited: true };
+    if (!res.ok) return { ok: false };
+    const j = await res.json().catch(() => null);
+    let text = '';
+    if (providerId === 'gemini') {
+      text = ((((j || {}).candidates || [])[0] || {}).content?.parts || []).map(p => p.text || '').join('');
+    } else if (providerId === 'claude') {
+      text = (((j || {}).content || []).map(b => b.text || '').join('')) || '';
+    } else {
+      text = (j && j.choices && j.choices[0] && (j.choices[0].message?.content || j.choices[0].text)) || '';
+    }
+    const obj = extractAgentJson(String(text || ''));
+    if (obj && typeof obj === 'object' && ('answer' in obj || 'tool' in obj)) return { ok: true };
+    return { ok: false };
+  } catch (e) {
+    if (/429|rate.?limit/i.test(e.message || '')) return { ok: false, rateLimited: true };
+    return { ok: false };
+  }
+}
+
+// Trich JSON object dau tien (ban gon, khong require internalAgent de tranh vong tron)
+function extractAgentJson(text) {
+  const s = String(text || '').trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const cand = fence ? fence[1] : s;
+  const start = cand.indexOf('{');
+  if (start === -1) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < cand.length; i++) {
+    const ch = cand[i];
+    if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) { try { return JSON.parse(cand.slice(start, i + 1)); } catch { return null; } } }
+  }
+  return null;
+}
+
 async function scanProvider(providerId) {
   const cfg = PROVIDER_ENDPOINTS[providerId];
   if (!cfg) return { success: false, error: 'Unknown provider' };
@@ -721,6 +783,34 @@ async function scanProvider(providerId) {
     keptOldReason = classifyZeroWorkingReason(results);
     console.warn(`[ModelScanner] ${cfg.name}: toàn bộ lỗi tạm thời — giữ nguyên model cũ. Lý do: ${keptOldReason}`);
   }
+
+  // ─── AGENT-CAP PROBE: working model nao tra JSON ReAct dung format -> agent_ok=1.
+  // Picker Agent Mode chi hien model co flag (thay vi doan mo). TTL 30d, cap 8/provider/luot,
+  // dung ngay khi fuse/429, model chua probe bao gio test truoc. Bo qua neu health phase da fuse.
+  try {
+    if (!quotaFuse) {
+      const AGENT_TTL = 30 * 24 * 3600 * 1000, AGENT_CAP = 8;
+      const probed = await allRows('SELECT ma_model, thoi_gian_test FROM model_agent_cap WHERE ma_nha_cung_cap = ?', [providerId]);
+      const probedMap = new Map((probed || []).map(r => [String(r.ma_model), toTimeMs(r.thoi_gian_test)]));
+      const now2 = Date.now();
+      const cands = workingList
+        .map(m => String(m.id))
+        .filter(id => { const t = probedMap.get(id); return t === undefined || isNaN(t) || (now2 - t) > AGENT_TTL; });
+      cands.sort((a, b) => (probedMap.has(a) ? 1 : 0) - (probedMap.has(b) ? 1 : 0));
+      let done = 0;
+      for (const id of cands) {
+        if (done >= AGENT_CAP) { console.log(`[ModelScanner] ${cfg.name}: agent-probe ${done}/${cands.length} (con lai luot sau)`); break; }
+        const r = await probeAgentJson(providerId, apiKey, id);
+        await runSql(`INSERT INTO model_agent_cap (ma_model, ma_nha_cung_cap, agent_ok, thoi_gian_test)
+          VALUES (?, ?, ?, ${NOW()})
+          ON CONFLICT(ma_model, ma_nha_cung_cap) DO UPDATE SET agent_ok = excluded.agent_ok, thoi_gian_test = ${NOW()}`,
+          [id, providerId, r.ok ? 1 : 0]);
+        if (r.ok) console.log(`[ModelScanner] ${cfg.name} AGENT-OK: ${id}`);
+        done++;
+        if (r.rateLimited) { console.log(`[ModelScanner] ${cfg.name}: agent-probe 429 -> dung, luot sau tiep`); break; }
+      }
+    }
+  } catch (e) { console.error('[ModelScanner] agent-probe error:', e.message); }
 
   return { success: true, provider: providerId, total: results.length, working, results, keptOld, keptOldReason, newModels: newWorkingIds };
 }
