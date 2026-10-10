@@ -1755,11 +1755,21 @@ router.post('/youtube/comments/local', authMiddleware, async (req, res) => {
     const vid = url.replace(/^https?:\/\/(www\.)?youtube\.com\/watch\?v=/, '').replace(/&.*$/, '').replace(/^https?:\/\/youtu\.be\//, '');
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
     const me = req.user || {};
+    const uid = me.ma_nguoi_dung || me.id || 'guest';
+    // JWT chỉ chứa {id, role} — JWT payload không có ten_day_du/email → tra DB theo ma_nguoi_dung
+    let tenHienThi = me.ten_day_du || me.email || '';
+    if (!tenHienThi && uid !== 'guest') {
+      try {
+        const u = await dbGet('SELECT ten_day_du, email FROM nguoi_dung WHERE ma_nguoi_dung = ?', [uid]);
+        if (u) tenHienThi = u.ten_day_du || u.email || '';
+      } catch { /* giữ fallback */ }
+    }
+    tenHienThi = tenHienThi || 'Bạn';
     await dbRun(
       'INSERT INTO binh_luan_youtube (id, video_id, ma_nguoi_dung, ten_hien_thi, noi_dung) VALUES (?, ?, ?, ?, ?)',
-      [id, vid, me.ma_nguoi_dung || me.id || 'guest', me.ten_day_du || me.email || 'Bạn', content]
+      [id, vid, uid, tenHienThi, content]
     );
-    res.json({ success: true, comment: { id, author: me.ten_day_du || me.email || 'Bạn', text: content, likes: 0, time: new Date().toISOString().substring(0, 10), local: true } });
+    res.json({ success: true, comment: { id, author: tenHienThi, text: content, likes: 0, time: new Date().toISOString().substring(0, 10), local: true } });
   } catch (e) {
     console.error('[YouTube] Local comment error:', e.message);
     res.status(500).json({ success: false, error: 'Lỗi gửi bình luận: ' + e.message });
@@ -2050,7 +2060,7 @@ function isValidYouTubeUrl(url) {
     return /^\/[A-Za-z0-9_-]{11}/.test(u.pathname);
   }
   if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
-    return /^\/(watch|shorts|live|embed)/.test(u.pathname);
+    return /^\/(watch|shorts|live|embed)\\b/.test(u.pathname);
   }
   return false;
 }
