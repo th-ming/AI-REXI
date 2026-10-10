@@ -1428,3 +1428,10 @@ export function t(lang, key) {
 }
 
 export const LANGS = ['vi', 'en'];
+
+// SWEEP-EN-MAP:Batch6 (gap fill)
+Object.assign(translations.en, {
+  "Tăng star": "Star growth",
+  "Ẩn transcript": "Hide transcript",
+  "Xem transcript": "View transcript"
+});

@@ -99,7 +99,7 @@ export default function IPTVTab({
     if (countrySearch) {
       const q = countrySearch.toLowerCase().trim();
       return ALL_IPTV_COUNTRIES.filter(c =>
-        c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+        c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || (() => { try { return (new Intl.DisplayNames([lang], { type: 'region' }).of(c.code) || '').toLowerCase().includes(q); } catch { return false; } })()
       );
     }
     const popular = POPULAR_COUNTRIES.map(code => ALL_IPTV_COUNTRIES.find(c => c.code === code)).filter(Boolean);

@@ -1083,7 +1083,7 @@ showToast, active }) {
                         className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
                       >
                         <FileText size={11} />
-                        {showTranscript ? 'Ẩn transcript' : 'Xem transcript'}
+                        {showTranscript ? t(lang, 'Ẩn transcript') : t(lang, 'Xem transcript')}
                         {showTranscript ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                       </button>
                     )}
