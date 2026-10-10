@@ -1,6 +1,8 @@
 import { apiFetch } from "../config";
 import React, { useState } from 'react';
 import { Globe, Search, Loader2, CheckCircle, AlertTriangle, Clock, Image, Link, FileText, BarChart3 } from 'lucide-react';
+import { tx } from "../i18n-sweep";
+import { getLang } from "../i18n";
 
 
 export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
@@ -9,7 +11,7 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
   const [result, setResult] = useState(null);
 
   const handleAnalyze = async () => {
-    if (!url.trim()) return showToast('Nhập URL cần phân tích!', 'error');
+    if (!url.trim()) return showToast(tx(getLang(), 'Nhập URL cần phân tích!'), 'error');
     let finalUrl = url.trim();
     if (!finalUrl.startsWith('http')) finalUrl = 'https://' + finalUrl;
     setAnalyzing(true);
@@ -23,12 +25,12 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
       if (data.success && data.result) {
         setResult(data.result);
         if (data.result.error) showToast(data.result.error, 'error');
-        else showToast('Phân tích xong!', 'success');
+        else showToast(tx(getLang(), 'Phân tích xong!'), 'success');
       } else {
-        showToast(data.error || 'Lỗi phân tích', 'error');
+        showToast(data.error || tx(getLang(), 'Lỗi phân tích'), 'error');
       }
     } catch (e) {
-      showToast('Lỗi kết nối: ' + e.message, 'error');
+      showToast(tx(getLang(), 'Lỗi kết nối: ') + e.message, 'error');
     } finally { setAnalyzing(false); }
   };
 
@@ -48,9 +50,9 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
       {/* Header */}
       <div className="p-4 border-b border-white/5 bg-[var(--bg-sidebar)]">
         <h2 className="text-sm font-bold text-white flex items-center gap-2">
-          <Globe size={18} className="text-cyan-400" /> Agent Phân Tích Web
+          <Globe size={18} className="text-cyan-400" /> {tx(getLang(), 'Agent Phân Tích Web')}
         </h2>
-        <p className="text-[11px] text-slate-400 mt-1">Nhập URL, agent tự vào đọc, chụp screenshot, đánh giá SEO & design</p>
+        <p className="text-[11px] text-slate-400 mt-1">{tx(getLang(), 'Nhập URL, agent tự vào đọc, chụp screenshot, đánh giá SEO & design')}</p>
       </div>
 
       {/* Input */}
@@ -67,7 +69,7 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
           </div>
           <button onClick={handleAnalyze} disabled={analyzing}
             className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20">
-            {analyzing ? <><Loader2 size={16} className="animate-spin" /> Đang phân tích...</> : <><Search size={16} /> Phân Tích</>}
+            {analyzing ? <><Loader2 size={16} className="animate-spin" /> {tx(getLang(), 'Đang phân tích...')}</> : <><Search size={16} /> {tx(getLang(), 'Phân Tích')}</>}
           </button>
         </div>
       </div>
@@ -85,7 +87,7 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
           {/* Title & Meta */}
           <div className="bg-[#181920] rounded-xl border border-white/5 p-4 space-y-2">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <FileText size={14} className="text-cyan-400" /> {result.title || '(Không có title)'}
+              <FileText size={14} className="text-cyan-400" /> {result.title || tx(getLang(), '(Không có title)')}
             </h3>
             <p className="text-xs text-slate-400 line-clamp-2">{result.metaDesc}</p>
             {result.metaKeywords !== '(không có)' && (
@@ -95,9 +97,9 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
 
           {/* Scores */}
           <div className="grid grid-cols-3 gap-2">
-            <ScoreBadge label="SEO" value={result.score?.seo} color={result.score?.seo === 'Tốt' ? 'green' : 'yellow'} />
-            <ScoreBadge label="Tốc độ" value={result.score?.speed} color={result.score?.speed === 'Nhanh' ? 'green' : result.score?.speed === 'Trung bình' ? 'yellow' : 'red'} />
-            <ScoreBadge label="Accessibility" value={result.score?.accessibility} color={result.score?.accessibility === 'Tốt' ? 'green' : 'red'} />
+            <ScoreBadge label="SEO" value={result.score?.seo ? tx(getLang(), result.score.seo) : ''} color={result.score?.seo === 'Tốt' ? 'green' : 'yellow'} />
+            <ScoreBadge label={tx(getLang(), 'Tốc độ')} value={result.score?.speed ? tx(getLang(), result.score.speed) : ''} color={result.score?.speed === 'Nhanh' ? 'green' : result.score?.speed === 'Trung bình' ? 'yellow' : 'red'} />
+            <ScoreBadge label="Accessibility" value={result.score?.accessibility ? tx(getLang(), result.score.accessibility) : ''} color={result.score?.accessibility === 'Tốt' ? 'green' : 'red'} />
           </div>
 
           {/* Stats */}
@@ -116,7 +118,7 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
             </div>
             <div className="bg-[#181920] rounded-xl border border-white/5 p-3">
               <div className="flex items-center gap-2 text-xs text-slate-400 mb-1"><Image size={12} /> Images</div>
-              <div className="text-lg font-bold text-white">{result.totalImages} {result.imgNoAlt > 0 && <span className="text-xs text-rose-400">({result.imgNoAlt} thiếu alt)</span>}</div>
+              <div className="text-lg font-bold text-white">{result.totalImages} {result.imgNoAlt > 0 && <span className="text-xs text-rose-400">({result.imgNoAlt} {tx(getLang(), 'thiếu alt')})</span>}</div>
             </div>
           </div>
 
@@ -132,7 +134,7 @@ export default function WebAnalyzer({ apiFetch: apiFetchProp, showToast }) {
           {/* Body Text Preview */}
           {result.bodyText && (
             <div className="bg-[#181920] rounded-xl border border-white/5 p-3">
-              <div className="text-xs text-slate-400 mb-2">Nội dung trang (preview)</div>
+              <div className="text-xs text-slate-400 mb-2">{tx(getLang(), 'Nội dung trang (preview)')}</div>
               <p className="text-xs text-slate-300 line-clamp-6 whitespace-pre-wrap">{result.bodyText}</p>
             </div>
           )}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Loader2, RefreshCw, Bot, Wifi, WifiOff, Send, ChevronDown, Camera } from 'lucide-react';
 import { OPENCUT_URL } from '../config';
 
@@ -16,17 +17,17 @@ export default function OpenCutTab({ authToken, showToast }) {
       {loading && !error && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 pointer-events-none">
           <Loader2 size={22} className="text-cyan-500 animate-spin" />
-          <p className="text-xs text-slate-500">Đang tải OpenCut...</p>
+          <p className="text-xs text-slate-500">{tx(lang, 'Đang tải OpenCut...')}</p>
         </div>
       )}
       {error && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center p-6">
-          <p className="text-sm text-slate-300">Không tải được OpenCut.</p>
+          <p className="text-sm text-slate-300">{tx(lang, 'Không tải được OpenCut.')}</p>
           <button
             onClick={reload}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-200 text-xs font-semibold hover:bg-cyan-500/25 transition-all"
           >
-            <RefreshCw size={13} /> Thử lại
+            <RefreshCw size={13} /> {tx(lang, 'Thử lại')}
           </button>
         </div>
       )}
@@ -71,8 +72,8 @@ function AgentBridgePanel({ token, showToast }) {
   const send = async () => {
     const msg = input.trim();
     if (!msg || busy) return;
-    if (!token) { showToast && showToast('Cần đăng nhập để dùng agent', 'error'); return; }
-    setBusy(true); setLog('Đang gửi tới agent...');
+    if (!token) { showToast && showToast(tx(getLang(), 'Cần đăng nhập để dùng agent'), 'error'); return; }
+    setBusy(true); setLog(tx(getLang(), 'Đang gửi tới agent...'));
     try {
       const r = await fetch('/api/services/opencut-bridge/ask', {
         method: 'POST',
@@ -80,13 +81,13 @@ function AgentBridgePanel({ token, showToast }) {
         body: JSON.stringify({ message: msg })
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) { setLog('Lỗi: ' + (data.error || r.status)); }
+      if (!r.ok) { setLog(tx(getLang(), 'Lỗi: ') + (data.error || r.status)); }
       else {
         const out = data.answer || data.result || data.message || JSON.stringify(data);
         setLog(String(out).slice(0, 2000));
       }
     } catch (e) {
-      setLog('Lỗi mạng: ' + e.message);
+      setLog(tx(getLang(), 'Lỗi mạng: ') + e.message);
     }
     setBusy(false);
   };
@@ -98,8 +99,8 @@ function AgentBridgePanel({ token, showToast }) {
       const r = await fetch('/api/services/opencut-bridge/shot', { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
       const d = await r.json().catch(() => ({}));
       if (d && d.screenshot) setShot(d.screenshot);
-      else setLog('Chụp lỗi: ' + (d.error || r.status));
-    } catch (e) { setLog('Chụp lỗi mạng: ' + e.message); }
+      else setLog(tx(getLang(), 'Chụp lỗi: ') + (d.error || r.status));
+    } catch (e) { setLog(tx(getLang(), 'Chụp lỗi mạng: ') + e.message); }
     setShotBusy(false);
   };
 
@@ -116,9 +117,9 @@ function AgentBridgePanel({ token, showToast }) {
           <Bot size={15} className="text-cyan-300 shrink-0" />
           <span className="text-[12.5px] font-semibold text-slate-100 flex-1">OpenCut Agent</span>
           {connected ? (
-            <span className="inline-flex items-center gap-1 text-[10.5px] text-emerald-300"><Wifi size={12} />đã nối</span>
+            <span className="inline-flex items-center gap-1 text-[10.5px] text-emerald-300"><Wifi size={12} />{tx(lang, 'đã nối')}</span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-500"><WifiOff size={12} />chưa nối</span>
+            <span className="inline-flex items-center gap-1 text-[10.5px] text-slate-500"><WifiOff size={12} />{tx(lang, 'chưa nối')}</span>
           )}
           <ChevronDown size={14} className={`text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
         </button>
@@ -126,9 +127,9 @@ function AgentBridgePanel({ token, showToast }) {
         {open && (
           <div className="px-3.5 pb-3.5">
             <p className="text-[10.5px] text-slate-500 mb-2 leading-relaxed">
-              {!token ? 'Cần đăng nhập.'
-                : connected ? (hasTab ? 'Extension OK + có tab OpenCut. Nhập việc cần agent làm:' : 'Extension OK nhưng chưa thấy tab opencut.app — hãy mở opencut.app.')
-                : 'Chưa thấy extension. Cài "Rexi OpenCut Bridge" (Load unpacked) + mở opencut.app.'}
+              {!token ? tx(lang, 'Cần đăng nhập.')
+                : connected ? (hasTab ? tx(lang, 'Extension OK + có tab OpenCut. Nhập việc cần agent làm:') : tx(lang, 'Extension OK nhưng chưa thấy tab opencut.app — hãy mở opencut.app.'))
+                : tx(lang, 'Chưa thấy extension. Cài "Rexi OpenCut Bridge" (Load unpacked) + mở opencut.app.')}
             </p>
             <textarea
               ref={taRef}
@@ -152,7 +153,7 @@ function AgentBridgePanel({ token, showToast }) {
                 disabled={shotBusy}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/15 text-slate-200 text-[11.5px] font-semibold hover:bg-white/10 disabled:opacity-40 transition-all"
               >
-                {shotBusy ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />} Chụp
+                {shotBusy ? <Loader2 size={12} className="animate-spin" /> : <Camera size={12} />} {tx(lang, 'Chụp')}
               </button>
             </div>
             {log && (

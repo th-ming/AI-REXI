@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { X, Terminal, GitBranch, Activity, Trash2, Zap } from 'lucide-react';
 
 export default function SuperToolsModal({
@@ -30,7 +31,7 @@ export default function SuperToolsModal({
             <input type="text" value={execCommand} onChange={e => setExecCommand(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleExecCommand()}
               placeholder={t(lang, 'phTerminal')} className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 outline-none font-mono" />
-            <button onClick={handleExecCommand} className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium">Chạy</button>
+            <button onClick={handleExecCommand} className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-medium">{tx(lang, 'Chạy')}</button>
           </div>
           {execOutput && <pre className="mt-2 p-2 bg-slate-100 rounded-lg text-[11px] text-slate-700 font-mono max-h-32 overflow-auto">{execOutput}</pre>}
         </div>
@@ -46,7 +47,7 @@ export default function SuperToolsModal({
               <p>Branch: <span className="text-cyan-600 font-mono">{gitStatus.branch || 'N/A'}</span></p>
               {gitStatus.changes?.length > 0 && <p className="text-amber-600 mt-1">{gitStatus.changes.length} files changed</p>}
             </div>
-          ) : <p className="text-xs text-slate-500">Không có Git repo</p>}
+          ) : <p className="text-xs text-slate-500">{tx(lang, 'Không có Git repo')}</p>}
         </div>
 
         {/* Memory */}
@@ -56,13 +57,13 @@ export default function SuperToolsModal({
             <input type="text" value={newMemory} onChange={e => setNewMemory(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleAddMemory()}
               placeholder={t(lang, 'phNote')} className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 outline-none" />
-            <button onClick={handleAddMemory} className="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-medium">+ Lưu</button>
+            <button onClick={handleAddMemory} className="px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-medium">{tx(lang, '+ Lưu')}</button>
           </div>
           <div className="space-y-1 max-h-32 overflow-y-auto">
-            {memories.length === 0 ? <p className="text-[11px] text-slate-500">Chưa có memory</p> : memories.map(m => (
+            {memories.length === 0 ? <p className="text-[11px] text-slate-500">{tx(lang, 'Chưa có memory')}</p> : memories.map(m => (
               <div key={m.ma_bo_nho} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-100 text-[11px] text-slate-700">
                 <span className="truncate flex-1">{m.noi_dung}</span>
-                <button onClick={() => { if (confirm('Xoá memory này?')) handleDeleteMemory(m.ma_bo_nho) } } className="ml-2 text-slate-400 hover:text-rose-500"><Trash2 size={11} /></button>
+                <button onClick={() => { if (confirm(tx(lang, 'Xoá memory này?'))) handleDeleteMemory(m.ma_bo_nho) } } className="ml-2 text-slate-400 hover:text-rose-500"><Trash2 size={11} /></button>
               </div>
             ))}
           </div>

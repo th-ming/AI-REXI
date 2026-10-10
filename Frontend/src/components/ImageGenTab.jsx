@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Sparkles, Loader2, Download, Copy, Check, Trash2, Shuffle, History, X } from 'lucide-react';
 
 // Gợi ý prompt mẫu — bấm 1 phát điền
@@ -44,7 +45,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
       const data = await res.json();
       const first = data.images && data.images[0];
       if (data.success && first) return { image: first.url || first.b64, modelLabel: `${provider.toUpperCase()} · ${model}` };
-      throw new Error(data.error || 'Tạo ảnh thất bại — provider này có thể không nhận model đã chọn.');
+      throw new Error(data.error || tx(lang, 'Tạo ảnh thất bại — provider này có thể không nhận model đã chọn.'));
     }
     const res = await fetch(`${API_BASE}/services/generate-image`, {
       method: 'POST',
@@ -53,20 +54,20 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
     });
     const data = await res.json();
     if (data.success && data.image) return { image: data.image, modelLabel: 'Gemini (builtin)' };
-    throw new Error(data.error || 'Tạo ảnh thất bại.');
+    throw new Error(data.error || tx(lang, 'Tạo ảnh thất bại.'));
   };
 
   const generate = async () => {
-    if (!prompt.trim()) { setError('Vui lòng nhập mô tả ảnh cần tạo.'); return; }
+    if (!prompt.trim()) { setError(tx(lang, 'Vui lòng nhập mô tả ảnh cần tạo.')); return; }
     setLoading(true); setError(''); setImage('');
     try {
       const r = await genFetch(picked);
       setImage(r.image);
       setImageMeta({ prompt: prompt.trim(), modelLabel: r.modelLabel });
       setHistory((h) => [{ image: r.image, prompt: prompt.trim(), modelLabel: r.modelLabel }, ...h].slice(0, 12));
-      showToast?.('✅ Tạo ảnh thành công!', 'success');
+      showToast?.(tx(lang, '✅ Tạo ảnh thành công!'), 'success');
     } catch (e) {
-      setError('Lỗi tạo ảnh: ' + (e.message || 'kết nối thất bại'));
+      setError(tx(lang, 'Lỗi tạo ảnh: ') + (e.message || tx(lang, 'kết nối thất bại')));
     } finally {
       setLoading(false);
     }
@@ -99,8 +100,8 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
     <div className="h-full flex flex-col p-4 space-y-4 overflow-y-auto">
       <div className="flex items-center gap-2">
         <Sparkles size={18} className="text-indigo-400" />
-        <h2 className="text-lg font-bold text-slate-100">Tạo Ảnh AI</h2>
-        <span className="text-[10px] text-slate-500">Mặc định Gemini free — hoặc chọn model ảnh từ các router (UnoRouter SD checkpoints, v.v...)</span>
+        <h2 className="text-lg font-bold text-slate-100">{tx(lang, 'Tạo Ảnh AI')}</h2>
+        <span className="text-[10px] text-slate-500">{tx(lang, 'Mặc định Gemini free — hoặc chọn model ảnh từ các router (UnoRouter SD checkpoints, v.v...)')}</span>
       </div>
 
       <div className="bg-[#1e1f20] border border-white/10 rounded-2xl p-4 space-y-3">
@@ -114,9 +115,9 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
         {/* Chips gợi ý — bấm điền nhanh */}
         <div className="flex flex-wrap gap-1.5">
           {PROMPT_IDEAS.map((idea, i) => (
-            <button key={i} type="button" onClick={() => setPrompt(idea)}
+            <button key={i} type="button" onClick={() => setPrompt(tx(lang, idea))}
               className="px-2.5 py-1 rounded-full bg-[#26282b] hover:bg-[#31343a] border border-white/10 text-[10px] text-slate-300 hover:text-white transition-all text-left max-w-full truncate">
-              💡 {idea.length > 42 ? idea.slice(0, 42) + '…' : idea}
+              💡 {(tx(lang, idea).length > 42 ? tx(lang, idea).slice(0, 42) + '…' : tx(lang, idea))}
             </button>
           ))}
         </div>
@@ -139,9 +140,9 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             onChange={(e) => setSize(e.target.value)}
             className="bg-[#131416] border border-white/10 rounded-xl px-2.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500/50"
           >
-            {SIZES.map(s => <option key={s.v} value={s.v}>{s.label} · {s.v}</option>)}
+            {SIZES.map(s => <option key={s.v} value={s.v}>{tx(lang, s.label)} · {s.v}</option>)}
           </select>
-          {imageModels.length === 0 && <span className="text-[10px] text-slate-500">Chưa quét được model ảnh nào — chọn thêm sau lượt quét</span>}
+          {imageModels.length === 0 && <span className="text-[10px] text-slate-500">{tx(lang, 'Chưa quét được model ảnh nào — chọn thêm sau lượt quét')}</span>}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -150,29 +151,29 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50 transition-all"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-            {loading ? 'Đang tạo ảnh...' : 'Tạo ảnh'}
+            {loading ? tx(lang, 'Đang tạo ảnh...') : tx(lang, 'Tạo ảnh')}
           </button>
           {prompt.trim() && !loading && (
             <button onClick={generate} title={t(lang, 'tipRegen')}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-200 text-xs border border-white/10 transition-all">
-              <Shuffle size={14} /> Biến thể
+              <Shuffle size={14} /> {tx(lang, 'Biến thể')}
             </button>
           )}
           {image && (
             <>
               <button onClick={download} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-200 text-xs border border-white/10 transition-all">
-                <Download size={14} /> Tải ảnh
+                <Download size={14} /> {tx(lang, 'Tải ảnh')}
               </button>
               <button onClick={copyImage} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-200 text-xs border border-white/10 transition-all">
-                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />} {copied ? 'Đã copy' : 'Copy'}
+                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />} {copied ? tx(lang, 'Đã copy') : 'Copy'}
               </button>
               <button onClick={clear} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#26282b] hover:bg-[#2f3236] text-slate-400 text-xs border border-white/10 transition-all">
-                <Trash2 size={14} /> Xóa
+                <Trash2 size={14} /> {tx(lang, 'Xóa')}
               </button>
             </>
           )}
         </div>
-        <p className="text-[10px] text-slate-500">💡 Lưu ý: ảnh tạo từ Gemini free tier, nếu gặp lỗi "hết quota" thì đợi vài phút thử lại. Nút "Biến thể" tạo lại ảnh khác từ cùng mô tả.</p>
+        <p className="text-[10px] text-slate-500">{tx(lang, '💡 Lưu ý: ảnh tạo từ Gemini free tier, nếu gặp lỗi "hết quota" thì đợi vài phút thử lại. Nút "Biến thể" tạo lại ảnh khác từ cùng mô tả.')}</p>
       </div>
 
       {error && (
@@ -189,14 +190,14 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
               <Loader2 size={28} className="animate-spin text-indigo-400" />
             </div>
           </div>
-          <p className="text-xs">Đang vẽ... thường mất 10-20 giây</p>
+          <p className="text-xs">{tx(lang, 'Đang vẽ... thường mất 10-20 giây')}</p>
         </div>
       )}
 
       {image && !loading && (
         <div className="flex flex-col items-center space-y-3">
           <div className="relative flex justify-center">
-            <img src={image} alt="Kết quả tạo ảnh" className="max-w-full max-h-[55vh] rounded-2xl border border-white/10 shadow-2xl" />
+            <img src={image} alt={tx(lang, 'Kết quả tạo ảnh')} className="max-w-full max-h-[55vh] rounded-2xl border border-white/10 shadow-2xl" />
           </div>
           {imageMeta?.modelLabel && (
             <div className="flex items-center gap-2 text-[10px] text-slate-500">
@@ -211,7 +212,7 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
       {history.length > 1 && (
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 text-xs text-slate-400">
-            <History size={13} /> Ảnh đã tạo trong phiên ({history.length})
+            <History size={13} /> {tx(lang, 'Ảnh đã tạo trong phiên')} ({history.length})
           </div>
           <div className="flex flex-wrap gap-2">
             {history.map((h, i) => (
@@ -234,8 +235,8 @@ export default function ImageGenTab({ API_BASE, authToken, showToast, imageModel
       {!image && !loading && !error && (
         <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-500 space-y-2 py-10">
           <div className="text-5xl mb-2">🖼️</div>
-          <p className="text-sm">Mô tả bằng chữ ở trên, bấm <b>Tạo ảnh</b> là có ảnh AI ngay.</p>
-          <p className="text-[10px] max-w-md">Bấm chip gợi ý 💡 để điền nhanh, chọn tỉ lệ ảnh ở dropdown, dùng "Biến thể" để tạo thêm ảnh khác từ cùng mô tả.</p>
+          <p className="text-sm">{tx(lang, 'Mô tả bằng chữ ở trên, bấm')} <b>{tx(lang, 'Tạo ảnh')}</b> {tx(lang, 'là có ảnh AI ngay.')}</p>
+          <p className="text-[10px] max-w-md">{tx(lang, 'Bấm chip gợi ý 💡 để điền nhanh, chọn tỉ lệ ảnh ở dropdown, dùng "Biến thể" để tạo thêm ảnh khác từ cùng mô tả.')}</p>
         </div>
       )}
     </div>

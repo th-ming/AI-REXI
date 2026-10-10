@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { X, Play, Volume2, Wifi, ExternalLink, Copy } from 'lucide-react';
 
 const VIDEO_TOOLS = [
@@ -46,7 +47,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
 
   const handleTTSTest = async () => {
     if (!videoToolsOpen) return;
-    const testText = 'Xin chào, đây là giọng nói thử nghiệm từ Rexi AI.';
+    const testText = getLang() === 'en' ? 'Hello, this is a test voice from Rexi AI.' : 'Xin chào, đây là giọng nói thử nghiệm từ Rexi AI.';
     const headers = { 'Content-Type': 'application/json' };
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
@@ -61,12 +62,12 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
       if (data.success && data.audio) {
         const audio = new Audio('data:audio/mp3;base64,' + data.audio);
         audio.play();
-        showToast('Đang phát giọng nói thử nghiệm!', 'success');
+        showToast(tx(lang, 'Đang phát giọng nói thử nghiệm!'), 'success');
       } else {
-        showToast(data.error || 'TTS server không khả dụng, dùng browser', 'error');
+        showToast(data.error || tx(lang, 'TTS server không khả dụng, dùng browser'), 'error');
       }
     } catch (err) {
-      showToast('Lỗi TTS: ' + err.message, 'error');
+      showToast(tx(lang, 'Lỗi TTS: ') + err.message, 'error');
     }
   };
 
@@ -74,7 +75,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
     navigator.clipboard.writeText(repoUrl).then(() => {
       setCopiedLink(name);
       setTimeout(() => setCopiedLink(null), 2000);
-      showToast(`${name} đã được sao chép!`, 'success');
+      showToast(getLang() === 'en' ? `${name} copied!` : `${name} đã được sao chép!`, 'success');
     });
   };
 
@@ -107,7 +108,7 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
           <div key={gi} className="mb-5">
             <div className="flex items-center gap-2 mb-3 pb-1 border-b border-white/5">
               {group.icon}
-              <h3 className="text-xs font-bold text-slate-300">{group.category}</h3>
+              <h3 className="text-xs font-bold text-slate-300">{tx(lang, group.category)}</h3>
             </div>
 
             <div className="grid gap-2.5">
@@ -127,10 +128,10 @@ export default function VideoToolsModal({ videoToolsOpen, setVideoToolsOpen, API
                             ? 'bg-amber-500/20 text-amber-300'
                             : 'bg-slate-500/20 text-slate-400'
                         }`}>
-                          {tool.badge}
+                          {tx(lang, tool.badge)}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">{tool.desc}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">{tx(lang, tool.desc)}</p>
                     </div>
 
                     <div className="flex items-center gap-1 ml-2 shrink-0">

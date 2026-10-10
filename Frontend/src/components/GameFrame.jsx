@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { tx } from '../i18n-sweep';
+import { getLang } from '../i18n';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 export default function GameFrame({ src, title, name, reloadKey = 0 }) {
@@ -17,15 +19,15 @@ export default function GameFrame({ src, title, name, reloadKey = 0 }) {
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d0e11]">
           <div className="flex flex-col items-center gap-2">
             <Loader2 size={22} className="text-purple-500 animate-spin" />
-            <span className="text-xs text-slate-500">Đang tải {name}...</span>
+            <span className="text-xs text-slate-500">{tx(getLang(), 'Đang tải')} {name}...</span>
           </div>
         </div>
       )}
       {status === 'timeout' && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-[#0d0e11] p-8">
           <AlertTriangle size={28} className="text-amber-400" />
-          <p className="text-sm font-semibold text-slate-200">Không tải được {name}</p>
-          <p className="text-xs text-slate-500 text-center max-w-xs">File game có thể bị chặn hoặc thiếu. Thử tải lại hoặc mở trong tab mới.</p>
+          <p className="text-sm font-semibold text-slate-200">{tx(getLang(), 'Không tải được')} {name}</p>
+          <p className="text-xs text-slate-500 text-center max-w-xs">{tx(getLang(), 'File game có thể bị chặn hoặc thiếu. Thử tải lại hoặc mở trong tab mới.')}</p>
         </div>
       )}
       <iframe

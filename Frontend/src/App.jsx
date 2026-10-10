@@ -55,6 +55,7 @@ import {
   Wand2
 } from 'lucide-react';
 import { getLang, setLang, t } from './i18n';
+import { tx } from './i18n-sweep';
 import Hls from 'hls.js';
 
 // Components
@@ -106,13 +107,13 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
 
   const activeModelObj = useMemo(() => {
     // 🤖 Auto: hiển thị chế độ tự chọn model thông minh
-    if (modelName === 'auto') return { id: 'auto', name: t(getLang(), 'Auto (tự chọn thông minh)'), provider: 'xkiro', type: 'free' };
+    if (modelName === 'auto') return { id: 'auto', name: tx(getLang(), 'Auto (tự chọn thông minh)'), provider: 'xkiro', type: 'free' };
     // 🔄 Ưu tiên model thật đang được chọn; nếu model cũ đã bị xóa (không còn trong danh sách mới)
     // → KHÔNG hiển thị model giả/cũ — tự chọn model thật đầu tiên (hoặc trạng thái 'đang tải')
     const found = availableModels.find(m => m.id === modelName);
     if (found) return found;
     if (availableModels.length > 0) return availableModels[0];
-    return { id: modelName || '', name: modelName || t(getLang(), 'Đang tải model...'), provider: '', type: 'free' };
+    return { id: modelName || '', name: modelName || tx(getLang(), 'Đang tải model...'), provider: '', type: 'free' };
   }, [availableModels, modelName]);
 
   const groupedModels = useMemo(() => {
@@ -1139,7 +1140,7 @@ useEffect(() => {
         reader.readAsText(file);
         reader.onload = () => {
           const t = String(reader.result || '');
-          const cut = t.length > MAX_TEXT_SEND ? t.slice(0, MAX_TEXT_SEND) + `\n...[đã cắt, file dài ${t.length} ký tự]` : t;
+          const cut = t.length > MAX_TEXT_SEND ? t.slice(0, MAX_TEXT_SEND) + (getLang() === 'en' ? `\n...[trimmed, file is ${t.length} chars]` : `\n...[đã cắt, file dài ${t.length} ký tự]`) : t;
           setAttachedFiles(p => [...p, { name: file.name, isImage: false, isBinary: false, textContent: cut }]);
         };
       } else {

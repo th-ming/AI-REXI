@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Gamepad2, RefreshCw, ExternalLink, Monitor } from 'lucide-react';
 import GameFrame from './GameFrame';
 
@@ -27,7 +28,7 @@ export default function GameTab({ showToast }) {
 
   const handleOpenNewTab = () => {
     window.open(current.url, '_blank', 'noopener');
-    showToast?.(`Đã mở ${current.name} trong tab mới`, 'success');
+    showToast?.((getLang() === 'en' ? `Opened ${current.name} in a new tab` : `Đã mở ${current.name} trong tab mới`), 'success');
   };
 
   return (
@@ -49,7 +50,7 @@ export default function GameTab({ showToast }) {
                     ? 'bg-white/15 text-white border-white/20 shadow-lg'
                     : 'bg-transparent text-slate-400 border-transparent hover:bg-white/5 hover:text-white'
                 }`}
-                title={g.desc}
+                title={tx(lang, g.desc)}
               >
                 <span>{g.emoji}</span>
                 <span>{g.name}</span>
@@ -81,8 +82,8 @@ export default function GameTab({ showToast }) {
           <Monitor size={11} className="text-white" />
         </span>
         <span className="text-[11px] font-semibold text-slate-200">{current.name}</span>
-        <span className="text-[10px] text-slate-500">{current.desc}</span>
-        <span className="ml-auto text-[10px] text-slate-600">Chơi ngay trong trình duyệt — không cần cài đặt</span>
+        <span className="text-[10px] text-slate-500">{tx(lang, current.desc)}</span>
+        <span className="ml-auto text-[10px] text-slate-600">{tx(lang, 'Chơi ngay trong trình duyệt — không cần cài đặt')}</span>
       </div>
 
       <GameFrame src={current.url} title={current.name} name={current.name} reloadKey={reloadKey} />

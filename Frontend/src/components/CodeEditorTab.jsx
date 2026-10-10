@@ -1,5 +1,6 @@
 import React from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Play, Save, Eye } from 'lucide-react';
 
 export default function CodeEditorTab({
@@ -16,12 +17,12 @@ export default function CodeEditorTab({
           <div className="flex items-center gap-2">
             <button onClick={() => setLiveHtml?.(fileContent)}
               className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium flex items-center gap-1">
-              <Play size={12} /> Chạy Preview
+              <Play size={12} /> {tx(lang, 'Chạy Preview')}
             </button>
             {selectedFile && (
               <button onClick={handleSaveFile} disabled={savingFile}
                 className="px-3 py-1 bg-cyan-500 hover:bg-cyan-400 text-white rounded-lg text-xs font-medium flex items-center gap-1">
-                <Save size={12} /> {savingFile ? 'Đang lưu...' : 'Lưu File'}
+                <Save size={12} /> {savingFile ? tx(lang, 'Đang lưu...') : tx(lang, 'Lưu File')}
               </button>
             )}
           </div>
@@ -39,13 +40,13 @@ export default function CodeEditorTab({
           <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
             <Eye size={14} className="text-cyan-400" /> Live HTML/CSS Preview
           </span>
-          <button onClick={() => setLiveHtml?.('')} className="text-[10px] text-slate-500 hover:text-rose-400">Xóa</button>
+          <button onClick={() => setLiveHtml?.('')} className="text-[10px] text-slate-500 hover:text-rose-400">{tx(lang, 'Xóa')}</button>
         </div>
         {liveHtml ? (
           <iframe srcDoc={liveHtml} className="flex-1 bg-white" title="Live Preview" />
         ) : (
           <div className="flex-1 flex items-center justify-center text-slate-500 text-xs">
-            Nhập HTML/CSS bên trái rồi nhấn "Chạy Preview"
+            {tx(lang, 'Nhập HTML/CSS bên trái rồi nhấn "Chạy Preview"')}
           </div>
         )}
       </div>

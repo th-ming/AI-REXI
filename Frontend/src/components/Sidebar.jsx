@@ -5,7 +5,8 @@ import {
    User, Settings, LogOut, Headphones, Shield, Pin
   } from 'lucide-react';
 import { API_BASE } from '../config';
-import { t } from '../i18n';
+import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 
 const RexiLogo = ({ className = "w-8 h-8" }) => (
   <img src="/rexi_cat_icon.png" alt="Rexi" className={`rexi-logo object-contain ${className}`} />
@@ -54,7 +55,7 @@ export default function Sidebar({
     try {
       const data = await apiFetch('/chat/conversations', {
         method: 'POST',
-        body: JSON.stringify({ tieu_de: '[Admin] Hỗ trợ & Phản hồi' })
+        body: JSON.stringify({ tieu_de: tx(getLang(), '[Admin] Hỗ trợ & Phản hồi') })
       });
       if (data.ma_hoi_thoai) {
         setConversations(prev => [data, ...prev]);

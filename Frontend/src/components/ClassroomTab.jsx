@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Loader2, ExternalLink, GraduationCap, RefreshCw } from 'lucide-react';
 
 // OpenMAIC (THU-MAIC, MIT) — "Open Multi-Agent Interactive Classroom":
@@ -33,8 +34,8 @@ export default function ClassroomTab() {
         <div className="flex items-center gap-2">
           <GraduationCap size={18} className="text-teal-400" />
           <div>
-            <h2 className="text-xs font-bold text-white">Lớp Học AI — OpenMAIC</h2>
-            <p className="text-[10px] text-slate-500">Lớp học tương tác đa agent: giáo viên AI, học sinh AI, thảo luận nhóm</p>
+            <h2 className="text-xs font-bold text-white">{tx(lang, 'Lớp Học AI — OpenMAIC')}</h2>
+            <p className="text-[10px] text-slate-500">{tx(lang, 'Lớp học tương tác đa agent: giáo viên AI, học sinh AI, thảo luận nhóm')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -43,7 +44,7 @@ export default function ClassroomTab() {
             className="px-2.5 py-1.5 rounded-lg bg-[var(--bg-card)] border border-white/10 text-[11px] text-slate-300 hover:text-white hover:bg-white/10 transition-all flex items-center gap-1"
             title={t(lang, 'clsReload')}
           >
-            <RefreshCw size={12} /> Tải lại
+            <RefreshCw size={12} /> {tx(lang, 'Tải lại')}
           </button>
           <a
             href={OPENMAIC_URL}
@@ -52,7 +53,7 @@ export default function ClassroomTab() {
             className="px-2.5 py-1.5 rounded-lg bg-teal-500/15 text-teal-300 border border-teal-500/30 text-[11px] font-medium hover:bg-teal-500/25 transition-all flex items-center gap-1"
             title={t(lang, 'clsNewTab')}
           >
-            <ExternalLink size={12} /> Tab mới
+            <ExternalLink size={12} /> {tx(lang, 'Tab mới')}
           </a>
         </div>
       </div>
@@ -61,7 +62,7 @@ export default function ClassroomTab() {
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0d0e11]">
             <div className="flex flex-col items-center gap-2">
               <Loader2 size={22} className="text-teal-400 animate-spin" />
-              <span className="text-xs text-slate-500">Đang tải Lớp Học AI...</span>
+              <span className="text-xs text-slate-500">{tx(lang, 'Đang tải Lớp Học AI...')}</span>
             </div>
           </div>
         )}

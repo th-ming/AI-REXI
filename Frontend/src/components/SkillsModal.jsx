@@ -1,4 +1,6 @@
 import React from 'react';
+import { tx } from '../i18n-sweep';
+import { getLang } from '../i18n';
 import { X, Layers } from 'lucide-react';
 
 export default function SkillsModal({ skillsOpen, setSkillsOpen, dbSkills }) {
@@ -8,13 +10,13 @@ export default function SkillsModal({ skillsOpen, setSkillsOpen, dbSkills }) {
       <div className="rexi-lightfix bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-lg max-h-[80vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-            <Layers size={16} className="text-purple-500" /> Quản Lý Gói Kỹ Năng Agent (Skills Manager)
+            <Layers size={16} className="text-purple-500" /> {tx(getLang(), 'Quản Lý Gói Kỹ Năng Agent (Skills Manager)')}
           </h2>
           <button onClick={() => setSkillsOpen(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700"><X size={16} /></button>
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {dbSkills === null && <p className="text-xs text-red-500 col-span-2 text-center py-8">Không thể tải skills</p>}
-          {(!dbSkills || dbSkills.length === 0) && <p className="text-xs text-slate-500 col-span-2 text-center py-8">Không có skills nào</p>}
+          {dbSkills === null && <p className="text-xs text-red-500 col-span-2 text-center py-8">{tx(getLang(), 'Không thể tải skills')}</p>}
+          {(!dbSkills || dbSkills.length === 0) && <p className="text-xs text-slate-500 col-span-2 text-center py-8">{tx(getLang(), 'Không có skills nào')}</p>}
           {(dbSkills || []).map(s => (
             <div key={s.ma_ky_nang} className="p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-purple-300 transition-all">
               <div className="flex items-center gap-2 mb-1">

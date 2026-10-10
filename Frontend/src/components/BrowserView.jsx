@@ -1,5 +1,6 @@
 import { apiFetch, API_BASE } from '../config';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import React, { useEffect, useRef, useState } from 'react';
 import { Maximize2, X, RefreshCw, Search, Loader2, Zap, Bot } from 'lucide-react';
 
@@ -219,12 +220,12 @@ export default function BrowserView({ onClose }) {
   };
 
   const statusLabels = {
-    disconnected: 'Đã ngắt kết nối',
-    launching: 'Đang khởi động Chrome...',
-    connecting: 'Đang kết nối stream...',
-    connected: 'Đang chạy',
-    navigating: 'Đang tải trang...',
-    error: 'Lỗi',
+    disconnected: tx(lang, 'Đã ngắt kết nối'),
+    launching: tx(lang, 'Đang khởi động Chrome...'),
+    connecting: tx(lang, 'Đang kết nối stream...'),
+    connected: tx(lang, 'Đang chạy'),
+    navigating: tx(lang, 'Đang tải trang...'),
+    error: tx(lang, 'Lỗi'),
   };
 
   return (
@@ -258,7 +259,7 @@ export default function BrowserView({ onClose }) {
               disabled={loading || !url.trim()}
               className="px-3 py-2 bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-colors"
             >
-              {loading ? '...' : connected ? 'Go' : 'Khởi động'}
+              {loading ? '...' : connected ? 'Go' : tx(lang, 'Khởi động')}
             </button>
           </div>
         </div>
@@ -302,11 +303,11 @@ export default function BrowserView({ onClose }) {
               {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />}
             </button>
           </div>
-          <p className="text-[10px] text-slate-500 mt-1">Dùng ngôn ngữ tự nhiên. AI sẽ điều khiển browser.</p>
+          <p className="text-[10px] text-slate-500 mt-1">{tx(lang, 'Dùng ngôn ngữ tự nhiên. AI sẽ điều khiển browser.')}</p>
         </div>
 
         <div className="p-3 border-b border-white/5">
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">Thao tác nhanh</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-2">{tx(lang, 'Thao tác nhanh')}</p>
           <div className="grid grid-cols-2 gap-1.5">
             {[
               { label: 'Google', url: 'https://google.com' },
@@ -327,16 +328,16 @@ export default function BrowserView({ onClose }) {
         </div>
 
         <div className="p-3 flex-1 overflow-y-auto text-[10px] text-slate-500">
-          <p className="uppercase tracking-wider mb-2">Phím tắt</p>
+          <p className="uppercase tracking-wider mb-2">{tx(lang, 'Phím tắt')}</p>
           <div className="space-y-1 font-mono">
-            <div className="flex justify-between"><span>Click</span><span>Chuột trái</span></div>
-            <div className="flex justify-between"><span>Double-click</span><span>Click trái ×2</span></div>
-            <div className="flex justify-between"><span>Scroll</span><span>Cuộn chuột</span></div>
-            <div className="flex justify-between"><span>Type</span><span>Gõ trực tiếp</span></div>
+            <div className="flex justify-between"><span>Click</span><span>{tx(lang, 'Chuột trái')}</span></div>
+            <div className="flex justify-between"><span>Double-click</span><span>{tx(lang, 'Click trái ×2')}</span></div>
+            <div className="flex justify-between"><span>Scroll</span><span>{tx(lang, 'Cuộn chuột')}</span></div>
+            <div className="flex justify-between"><span>Type</span><span>{tx(lang, 'Gõ trực tiếp')}</span></div>
             <div className="flex justify-between"><span>Enter</span><span>Submit/Go</span></div>
-            <div className="flex justify-between"><span>Backspace</span><span>Xóa</span></div>
-            <div className="flex justify-between"><span>Tab</span><span>Chuyển focus</span></div>
-            <div className="flex justify-between"><span>Escape</span><span>Hủy</span></div>
+            <div className="flex justify-between"><span>Backspace</span><span>{tx(lang, 'Xóa')}</span></div>
+            <div className="flex justify-between"><span>Tab</span><span>{tx(lang, 'Chuyển focus')}</span></div>
+            <div className="flex justify-between"><span>Escape</span><span>{tx(lang, 'Hủy')}</span></div>
           </div>
         </div>
 
@@ -346,14 +347,14 @@ export default function BrowserView({ onClose }) {
             disabled={loading || !connected}
             className="w-full py-2 text-xs rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 transition-colors"
           >
-            <RefreshCw size={12} className="inline-block mr-1" /> Làm mới trang
+            <RefreshCw size={12} className="inline-block mr-1" /> {tx(lang, 'Làm mới trang')}
           </button>
           <button
             onClick={closeBrowser}
             disabled={loading}
             className="w-full py-2 text-xs rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 disabled:opacity-50 transition-colors"
           >
-            <X size={12} className="inline-block mr-1" /> Đóng Chrome
+            <X size={12} className="inline-block mr-1" /> {tx(lang, 'Đóng Chrome')}
           </button>
         </div>
       </div>
@@ -363,7 +364,7 @@ export default function BrowserView({ onClose }) {
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-slate-400 flex items-center gap-1">
               <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-slate-500'}`} />
-              {connected ? 'Live Stream' : 'Chưa kết nối'}
+              {connected ? 'Live Stream' : tx(lang, 'Chưa kết nối')}
             </span>
             {connected && <span className="text-[10px] text-slate-500 px-2 py-0.5 rounded bg-white/5">1280 × 720</span>}
           </div>
@@ -401,8 +402,8 @@ export default function BrowserView({ onClose }) {
           {!connected && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 text-white">
               <Loader2 size={48} className="animate-spin text-cyan-400 mb-4" />
-              <p className="text-slate-400">Nhấn "Go" để khởi động Chrome</p>
-              <p className="text-xs text-slate-500 mt-2">Chrome sẽ mở trong background và stream về đây</p>
+              <p className="text-slate-400">{tx(lang, 'Nhấn "Go" để khởi động Chrome')}</p>
+              <p className="text-xs text-slate-500 mt-2">{tx(lang, 'Chrome sẽ mở trong background và stream về đây')}</p>
             </div>
           )}
         </div>

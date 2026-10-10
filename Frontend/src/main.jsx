@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import AdminPanel from './AdminPanel.jsx'
+import { tx } from './i18n-sweep';
+import { getLang } from './i18n';
 
 const isAdmin = window.location.pathname === '/admin';
 
@@ -28,9 +30,9 @@ class ErrorBoundary extends Component {
           padding: 24, textAlign: 'center',
         }}>
           <div style={{ fontSize: 42 }}>⚠️</div>
-          <h1 style={{ fontSize: 20, margin: 0 }}>Đã xảy ra lỗi hiển thị</h1>
+          <h1 style={{ fontSize: 20, margin: 0 }}>{tx(getLang(), 'Đã xảy ra lỗi hiển thị')}</h1>
           <p style={{ fontSize: 13, color: '#94a3b8', maxWidth: 480, margin: 0 }}>
-            Giao diện gặp lỗi không mong muốn. Thử tải lại trang — nếu vẫn lỗi, hãy xóa dữ liệu trình duyệt (localStorage) cho trang này rồi thử lại.
+            {tx(getLang(), 'Giao diện gặp lỗi không mong muốn. Thử tải lại trang — nếu vẫn lỗi, hãy xóa dữ liệu trình duyệt (localStorage) cho trang này rồi thử lại.')}
           </p>
           <pre style={{
             fontSize: 11, color: '#f87171', background: '#16181d',
@@ -45,7 +47,7 @@ class ErrorBoundary extends Component {
               fontWeight: 600, cursor: 'pointer',
             }}
           >
-            🔄 Tải lại trang
+            {tx(getLang(), '🔄 Tải lại trang')}
           </button>
         </div>
       );

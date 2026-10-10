@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Scissors, Loader2, Download, Copy, Sparkles, CheckCircle2, AlertTriangle, Clock } from 'lucide-react';
 import { apiFetch } from '../config';
 
@@ -46,7 +47,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
   }
 
   function validate(u) {
-    if (!u) return 'Dán URL video YouTube trước';
+    if (!u) return tx(lang, 'Dán URL video YouTube trước');
     if (!/^https?:\/\//i.test(u)) return 'URL phải bắt đầu bằng https://';
     return '';
   }
@@ -60,14 +61,14 @@ export default function OpenShortsTab({ authToken, showToast }) {
     if (d.job && d.job.needs_confirmation) {
       setPendingConfirm({ body, qc: d.job.quality_check || {} });
       setLoading(false);
-      showToast('Video chất lượng thấp — cần xác nhận trước khi cắt', 'error');
+      showToast(tx(lang, 'Video chất lượng thấp — cần xác nhận trước khi cắt'), 'error');
       return;
     }
-    if (!d.job || !d.job.job_id) throw new Error('Server không trả về job_id');
+    if (!d.job || !d.job.job_id) throw new Error(tx(lang, 'Server không trả về job_id'));
     setPendingConfirm(null);
     setJob(d.job);
     setStatus(d.job.status || 'queued');
-    showToast('Đã gửi job — OpenShorts đang cắt video…', 'success');
+    showToast(tx(lang, 'Đã gửi job — OpenShorts đang cắt video…'), 'success');
     startPolling(d.job.job_id);
   }
 
@@ -108,7 +109,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
       if (ticks > 120) {
         clearInterval(timerRef.current);
         setLoading(false);
-        setError('Hết thời gian chờ (16 phút). Job có thể vẫn chạy — thử lại sau ít phút.');
+        setError(tx(lang, 'Hết thời gian chờ (16 phút). Job có thể vẫn chạy — thử lại sau ít phút.'));
         return;
       }
       try {
@@ -123,12 +124,12 @@ export default function OpenShortsTab({ authToken, showToast }) {
           setLoading(false);
           const cs = (d.result && d.result.clips) || [];
           setClips(cs);
-          showToast('Cắt xong ' + cs.length + ' clip!', 'success');
+          showToast((getLang() === 'en' ? 'Cut ' + cs.length + ' clips!' : 'Cắt xong ' + cs.length + ' clip!'), 'success');
           loadQuota();
         } else if (terminalFail) {
           clearInterval(timerRef.current);
           setLoading(false);
-          const last = (d.logs && d.logs[d.logs.length - 1]) || 'Job thất bại';
+          const last = (d.logs && d.logs[d.logs.length - 1]) || tx(lang, 'Job thất bại');
           setError(last);
         }
       } catch { /* bỏ qua lỗi mạng giữa 2 lần poll */ }
@@ -137,18 +138,18 @@ export default function OpenShortsTab({ authToken, showToast }) {
 
   function copyText(text, label) {
     navigator.clipboard.writeText(text).then(
-      () => showToast('Đã copy ' + (label || 'văn bản'), 'success'),
-      () => showToast('Copy thất bại', 'error')
+      () => showToast((getLang() === 'en' ? 'Copied ' + (label || 'text') : 'Đã copy ' + (label || 'văn bản')), 'success'),
+      () => showToast(tx(lang, 'Copy thất bại'), 'error')
     );
   }
 
   const statusLabel = {
-    queued: '⏸ Đang xếp hàng…',
-    processing: '🎬 Đang xử lý…',
-    completed: '✅ Hoàn tất',
-    failed: '❌ Thất bại',
-    error: '❌ Lỗi',
-    cancelled: '⛔ Đã hủy'
+    queued: tx(lang, '⏸ Đang xếp hàng…'),
+    processing: tx(lang, '🎬 Đang xử lý…'),
+    completed: tx(lang, '✅ Hoàn tất'),
+    failed: tx(lang, '❌ Thất bại'),
+    error: tx(lang, '❌ Lỗi'),
+    cancelled: tx(lang, '⛔ Đã hủy')
   }[status] || (status ? '• ' + status : '');
 
   return (
@@ -159,12 +160,12 @@ export default function OpenShortsTab({ authToken, showToast }) {
           <Scissors size={14} className="text-white" />
         </span>
         <span className="text-xs font-bold text-[var(--text-main)] whitespace-nowrap">OpenShorts</span>
-        <span className="text-[10px] text-slate-500 whitespace-nowrap hidden sm:inline">Video dài → Shorts 9:16 tự động</span>
+        <span className="text-[10px] text-slate-500 whitespace-nowrap hidden sm:inline">{tx(lang, 'Video dài → Shorts 9:16 tự động')}</span>
         <div className="flex-1" />
         {quota && (
           <span className="text-[10px] font-semibold px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 whitespace-nowrap" title={t(lang, 'tipQuota')}>
             <Clock size={11} className="inline mr-1 -mt-0.5" />
-            {quota.remaining}/{quota.plan_allowance} phút
+            {quota.remaining}/{quota.plan_allowance} {tx(lang, 'phút')}
           </span>
         )}
       </div>
@@ -186,13 +187,13 @@ export default function OpenShortsTab({ authToken, showToast }) {
               className="shrink-0 px-4 py-2 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-fuchsia-500 to-orange-500 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {loading ? 'Đang cắt…' : 'Tạo Shorts'}
+              {loading ? tx(lang, 'Đang cắt…') : tx(lang, 'Tạo Shorts')}
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
             <label className="flex items-center gap-2 cursor-pointer">
-              <span className="text-slate-500">Số clip:</span>
+              <span className="text-slate-500">{tx(lang, 'Số clip:')}</span>
               <input
                 type="number"
                 min="1"
@@ -205,15 +206,15 @@ export default function OpenShortsTab({ authToken, showToast }) {
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} className="accent-fuchsia-500" />
-              Phụ đề (burn-in)
+              {tx(lang, 'Phụ đề (burn-in)')}
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer select-none">
               <input type="checkbox" checked={autoHook} onChange={(e) => setAutoHook(e.target.checked)} className="accent-fuchsia-500" />
-              Hook tự động
+              {tx(lang, 'Hook tự động')}
             </label>
           </div>
           <p className="text-[10px] text-slate-500">
-            Nguồn: OpenShorts hosted (GPU ~50s/video) · Quota free 20 phút/tháng · 1 job ≓ thời lượng video gốc.
+            {tx(lang, 'Nguồn: OpenShorts hosted (GPU ~50s/video) · Quota free 20 phút/tháng · 1 job ≓ thời lượng video gốc.')}
           </p>
         </form>
 
@@ -231,9 +232,9 @@ export default function OpenShortsTab({ authToken, showToast }) {
             <div className="flex items-start gap-2 text-xs text-amber-400">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
               <span>
-                Video này chỉ có chất lượng thấp nhất {pendingConfirm.qc.max_height || '?'}p
-                {pendingConfirm.qc.min_height ? ' (yêu cầu tối thiểu ' + pendingConfirm.qc.min_height + 'p)' : ''}.
-                Vẫn cắt thì clip đầu ra sẽ mờ — bạn có muốn tiếp tục không?
+                {tx(lang, 'Video này chỉ có chất lượng thấp nhất')} {pendingConfirm.qc.max_height || '?'}p
+                {pendingConfirm.qc.min_height ? (getLang() === 'en' ? ' (minimum required ' + pendingConfirm.qc.min_height + 'p)' : ' (yêu cầu tối thiểu ' + pendingConfirm.qc.min_height + 'p)') : ''}.
+                {tx(lang, 'Vẫn cắt thì clip đầu ra sẽ mờ — bạn có muốn tiếp tục không?')}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -241,13 +242,13 @@ export default function OpenShortsTab({ authToken, showToast }) {
                 onClick={confirmLowQuality}
                 className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-fuchsia-500 to-orange-500 hover:opacity-90 transition-all"
               >
-                Vẫn cắt (chất lượng thấp)
+                {tx(lang, 'Vẫn cắt (chất lượng thấp)')}
               </button>
               <button
                 onClick={() => setPendingConfirm(null)}
                 className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
               >
-                Hủy
+                {tx(lang, 'Hủy')}
               </button>
             </div>
           </div>
@@ -278,7 +279,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
           <div className="flex flex-col gap-3">
             <h3 className="text-xs font-bold text-[var(--text-main)] flex items-center gap-2">
               <Scissors size={13} className="text-fuchsia-400" />
-              {clips.length} clip đã cắt
+              {clips.length} {tx(lang, 'clip đã cắt')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {clips.map((c, i) => (
@@ -307,7 +308,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
                         rel="noopener noreferrer"
                         className="flex-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-200 hover:bg-white/10 transition-all"
                       >
-                        <Download size={12} /> Tải MP4
+                        <Download size={12} /> {tx(lang, 'Tải MP4')}
                       </a>
                       <button
                         onClick={() => copyText(c.video_title_for_youtube_short + '\n\n' + c.video_description_for_tiktok, 'caption TikTok')}
@@ -331,7 +332,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
               <Scissors size={22} className="text-white" />
             </div>
             <p className="text-xs text-slate-500 max-w-sm">
-              Dán URL video YouTube (podcast, livestream, phỏng vấn…) → OpenShorts tự tìm khoảnh khắc viral, cắt clip 9:16, thêm phụ đề và hook.
+              {tx(lang, 'Dán URL video YouTube (podcast, livestream, phỏng vấn…) → OpenShorts tự tìm khoảnh khắc viral, cắt clip 9:16, thêm phụ đề và hook.')}
             </p>
           </div>
         )}

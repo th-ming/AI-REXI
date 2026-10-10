@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { t, getLang } from '../i18n';
+import { tx } from '../i18n-sweep';
 import { Loader2, UploadCloud, Wand2, Download, Film, Scissors, Type, Music, Crop, Gauge, Volume2, Image as ImageIcon } from 'lucide-react';
 
 const OPS = [
@@ -41,8 +42,8 @@ export default function VideoEditTab({ authToken, showToast }) {
       const r = await fetch('/api/services/video/upload', { method: 'POST', headers: { Authorization: 'Bearer ' + authToken }, body: fd });
       const d = await r.json();
       if (d && d.path) { setUpPath(d.path); setUpName(d.name); }
-      else setErr('Upload lỗi: ' + (d.error || r.status));
-    } catch (e) { setErr('Upload lỗi: ' + e.message); }
+      else setErr(tx(lang, 'Upload lỗi: ') + (d.error || r.status));
+    } catch (e) { setErr(tx(lang, 'Upload lỗi: ') + e.message); }
     setUploading(false);
   };
 
@@ -71,8 +72,8 @@ export default function VideoEditTab({ authToken, showToast }) {
   };
 
   const run = async () => {
-    if (!authToken) { showToast && showToast('Cần đăng nhập', 'error'); return; }
-    if (op !== 'make_video' && (op === 'concat' ? !inputSrc && !p.extra : !inputSrc)) { setErr('Chưa có nguồn video (URL hoặc file).'); return; }
+    if (!authToken) { showToast && showToast(tx(lang, 'Cần đăng nhập'), 'error'); return; }
+    if (op !== 'make_video' && (op === 'concat' ? !inputSrc && !p.extra : !inputSrc)) { setErr(tx(lang, 'Chưa có nguồn video (URL hoặc file).')); return; }
     setBusy(true); setErr(''); setResult(null);
     try {
       const r = await fetch('/api/services/video/edit', {
@@ -82,8 +83,8 @@ export default function VideoEditTab({ authToken, showToast }) {
       });
       const d = await r.json();
       if (d && d.success) setResult(d);
-      else setErr('Lỗi: ' + (d.error || r.status));
-    } catch (e) { setErr('Lỗi mạng: ' + e.message); }
+      else setErr(tx(lang, 'Lỗi: ') + (d.error || r.status));
+    } catch (e) { setErr(tx(lang, 'Lỗi mạng: ') + e.message); }
     setBusy(false);
   };
 
@@ -92,17 +93,17 @@ export default function VideoEditTab({ authToken, showToast }) {
   return (
     <div className="h-full overflow-y-auto p-5">
       <div className="max-w-3xl mx-auto">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100 mb-1"><Wand2 size={18} className="text-cyan-400" /> Dựng Video</h2>
-        <p className="text-[11.5px] text-slate-500 mb-5">Cắt · ghép · chèn chữ/nhạc · đổi tỉ lệ/tốc độ · tách âm thanh — chạy trên server, không cần cài gì. (Đây là bản "edit bằng lệnh", khác OpenCut kéo-thả.)</p>
+        <h2 className="flex items-center gap-2 text-lg font-bold text-slate-100 mb-1"><Wand2 size={18} className="text-cyan-400" /> {tx(lang, 'Dựng Video')}</h2>
+        <p className="text-[11.5px] text-slate-500 mb-5">{tx(lang, 'Cắt · ghép · chèn chữ/nhạc · đổi tỉ lệ/tốc độ · tách âm thanh — chạy trên server, không cần cài gì. (Đây là bản "edit bằng lệnh", khác OpenCut kéo-thả.)')}</p>
 
         {/* Nguồn */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mb-4">
-          <span className={label}>Nguồn video</span>
+          <span className={label}>{tx(lang, 'Nguồn video')}</span>
           <input className={field} placeholder={t(lang, 'phVeUrl')} value={url} onChange={e => { setUrl(e.target.value); setUpPath(''); }} />
           <div className="flex items-center gap-3 mt-2.5">
             <button onClick={() => fileRef.current && fileRef.current.click()} disabled={uploading}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-slate-200 text-[12px] font-semibold hover:bg-white/10 disabled:opacity-50">
-              {uploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} Tải file lên
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <UploadCloud size={14} />} {tx(lang, 'Tải file lên')}
             </button>
             <input ref={fileRef} type="file" accept="video/*,audio/*,image/*" className="hidden" onChange={e => onPickFile(e.target.files[0])} />
             {upName && <span className="text-[11.5px] text-emerald-300 truncate">✓ {upName}</span>}
@@ -111,12 +112,12 @@ export default function VideoEditTab({ authToken, showToast }) {
 
         {/* Thao tác */}
         <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 mb-4">
-          <span className={label}>Thao tác</span>
+          <span className={label}>{tx(lang, 'Thao tác')}</span>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {OPS.map(o => (
               <button key={o.id} onClick={() => setOp(o.id)}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg border text-[11.5px] font-semibold transition-all ${op === o.id ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-100' : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.07]'}`}>
-                {o.icon} {o.label}
+                {o.icon} {tx(lang, o.label)}
               </button>
             ))}
           </div>
@@ -126,7 +127,7 @@ export default function VideoEditTab({ authToken, showToast }) {
               <div><span className={label}>{t(lang, 'veStart')}</span><input className={field} placeholder="0:05" value={p.start || ''} onChange={e => set('start', e.target.value)} /></div>
               <div><span className={label}>{t(lang, 'veDur')}</span><input className={field} placeholder="0:30" value={p.duration || ''} onChange={e => set('duration', e.target.value)} /></div>
               <label className="col-span-2 flex items-center gap-2 text-[11.5px] text-slate-300 cursor-pointer">
-                <input type="checkbox" checked={!!p.loop} onChange={e => set('loop', e.target.checked)} /> Lặp nguồn cho đủ độ dài (video ngắn muốn kéo dài)
+                <input type="checkbox" checked={!!p.loop} onChange={e => set('loop', e.target.checked)} /> {tx(lang, 'Lặp nguồn cho đủ độ dài (video ngắn muốn kéo dài)')}
               </label>
             </>)}
             {op === 'concat' && (<>
@@ -134,8 +135,8 @@ export default function VideoEditTab({ authToken, showToast }) {
             </>)}
             {op === 'add_text' && (<>
               <div className="col-span-2"><span className={label}>{t(lang, 'veText')}</span><input className={field} placeholder={t(lang, 'phVeText')} value={p.text || ''} onChange={e => set('text', e.target.value)} /></div>
-              <div><span className={label}>Vị trí</span>
-                <select className={field} value={p.position || 'bottom'} onChange={e => set('position', e.target.value)}><option value="top">Trên</option><option value="center">Giữa</option><option value="bottom">Dưới</option></select>
+              <div><span className={label}>{tx(lang, 'Vị trí')}</span>
+                <select className={field} value={p.position || 'bottom'} onChange={e => set('position', e.target.value)}><option value="top">{tx(lang, 'Trên')}</option><option value="center">{tx(lang, 'Giữa')}</option><option value="bottom">{tx(lang, 'Dưới')}</option></select>
               </div>
               <div><span className={label}>{t(lang, 'veColor')}</span><input className={field} placeholder="white" value={p.color || ''} onChange={e => set('color', e.target.value)} /></div>
             </>)}
@@ -162,7 +163,7 @@ export default function VideoEditTab({ authToken, showToast }) {
 
           <button onClick={run} disabled={busy}
             className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-100 text-[13px] font-bold hover:bg-cyan-500/30 disabled:opacity-50 transition-all">
-            {busy ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />} Dựng video
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Wand2 size={15} />} {tx(lang, 'Dựng video')}
           </button>
           {err && <p className="mt-3 text-[12px] text-rose-300">{err}</p>}
         </div>
@@ -174,7 +175,7 @@ export default function VideoEditTab({ authToken, showToast }) {
             {(result.fileName || '').endsWith('.mp4') && <video controls src={mediaUrl} className="w-full rounded-lg mb-3 bg-black" />}
             {((result.fileName || '').endsWith('.jpg') || (result.fileName || '').endsWith('.png')) && <img src={mediaUrl} alt="result" className="w-full rounded-lg mb-3" />}
             <a href={mediaUrl} download={result.fileName} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-100 text-[12.5px] font-semibold hover:bg-emerald-500/30 transition-all">
-              <Download size={14} /> Tải về
+              <Download size={14} /> {tx(lang, 'Tải về')}
             </a>
           </div>
         )}
