@@ -298,8 +298,19 @@ async function quickHealthCheck(providerId, apiKey, modelId) {
 
 // Lưu kết quả quét vào CSDL (bảng đã được tạo bởi init-db khi khởi động)
 // trang_thai ∈ working | needs_balance | dead | error | skipped
-async function saveScanResult(providerId, modelId, status, latencyMs, errorMsg) {
+async function saveScanResult(providerId, modelId, status, latencyMs, errorMsg, fuseUntested = false) {
   try {
+    // Fuse (chua test do rate-limit): KHONG ghi de — model working giu nguyen trang thai,
+    // model moi chua co row thi khong tao row 'error' (picker hien + luot sau test).
+    // Dung lenh y thiet ke: error tam thoi thi "khong dung DB".
+    if (fuseUntested) {
+      await runSql(`
+        INSERT INTO model_scan_cache (ma_model, ma_nha_cung_cap, trang_thai, do_tre_ms, loi_chi_tiet, thoi_gian_quet)
+        VALUES (?, ?, ?, ?, ?, ${NOW()})
+        ON CONFLICT(ma_model, ma_nha_cung_cap) DO NOTHING
+      `, [modelId, providerId, status, latencyMs || 0, errorMsg || null]);
+      return;
+    }
     await runSql(`
       INSERT INTO model_scan_cache (ma_model, ma_nha_cung_cap, trang_thai, do_tre_ms, loi_chi_tiet, thoi_gian_quet)
       VALUES (?, ?, ?, ?, ?, ${NOW()})
@@ -506,7 +517,7 @@ async function scanProvider(providerId) {
       // FUSE 429: provider đã báo hết quota/rate-limit → không đốt thêm call, chờ lượt sau
       if (quotaFuse) {
         const err = 'Chưa test lượt này — provider hết quota/rate-limit (fuse)';
-        await saveScanResult(providerId, modelId, 'error', 0, err);
+        await saveScanResult(providerId, modelId, 'error', 0, err, true);
         return { id: modelId, status: 'failed', bucket: 'error', latency_ms: 0, error: err, tested: false, tier: tierOf(modelId) || null };
       }
       // TRUST-CATALOG (vd unorouter): free tier 1 req/phút TOÀN ACCOUNT → health-check
@@ -566,7 +577,7 @@ async function scanProvider(providerId) {
       console.log(`[ModelScanner] ${cfg.name}: ${rateFails} model 429/rate-limit trong batch — FUSE, dừng gọi API (${rest.length} model giữ nguyên DB, lượt sau quét tiếp)`);
       for (const m of rest) {
         const err = 'Chưa test lượt này — provider hết quota/rate-limit (fuse)';
-        await saveScanResult(providerId, m, 'error', 0, err);
+        await saveScanResult(providerId, m, 'error', 0, err, true);
         results.push({ id: m, status: 'failed', bucket: 'error', latency_ms: 0, error: err, tested: false, tier: tierOf(m) || null });
       }
       break;
@@ -783,6 +794,12 @@ async function startModelScannerScheduler() {
   }
 
   schedulerStarted = true;
+  // Migration 1 lan: xoa row 'error' do fuse cu de lai (model chua test that) — model hien
+  // lai picker + duoc test o luot sau. Chi xoa dung text fuse, khong dung loi test that.
+  try {
+    const n = await runSql(`DELETE FROM model_scan_cache WHERE loi_chi_tiet LIKE '%fuse%'`);
+    if (n) console.log(`[ModelScanner] Migration: xoa ${n} row fuse-error cu (model chua test se hien lai)`);
+  } catch (e) { console.error('[ModelScanner] Migration fuse-cleanup error:', e.message); }
   try {
     await scheduleWeeklyReset();  // ← Weekly reset: CN → T2 00:00 VN
     const schedule = await getWeeklySchedule();
