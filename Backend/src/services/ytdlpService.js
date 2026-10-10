@@ -678,9 +678,10 @@ async function downloadAudioViaWorker(vid, outPath) {
   if (!res.ok) throw new Error(`worker audio HTTP ${res.status}`);
   const raw = `${outPath}.worker.m4a`;
   await new Promise((resolve, reject) => {
+    // fetch (undici) trả Web ReadableStream — bọc thành Node stream rồi mới pipe.
+    const { Readable } = require('stream');
     const ws = fs.createWriteStream(raw);
-    res.body.pipe(ws);
-    res.body.on('error', reject);
+    Readable.fromWeb(res.body).pipe(ws);
     ws.on('error', reject);
     ws.on('finish', resolve);
   });
