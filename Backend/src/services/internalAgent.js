@@ -8,7 +8,7 @@ const { decryptKey } = require('../utils/cryptoKeys');
 const { PROVIDER_ENDPOINTS } = require('../model-scanner.scheduler');
 
 const AGENT_PROVIDER = (process.env.AGENT_PROVIDER || 'unorouter').toLowerCase();
-const AGENT_MODEL = process.env.AGENT_MODEL || 'deepseek-v4.1-flash:free';
+const AGENT_MODEL = process.env.AGENT_MODEL || 'deepseek-v4-flash:free';
 const MAX_STEPS = parseInt(process.env.AGENT_MAX_STEPS || '6');
 const TOTAL_DEADLINE_MS = parseInt(process.env.AGENT_DEADLINE_MS || '120000'); // 2 phút: luôn trả lời trước khi proxy timeout
 const TOOL_TIMEOUT_MS = parseInt(process.env.AGENT_TOOL_TIMEOUT_MS || '40000'); // tool nặng (browser) fail nhanh

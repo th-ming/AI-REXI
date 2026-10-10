@@ -597,7 +597,7 @@ async function getAgentChain() {
       }
     }
   } catch (e) { console.warn('[Agent] doc agent_chain fail:', e.message); }
-  push('unorouter', 'deepseek-v4.1-flash:free');
+  push('unorouter', 'deepseek-v4-flash:free');
   push('xkiro', 'mistralai/mistral-small-2603');
   push('kiosapi', 'sensenova-6.8-flash');
   return chain;

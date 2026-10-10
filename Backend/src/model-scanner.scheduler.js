@@ -798,7 +798,7 @@ async function scanProvider(providerId) {
         .filter(id => { const t = probedMap.get(id); return t === undefined || isNaN(t) || (now2 - t) > AGENT_TTL; });
       // Model agent mac dinh (AGENT_MODEL) probe TRUOC TIEN — dam bao con agent that su
       // dung luon co flag som, khong cho doi sau hang doi throttle.
-      const agentPrio = process.env.AGENT_MODEL || 'deepseek-v4.1-flash:free';
+      const agentPrio = process.env.AGENT_MODEL || 'deepseek-v4-flash:free';
       const isPrio = (id) => id === agentPrio || id.endsWith('/' + agentPrio);
       cands.sort((a, b) => ((isPrio(b) ? 0 : 1) - (isPrio(a) ? 0 : 1)) || ((probedMap.has(a) ? 1 : 0) - (probedMap.has(b) ? 1 : 0)));
       let done = 0;
