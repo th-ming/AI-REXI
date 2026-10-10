@@ -377,7 +377,7 @@ export default function IPTVTab({
                     }`}
                   >
                     <FlagImg code={c.code} size={14} />
-                    <span className="truncate">{c.name}</span>
+                    <span className="truncate">{new Intl.DisplayNames([lang], { type: 'region' }).of(c.code) || c.name}</span>
                     <span className="text-[8px] text-slate-600 ml-auto shrink-0">{c.code}</span>
                   </button>
                 ))}

@@ -84,7 +84,7 @@ export default function ScrapePanel({ open, onClose, token }) {
         const data = await res.json().catch(() => ({}));
         if (alive) setStatus(data);
       } catch (e) {
-        if (alive) setStatus({ ok: false, error: 'Không lấy được trạng thái.' });
+        if (alive) setStatus({ ok: false, error: t(lang, 'Không lấy được trạng thái.') });
       }
     })();
     return () => { alive = false; };
@@ -108,9 +108,9 @@ export default function ScrapePanel({ open, onClose, token }) {
     if (action === 'comments') body.max = Number(maxComments) || 100;
 
     if (action === 'batch') {
-      if (!body.urls.length) { setError('Dán ít nhất 1 link (mỗi dòng 1 link).'); return; }
+      if (!body.urls.length) { setError(t(lang, 'Dán ít nhất 1 link (mỗi dòng 1 link).')); return; }
     } else if (!body.url) {
-      setError('Dán 1 link hợp lệ (bắt đầu bằng http).');
+      setError(t(lang, 'Dán 1 link hợp lệ (bắt đầu bằng http).'));
       return;
     }
 
@@ -128,7 +128,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       setResult(data);
       setMeta({ action, source: data.source || (action === 'batch' ? 'batch' : ''), count: data.count });
     } catch (e) {
-      setError(e.message || 'Lỗi không xác định.');
+      setError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setLoading('');
     }
@@ -139,7 +139,7 @@ export default function ScrapePanel({ open, onClose, token }) {
     if (summaryLoading) return;
     setSummaryError(''); setCommentSummary(null);
     const u = firstUrl();
-    if (!u) { setSummaryError('Dán 1 link video (bắt đầu bằng http).'); return; }
+    if (!u) { setSummaryError(t(lang, 'Dán 1 link video (bắt đầu bằng http).')); return; }
     setSummaryLoading(true);
     try {
       const res = await fetch(`${API_BASE}/scrape/comments/summary`, {
@@ -151,7 +151,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       setCommentSummary(data);
     } catch (e) {
-      setSummaryError(e.message || 'Lỗi không xác định.');
+      setSummaryError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setSummaryLoading(false);
     }
@@ -162,8 +162,8 @@ export default function ScrapePanel({ open, onClose, token }) {
     if (cqLoading) return;
     setCqError(''); setCqResult(null);
     const u = firstUrl();
-    if (!u) { setCqError('Dán 1 link video (bắt đầu bằng http).'); return; }
-    if (!cq.trim()) { setCqError('Nhập câu hỏi về bình luận.'); return; }
+    if (!u) { setCqError(t(lang, 'Dán 1 link video (bắt đầu bằng http).')); return; }
+    if (!cq.trim()) { setCqError(t(lang, 'Nhập câu hỏi về bình luận.')); return; }
     setCqLoading(true);
     try {
       const res = await fetch(`${API_BASE}/scrape/comments/answer`, {
@@ -175,7 +175,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       setCqResult(data);
     } catch (e) {
-      setCqError(e.message || 'Lỗi không xác định.');
+      setCqError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setCqLoading(false);
     }
@@ -185,7 +185,7 @@ export default function ScrapePanel({ open, onClose, token }) {
     if (channelLoading) return;
     setChannelError('');
     setChannelResult(null);
-    if (!channelUrl.trim()) { setChannelError('Dán link kênh/playlist (bắt đầu bằng http).'); return; }
+    if (!channelUrl.trim()) { setChannelError(t(lang, 'Dán link kênh/playlist (bắt đầu bằng http).')); return; }
     setChannelLoading(true);
     try {
       const res = await fetch(`${API_BASE}/scrape/channel`, {
@@ -197,7 +197,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       setChannelResult(data);
     } catch (e) {
-      setChannelError(e.message || 'Lỗi không xác định.');
+      setChannelError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setChannelLoading(false);
     }
@@ -206,7 +206,7 @@ export default function ScrapePanel({ open, onClose, token }) {
   const runSearch = async () => {
     if (searchLoading) return;
     setSearchError(''); setSearchResult(null); setSearchMsg('');
-    if (!searchQ.trim()) { setSearchError('Nhập từ khoá tìm kiếm.'); return; }
+    if (!searchQ.trim()) { setSearchError(t(lang, 'Nhập từ khoá tìm kiếm.')); return; }
     setSearchLoading(true);
     try {
       const res = await fetch(`${API_BASE}/scrape/search`, {
@@ -218,7 +218,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       setSearchResult(data);
     } catch (e) {
-      setSearchError(e.message || 'Lỗi không xác định.');
+      setSearchError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setSearchLoading(false);
     }
@@ -227,7 +227,7 @@ export default function ScrapePanel({ open, onClose, token }) {
   const runDig = async () => {
     if (digLoading) return;
     setDigError(''); setDigResult(null); setDigMsg('');
-    if (!searchQ.trim()) { setDigError('Nhập tên kênh để đào.'); return; }
+    if (!searchQ.trim()) { setDigError(t(lang, 'Nhập tên kênh để đào.')); return; }
     setDigLoading(true);
     try {
       const res = await fetch(`${API_BASE}/scrape/dig`, {
@@ -238,9 +238,9 @@ export default function ScrapePanel({ open, onClose, token }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       setDigResult(data);
-      if (!data.best) setDigMsg(data.note || 'Không đào được kênh nào ra video.');
+      if (!data.best) setDigMsg(data.note || t(lang, 'Không đào được kênh nào ra video.'));
     } catch (e) {
-      setDigError(e.message || 'Lỗi không xác định.');
+      setDigError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setDigLoading(false);
     }
@@ -272,9 +272,9 @@ export default function ScrapePanel({ open, onClose, token }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
-      setDigMsg(`Đã nạp vào RAG: ${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}…`);
+      setDigMsg(`${t(lang, 'Đã nạp vào RAG: ')}${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}…`);
     } catch (e) {
-      setDigError(e.message || 'Lỗi nạp RAG.');
+      setDigError(e.message || t(lang, 'Lỗi nạp RAG.'));
     } finally {
       setDigIngesting(false);
     }
@@ -290,9 +290,9 @@ export default function ScrapePanel({ open, onClose, token }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
-      setSearchMsg(`Đã cào kênh: ${data.count} video · ${data.platform || ''}`);
+      setSearchMsg(`${t(lang, 'Đã cào kênh: ')}${data.count} video · ${data.platform || ''}`);
     } catch (e) {
-      setSearchError(e.message || 'Lỗi cào kênh.');
+      setSearchError(e.message || t(lang, 'Lỗi cào kênh.'));
     } finally {
       setSearchRow('');
     }
@@ -312,9 +312,9 @@ export default function ScrapePanel({ open, onClose, token }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
-      setSearchMsg(`Đã nạp vào RAG: ${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}…`);
+      setSearchMsg(`${t(lang, 'Đã nạp vào RAG: ')}${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}…`);
     } catch (e) {
-      setSearchError(e.message || 'Lỗi nạp RAG.');
+      setSearchError(e.message || t(lang, 'Lỗi nạp RAG.'));
     } finally {
       setSearchRow('');
     }
@@ -352,7 +352,7 @@ export default function ScrapePanel({ open, onClose, token }) {
     if (ragLoading) return;
     setRagError(''); setRagMsg(''); setRagAsk(null);
     const payload = ingestible();
-    if (!payload) { setRagError('Chưa có kết quả để nạp — hãy cào link hoặc kênh trước.'); return; }
+    if (!payload) { setRagError(t(lang, 'Chưa có kết quả để nạp — hãy cào link hoặc kênh trước.')); return; }
     setRagLoading('ingest');
     try {
       const res = await fetch(`${API_BASE}/scrape/ingest`, {
@@ -362,10 +362,10 @@ export default function ScrapePanel({ open, onClose, token }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
-      setRagMsg(`Đã nạp vào RAG: ${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}… (nguồn: ${data.source})`);
+      setRagMsg(`${t(lang, 'Đã nạp vào RAG: ')}${data.chunks} chunk · doc ${String(data.doc_id).slice(0, 8)}… (nguồn: ${data.source})`);
       if (!ragSource) setRagSource(String(data.source || '').slice(0, 60));
     } catch (e) {
-      setRagError(e.message || 'Lỗi không xác định.');
+      setRagError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setRagLoading('');
     }
@@ -374,7 +374,7 @@ export default function ScrapePanel({ open, onClose, token }) {
   const askRag = async () => {
     if (ragLoading) return;
     setRagError(''); setRagMsg(''); setRagAsk(null);
-    if (!ragQuestion.trim()) { setRagError('Nhập câu hỏi.'); return; }
+    if (!ragQuestion.trim()) { setRagError(t(lang, 'Nhập câu hỏi.')); return; }
     setRagLoading('ask');
     try {
       const body = { question: ragQuestion.trim() };
@@ -388,7 +388,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
       setRagAsk(data);
     } catch (e) {
-      setRagError(e.message || 'Lỗi không xác định.');
+      setRagError(e.message || t(lang, 'Lỗi không xác định.'));
     } finally {
       setRagLoading('');
     }
@@ -401,7 +401,7 @@ export default function ScrapePanel({ open, onClose, token }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch (e) {
-      setError('Trình duyệt chặn clipboard — chọn tay để copy.');
+      setError(t(lang, 'Trình duyệt chặn clipboard — chọn tay để copy.'));
     }
   };
 
@@ -439,7 +439,7 @@ export default function ScrapePanel({ open, onClose, token }) {
         <div className="flex items-center justify-between border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
             <Download className="text-cyan-400" size={20} />
-            <h3 className="text-sm font-bold text-white">Cào dữ liệu — Data Scraper Kit</h3>
+            <h3 className="text-sm font-bold text-white">{t(lang, 'Cào dữ liệu — Data Scraper Kit')}</h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={18} /></button>
         </div>
@@ -448,18 +448,18 @@ export default function ScrapePanel({ open, onClose, token }) {
         <div className="flex items-center gap-2 text-[11px]">
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${status?.ytdlp_worker?.configured ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10' : 'text-amber-300 border-amber-500/30 bg-amber-500/10'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${status?.ytdlp_worker?.configured ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-            {status?.ytdlp_worker?.configured ? 'yt-dlp worker: đã cấu hình' : 'yt-dlp worker: chưa cấu hình (chỉ đọc web)'}
+            {status?.ytdlp_worker?.configured ? 'yt-dlp worker: ' + t(lang, 'đã cấu hình') : 'yt-dlp worker: ' + t(lang, 'chưa cấu hình (chỉ đọc web)')}
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-sky-300 border-sky-500/30 bg-sky-500/10">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400" /> web: sẵn sàng
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400" /> {t(lang, 'web: sẵn sàng')}
           </span>
         </div>
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-white/5">
-          <Tab id="link" icon={<Link2 size={13} />} label="Cào link" />
-          <Tab id="search" icon={<Search size={13} />} label="Tìm kiếm" />
-          <Tab id="channel" icon={<Tv size={13} />} label="Kênh / Hôm nay" />
+          <Tab id="link" icon={<Link2 size={13} />} label={t(lang, 'Cào link')} />
+          <Tab id="search" icon={<Search size={13} />} label={t(lang, 'Tìm kiếm')} />
+          <Tab id="channel" icon={<Tv size={13} />} label={t(lang, 'Kênh / Hôm nay')} />
           <Tab id="rag" icon={<Database size={13} />} label="RAG" />
         </div>
 
@@ -468,7 +468,7 @@ export default function ScrapePanel({ open, onClose, token }) {
           <>
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <Link2 size={12} className="text-cyan-400" /> Dán link (1 link/dòng — hỗ trợ dán nhiều cho "Hàng loạt")
+                <Link2 size={12} className="text-cyan-400" />{t(lang, 'Dán link (1 link/dòng — hỗ trợ dán nhiều cho "Hàng loạt")')}
               </label>
               <textarea
                 value={input}
@@ -478,7 +478,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 className="w-full bg-[#131417] border border-white/10 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-cyan-500/40 font-mono resize-y"
               />
               <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                <span>Số bình luận:</span>
+                <span>{t(lang, 'Số bình luận:')}</span>
                 <input
                   type="number"
                   min={1}
@@ -491,11 +491,11 @@ export default function ScrapePanel({ open, onClose, token }) {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Btn action="info" icon={<FileText size={13} />} label="Lấy thông tin" accent="bg-cyan-600 hover:bg-cyan-500" />
-              <Btn action="page" icon={<FileText size={13} />} label="Cào nội dung" accent="bg-sky-600 hover:bg-sky-500" />
-              <Btn action="comments" icon={<MessageSquare size={13} />} label="Lấy bình luận" accent="bg-indigo-600 hover:bg-indigo-500" />
-              <Btn action="batch" icon={<Layers size={13} />} label="Hàng loạt" accent="bg-violet-600 hover:bg-violet-500" />
-              <Btn action="download" icon={<Download size={13} />} label="Link tải" accent="bg-teal-600 hover:bg-teal-500" />
+              <Btn action="info" icon={<FileText size={13} />} label={t(lang, 'Lấy thông tin')} accent="bg-cyan-600 hover:bg-cyan-500" />
+              <Btn action="page" icon={<FileText size={13} />} label={t(lang, 'Cào nội dung')} accent="bg-sky-600 hover:bg-sky-500" />
+              <Btn action="comments" icon={<MessageSquare size={13} />} label={t(lang, 'Lấy bình luận')} accent="bg-indigo-600 hover:bg-indigo-500" />
+              <Btn action="batch" icon={<Layers size={13} />} label={t(lang, 'Hàng loạt')} accent="bg-violet-600 hover:bg-violet-500" />
+              <Btn action="download" icon={<Download size={13} />} label={t(lang, 'Link tải')} accent="bg-teal-600 hover:bg-teal-500" />
             </div>
 
             {/* Tóm tắt bình luận + Hỏi về bình luận (dùng link ở ô trên) */}
@@ -508,9 +508,9 @@ export default function ScrapePanel({ open, onClose, token }) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-fuchsia-600 hover:bg-fuchsia-500 disabled:opacity-50"
                 >
                   {summaryLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  Tóm tắt bình luận
+                  {t(lang, 'Tóm tắt bình luận')}
                 </button>
-                <span className="text-[10px] text-slate-500">Link ở ô trên · tối đa {maxComments || 100} bình luận</span>
+                <span className="text-[10px] text-slate-500">{t(lang, 'Link ở ô trên · tối đa')} {maxComments || 100} {t(lang, 'bình luận')}</span>
               </div>
 
               {summaryError && (
@@ -523,7 +523,7 @@ export default function ScrapePanel({ open, onClose, token }) {
               {commentSummary && (
                 <div className="space-y-2">
                   <div className="flex flex-wrap gap-3 text-[11px] text-slate-400">
-                    <span>Bình luận: <span className="text-slate-200">{commentSummary.count}</span></span>
+                    <span>{t(lang, 'Bình luận: ')}<span className="text-slate-200">{commentSummary.count}</span></span>
                     {commentSummary.stats?.avg_likes != null ? <span>Like TB: <span className="text-slate-200">{commentSummary.stats.avg_likes}</span></span> : null}
                     {commentSummary.stats?.top_author ? <span>Top author: <span className="text-slate-200">{commentSummary.stats.top_author}</span></span> : null}
                   </div>
@@ -544,9 +544,9 @@ export default function ScrapePanel({ open, onClose, token }) {
                           <div className="bg-slate-500" style={{ width: `${pct(s.neutral)}%` }} />
                         </div>
                         <div className="flex gap-3 text-[10px]">
-                          <span className="text-emerald-300">Tích cực {s.positive}</span>
-                          <span className="text-rose-300">Tiêu cực {s.negative}</span>
-                          <span className="text-slate-400">Trung tính {s.neutral}</span>
+                          <span className="text-emerald-300">{t(lang, 'Tích cực')} {s.positive}</span>
+                          <span className="text-rose-300">{t(lang, 'Tiêu cực')} {s.negative}</span>
+                          <span className="text-slate-400">{t(lang, 'Trung tính')} {s.neutral}</span>
                         </div>
                       </div>
                     );
@@ -570,7 +570,7 @@ export default function ScrapePanel({ open, onClose, token }) {
 
                   {(commentSummary.notable || []).length ? (
                     <div className="rounded-lg border border-white/10 divide-y divide-white/5">
-                      <div className="px-2 py-1 text-[10px] text-slate-500">Bình luận nổi bật (nhiều like nhất)</div>
+                      <div className="px-2 py-1 text-[10px] text-slate-500">{t(lang, 'Bình luận nổi bật (nhiều like nhất)')}</div>
                       {commentSummary.notable.map((c, i) => (
                         <div key={i} className="px-2 py-1.5 text-[11px]">
                           <div className="flex items-center justify-between text-[10px] text-slate-500">
@@ -601,7 +601,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
                   >
                     {cqLoading ? <Loader2 size={13} className="animate-spin" /> : <MessageSquare size={13} />}
-                    Hỏi
+                    {t(lang, 'Hỏi')}
                   </button>
                 </div>
                 {cqError && (
@@ -625,7 +625,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                         </div>
                       ))}
                       {!(cqResult.chunks || []).length && (
-                        <div className="px-2 py-2 text-center text-slate-500 text-[11px]">Không tìm thấy chunk liên quan.</div>
+                        <div className="px-2 py-2 text-center text-slate-500 text-[11px]">{t(lang, 'Không tìm thấy chunk liên quan.')}</div>
                       )}
                     </div>
                   </div>
@@ -644,8 +644,8 @@ export default function ScrapePanel({ open, onClose, token }) {
               <div className="flex-1 min-h-0 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-slate-400">
-                    Nguồn: <span className="text-cyan-300 font-mono">{meta?.source || '—'}</span>
-                    {meta?.count != null ? <> · <span className="text-slate-300">{meta.count}</span> mục</> : null}
+                    {t(lang, 'Nguồn: ')}<span className="text-cyan-300 font-mono">{meta?.source || '—'}</span>
+                    {meta?.count != null ? <> · <span className="text-slate-300">{meta.count}</span> {t(lang, 'mục')}</> : null}
                     {result.note ? <> · <span className="text-amber-300">{result.note}</span></> : null}
                   </span>
                   <button
@@ -653,7 +653,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10"
                   >
                     {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-                    {copied ? 'Đã copy' : 'Copy'}
+                    {copied ? t(lang, 'Đã copy') : 'Copy'}
                   </button>
                 </div>
 
@@ -662,10 +662,10 @@ export default function ScrapePanel({ open, onClose, token }) {
                     <table className="w-full text-[11px] text-slate-300">
                       <thead className="bg-[#131417] text-slate-400 sticky top-0">
                         <tr>
-                          <th className="text-left px-2 py-1.5 font-medium">Tác giả</th>
-                          <th className="text-left px-2 py-1.5 font-medium">Nội dung</th>
+                          <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Tác giả')}</th>
+                          <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Nội dung')}</th>
                           <th className="text-right px-2 py-1.5 font-medium">Like</th>
-                          <th className="text-left px-2 py-1.5 font-medium">Ngày</th>
+                          <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Ngày')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -678,7 +678,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                           </tr>
                         ))}
                         {!comments.length && (
-                          <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">Không có bình luận.</td></tr>
+                          <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">{t(lang, 'Không có bình luận.')}</td></tr>
                         )}
                       </tbody>
                     </table>
@@ -713,7 +713,7 @@ export default function ScrapePanel({ open, onClose, token }) {
           <>
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <Search size={12} className="text-cyan-400" /> Tìm kênh / từ khoá (Web · YouTube · TikTok)
+                <Search size={12} className="text-cyan-400" />{t(lang, 'Tìm kênh / từ khoá (Web · YouTube · TikTok)')}
               </label>
               <input
                 value={searchQ}
@@ -724,7 +724,7 @@ export default function ScrapePanel({ open, onClose, token }) {
               />
               <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
                 <span className="flex items-center gap-2">
-                  Nền tảng:
+                  {t(lang, 'Nền tảng:')}
                   <select
                     value={searchPlatform}
                     onChange={(e) => setSearchPlatform(e.target.value)}
@@ -736,7 +736,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                   </select>
                 </span>
                 <span className="flex items-center gap-2">
-                  Số kết quả:
+                  {t(lang, 'Số kết quả:')}
                   <input
                     type="number" min={1} max={25} value={searchLimit}
                     onChange={(e) => setSearchLimit(e.target.value)}
@@ -753,7 +753,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
               >
                 {searchLoading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                Tìm kiếm
+                {t(lang, 'Tìm kiếm')}
               </button>
               <button
                 onClick={runDig}
@@ -762,7 +762,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-violet-600 hover:bg-violet-500 disabled:opacity-50"
               >
                 {digLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                Đào kênh
+                {t(lang, 'Đào kênh')}
               </button>
             </div>
 
@@ -802,14 +802,14 @@ export default function ScrapePanel({ open, onClose, token }) {
                       className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
                     >
                       {digIngesting ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
-                      Nạp vào RAG
+                      {t(lang, 'Nạp vào RAG')}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-3 text-[11px] text-slate-400">
                     {digResult.best.followers != null ? <span>Followers: <span className="text-slate-200">{digResult.best.followers}</span></span> : null}
                     {digResult.best.likes != null ? <span>Likes: <span className="text-slate-200">{digResult.best.likes}</span></span> : null}
                     <span>Video: <span className="text-slate-200">{digResult.best.count}</span></span>
-                    {digResult.best.last_upload ? <span>Mới nhất: <span className="text-slate-200">{digResult.best.last_upload}</span></span> : null}
+                    {digResult.best.last_upload ? <span>{t(lang, 'Mới nhất: ')}<span className="text-slate-200">{digResult.best.last_upload}</span></span> : null}
                   </div>
                   {digResult.best.topic_summary ? (
                     <p className="text-[11px] text-slate-200 bg-black/30 rounded-lg px-2.5 py-2">{digResult.best.topic_summary}</p>
@@ -826,8 +826,8 @@ export default function ScrapePanel({ open, onClose, token }) {
                   <table className="w-full text-[11px] text-slate-300">
                     <thead className="bg-[#131417] text-slate-400 sticky top-0">
                       <tr>
-                        <th className="text-left px-2 py-1.5 font-medium">Video (mẫu)</th>
-                        <th className="text-left px-2 py-1.5 font-medium">Ngày</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Video (mẫu)')}</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Ngày')}</th>
                         <th className="text-right px-2 py-1.5 font-medium">Views</th>
                       </tr>
                     </thead>
@@ -842,7 +842,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                         </tr>
                       ))}
                       {!(digResult.best.videos_sample || []).length && (
-                        <tr><td colSpan={3} className="px-2 py-3 text-center text-slate-500">Không có video.</td></tr>
+                        <tr><td colSpan={3} className="px-2 py-3 text-center text-slate-500">{t(lang, 'Không có video.')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -853,17 +853,17 @@ export default function ScrapePanel({ open, onClose, token }) {
             {searchResult && (
               <div className="flex-1 min-h-0 flex flex-col gap-2">
                 <span className="text-[11px] text-slate-400">
-                  Nền tảng: <span className="text-cyan-300 font-mono">{searchResult.platform}</span> · nguồn{' '}
-                  <span className="text-cyan-300 font-mono">{searchResult.source}</span> · <span className="text-slate-300">{searchResult.count}</span> kết quả
+                  {t(lang, 'Nền tảng: ')}<span className="text-cyan-300 font-mono">{searchResult.platform}</span> · nguồn{' '}
+                  <span className="text-cyan-300 font-mono">{searchResult.source}</span> · <span className="text-slate-300">{searchResult.count}</span> {t(lang, 'kết quả')}
                 </span>
                 <div className="overflow-auto rounded-xl border border-white/10 max-h-[45vh]">
                   <table className="w-full text-[11px] text-slate-300">
                     <thead className="bg-[#131417] text-slate-400 sticky top-0">
                       <tr>
-                        <th className="text-left px-2 py-1.5 font-medium">Tiêu đề</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Tiêu đề')}</th>
                         <th className="text-left px-2 py-1.5 font-medium">Link</th>
-                        <th className="text-left px-2 py-1.5 font-medium">Nền tảng</th>
-                        <th className="text-right px-2 py-1.5 font-medium">Hành động</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Nền tảng')}</th>
+                        <th className="text-right px-2 py-1.5 font-medium">{t(lang, 'Hành động')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -884,7 +884,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white bg-teal-600 hover:bg-teal-500 disabled:opacity-50"
                             >
                               {searchRow === `ch:${r.url}` ? <Loader2 size={10} className="animate-spin" /> : <Tv size={10} />}
-                              Cào kênh này
+                              {t(lang, 'Cào kênh này')}
                             </button>
                             <button
                               onClick={() => ingestSearch(r)}
@@ -892,13 +892,13 @@ export default function ScrapePanel({ open, onClose, token }) {
                               className="ml-1 inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50"
                             >
                               {searchRow === `rag:${r.url}` ? <Loader2 size={10} className="animate-spin" /> : <Upload size={10} />}
-                              Nạp RAG
+                              {t(lang, 'Nạp RAG')}
                             </button>
                           </td>
                         </tr>
                       ))}
                       {!(searchResult.results || []).length && (
-                        <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">Không có kết quả.</td></tr>
+                        <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">{t(lang, 'Không có kết quả.')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -913,7 +913,7 @@ export default function ScrapePanel({ open, onClose, token }) {
           <>
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <Tv size={12} className="text-cyan-400" /> Link kênh / playlist (YouTube tốt nhất — site khác best-effort)
+                <Tv size={12} className="text-cyan-400" />{t(lang, 'Link kênh / playlist (YouTube tốt nhất — site khác best-effort)')}
               </label>
               <input
                 value={channelUrl}
@@ -923,7 +923,7 @@ export default function ScrapePanel({ open, onClose, token }) {
               />
               <div className="flex items-center gap-4 text-[11px] text-slate-400">
                 <span className="flex items-center gap-2">
-                  Số video:
+                  {t(lang, 'Số video:')}
                   <input
                     type="number" min={1} max={100} value={channelLimit}
                     onChange={(e) => setChannelLimit(e.target.value)}
@@ -932,7 +932,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 </span>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={onlyToday} onChange={(e) => setOnlyToday(e.target.checked)} className="accent-cyan-500" />
-                  Chỉ video đăng hôm nay
+                  {t(lang, 'Chỉ video đăng hôm nay')}
                 </label>
               </div>
             </div>
@@ -944,7 +944,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
               >
                 {channelLoading ? <Loader2 size={13} className="animate-spin" /> : <Tv size={13} />}
-                Liệt kê video
+                {t(lang, 'Liệt kê video')}
               </button>
             </div>
 
@@ -959,17 +959,17 @@ export default function ScrapePanel({ open, onClose, token }) {
               <div className="flex-1 min-h-0 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-slate-400">
-                    Nguồn: <span className="text-cyan-300 font-mono">{channelResult.platform || '—'}</span> · <span className="text-slate-300">{channelResult.count}</span> video
-                    {channelResult.today_filtered ? <span className="text-amber-300"> · chỉ hôm nay</span> : null}
+                    {t(lang, 'Nguồn: ')}<span className="text-cyan-300 font-mono">{channelResult.platform || '—'}</span> · <span className="text-slate-300">{channelResult.count}</span> video
+                    {channelResult.today_filtered ? <span className="text-amber-300"> · {t(lang, 'chỉ hôm nay')}</span> : null}
                   </span>
                 </div>
                 <div className="overflow-auto rounded-xl border border-white/10 max-h-[45vh]">
                   <table className="w-full text-[11px] text-slate-300">
                     <thead className="bg-[#131417] text-slate-400 sticky top-0">
                       <tr>
-                        <th className="text-left px-2 py-1.5 font-medium">Tiêu đề</th>
-                        <th className="text-left px-2 py-1.5 font-medium">Kênh</th>
-                        <th className="text-left px-2 py-1.5 font-medium">Ngày</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Tiêu đề')}</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Kênh')}</th>
+                        <th className="text-left px-2 py-1.5 font-medium">{t(lang, 'Ngày')}</th>
                         <th className="text-right px-2 py-1.5 font-medium">Views</th>
                       </tr>
                     </thead>
@@ -985,7 +985,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                         </tr>
                       ))}
                       {!channelResult.items.length && (
-                        <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">Không có video.</td></tr>
+                        <tr><td colSpan={4} className="px-2 py-3 text-center text-slate-500">{t(lang, 'Không có video.')}</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -999,8 +999,8 @@ export default function ScrapePanel({ open, onClose, token }) {
         {tab === 'rag' && (
           <>
             <p className="text-[11px] text-slate-400">
-              Nạp kết quả cào (link/kênh) vào RAG đang có của app → chat trả lời dựa trên dữ liệu này mà
-              chỉ dùng vài chunk liên quan (tiết kiệm token). Đăng nhập để RAG vào đúng tài khoản của bạn.
+              {t(lang, 'Nạp kết quả cào (link/kênh) vào RAG đang có của app → chat trả lời dựa trên dữ liệu này mà chỉ dùng vài chunk liên quan (tiết kiệm token). Đăng nhập để RAG vào đúng tài khoản của bạn.')}
+              
             </p>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -1011,13 +1011,13 @@ export default function ScrapePanel({ open, onClose, token }) {
                 title={ingestible() ? (lang === 'vi' ? 'Nạp kết quả gần nhất' : 'Load latest results') : (lang === 'vi' ? 'Cào link/kênh trước' : 'Scrape a link/channel first')}
               >
                 {ragLoading === 'ingest' ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                Nạp kết quả vào RAG {ingestible() ? '' : '(chưa có kết quả)'}
+                {t(lang, 'Nạp kết quả vào RAG')} {ingestible() ? '' : t(lang, '(chưa có kết quả)')}
               </button>
             </div>
 
             <div className="space-y-2">
               <label className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <Database size={12} className="text-cyan-400" /> Hỏi từ RAG
+                <Database size={12} className="text-cyan-400" />{t(lang, 'Hỏi từ RAG')}
               </label>
               <input
                 value={ragQuestion}
@@ -1039,7 +1039,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50"
                 >
                   {ragLoading === 'ask' ? <Loader2 size={13} className="animate-spin" /> : <MessageSquare size={13} />}
-                  Hỏi
+                  {t(lang, 'Hỏi')}
                 </button>
               </div>
             </div>
@@ -1056,7 +1056,7 @@ export default function ScrapePanel({ open, onClose, token }) {
 
             {ragAsk && (
               <div className="flex-1 min-h-0 flex flex-col gap-2">
-                <span className="text-[11px] text-slate-400">Chunk liên quan: <span className="text-slate-300">{ragAsk.count}</span></span>
+                <span className="text-[11px] text-slate-400">{t(lang, 'Chunk liên quan: ')}<span className="text-slate-300">{ragAsk.count}</span></span>
                 <div className="overflow-auto rounded-xl border border-white/10 divide-y divide-white/5 max-h-[45vh]">
                   {(ragAsk.chunks || []).map((c, i) => (
                     <div key={i} className="px-3 py-2 text-[11px]">
@@ -1068,7 +1068,7 @@ export default function ScrapePanel({ open, onClose, token }) {
                     </div>
                   ))}
                   {!(ragAsk.chunks || []).length && (
-                    <div className="px-3 py-3 text-center text-slate-500 text-[11px]">Không tìm thấy chunk liên quan.</div>
+                    <div className="px-3 py-3 text-center text-slate-500 text-[11px]">{t(lang, 'Không tìm thấy chunk liên quan.')}</div>
                   )}
                 </div>
               </div>
@@ -1078,9 +1078,9 @@ export default function ScrapePanel({ open, onClose, token }) {
 
         <div className="pt-2 border-t border-white/5 flex justify-between items-center">
           <span className="text-[10px] text-slate-500 flex items-center gap-1">
-            <Play size={10} /> Chỉ cào nội dung công khai — tôn trọng ToS/điều khoản của từng nền tảng.
+            <Play size={10} />{t(lang, 'Chỉ cào nội dung công khai — tôn trọng ToS/điều khoản của từng nền tảng.')}
           </span>
-          <button onClick={onClose} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-medium">Đóng</button>
+          <button onClick={onClose} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-medium">{t(lang, 'Đóng')}</button>
         </div>
       </div>
     </div>

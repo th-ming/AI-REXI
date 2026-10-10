@@ -48,7 +48,7 @@ export default function OpenShortsTab({ authToken, showToast }) {
 
   function validate(u) {
     if (!u) return tx(lang, 'Dán URL video YouTube trước');
-    if (!/^https?:\/\//i.test(u)) return 'URL phải bắt đầu bằng https://';
+    if (!/^https?:\/\//i.test(u)) return tx(lang, 'URL phải bắt đầu bằng https://');
     return '';
   }
 

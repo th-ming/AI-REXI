@@ -1402,6 +1402,19 @@ Object.assign(translations.en, {
   "Đang tải repos đã lưu...": "Loading saved repos..."
 });
 
+// SWEEP-EN-MAP:Batch4
+Object.assign(translations.en, {
+  "URL phải bắt đầu bằng https://": "URL must start with https://"
+});
+
+// SWEEP-EN-MAP:Batch5
+Object.assign(translations.en, {
+  "Chọn mẫu": "Choose template",
+  "Xem & Render": "Preview & Render",
+  "Tải video": "Download video",
+  "Lưu Key": "Save Key"
+});
+
 export function getLang() {
   try { return localStorage.getItem('rexi_lang') || 'vi'; } catch (e) { return 'vi'; }
 }
