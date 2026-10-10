@@ -135,6 +135,7 @@ async function runInternalAgent(prompt, { provider, model, onEvent, allowedTools
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
+      console.warn(`[Agent] failover ${cand.provider}/${cand.model}: ${msg.slice(0, 180)}`);
       // Chỉ failover khi lỗi provider (credit/hết quota/model chết/key), không retry lỗi logic
       if (!/LLM (400|401|402|403|404|429|5\d\d)|chưa có API key|Không biết chat endpoint/i.test(msg)) throw e;
       if (onEvent) onEvent({ failover: cand.provider, error: msg.slice(0, 160) });
