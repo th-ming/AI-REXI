@@ -301,7 +301,7 @@ function cleanSearchResults(arr) {
 
 async function googleNewsRss(query, limit = 8) {
   const rssRes = await fetch('https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=vi&gl=VN&ceid=VN:vi',
-    { headers: { 'User-Agent': UA } });
+    { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
   if (!rssRes.ok) return [];
   const xml = await rssRes.text();
   const out = [];
@@ -318,91 +318,168 @@ async function googleNewsRss(query, limit = 8) {
   return out;
 }
 
+// ─── LAYER 1: DDG Instant Answer (JSON sạch, nhanh) ───
+async function layerDDGIA(q) {
+  try {
+    const iaUrl = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_html=1&skip_disambig=1';
+    const iaRes = await fetch(iaUrl, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
+    if (!iaRes.ok) return [];
+    const ia = await iaRes.json();
+    const results = [];
+    if (ia.AbstractText) results.push({ type: 'abstract', title: ia.Heading || q, snippet: ia.AbstractText, url: ia.AbstractURL || '' });
+    if (ia.Answer && ia.AnswerType !== '') results.push({ type: 'answer', title: 'Câu trả lời', snippet: String(ia.Answer), url: '' });
+    if (Array.isArray(ia.RelatedTopics)) {
+      for (const t of ia.RelatedTopics) {
+        if (!t || typeof t !== 'object') continue;
+        if (t.Topics && Array.isArray(t.Topics)) {
+          for (const sub of t.Topics) {
+            if (sub && sub.Text) results.push({ type: 'related', title: sub.FirstURL || '', snippet: sub.Text, url: sub.FirstURL || '' });
+          }
+        } else if (t.Text) {
+          results.push({ type: 'related', title: t.FirstURL || '', snippet: t.Text, url: t.FirstURL || '' });
+        }
+      }
+    }
+    return cleanSearchResults(results).slice(0, 8);
+  } catch (e) {
+    console.warn('[Agent][search] DDG IA fail:', e.message);
+    return [];
+  }
+}
+
+// ─── LAYER 2: DDG HTML scrape ───
+async function layerDDGHTML(q) {
+  try {
+    const htmlRes = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q),
+      { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
+    if (!htmlRes.ok) return [];
+    const html = await htmlRes.text();
+    const out = [];
+    const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    let m;
+    while ((m = re.exec(html)) !== null && out.length < 8) {
+      out.push({
+        type: 'result',
+        title: m[2].replace(/<[^>]+>/g, '').trim(),
+        snippet: m[3].replace(/<[^>]+>/g, '').trim(),
+        url: m[1]
+      });
+    }
+    return cleanSearchResults(out);
+  } catch (e) {
+    console.warn('[Agent][search] DDG HTML fail:', e.message);
+    return [];
+  }
+}
+
+// ─── LAYER 3: Bing HTML ───
+async function layerBing(q) {
+  try {
+    const bingRes = await fetch('https://www.bing.com/search?q=' + encodeURIComponent(q) + '&setlang=vi',
+      { headers: { 'User-Agent': UA, 'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8' }, signal: AbortSignal.timeout(8000) });
+    if (!bingRes.ok) return [];
+    const bingHtml = await bingRes.text();
+    const outB = [];
+    const reB = /<li class="b_algo"[\s\S]*?<h2><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a><\/h2>([\s\S]*?)<\/li>/g;
+    let mb;
+    while ((mb = reB.exec(bingHtml)) !== null && outB.length < 8) {
+      const snip = (mb[3].match(/<p[^>]*>([\s\S]*?)<\/p>/) || [])[1] || '';
+      outB.push({
+        type: 'result',
+        title: mb[2].replace(/<[^>]+>/g, '').trim(),
+        snippet: snip.replace(/<[^>]+>/g, '').trim(),
+        url: mb[1]
+      });
+    }
+    return cleanSearchResults(outB);
+  } catch (e) {
+    console.warn('[Agent][search] Bing fail:', e.message);
+    return [];
+  }
+}
+
+// ─── MINI-RANKER RAG-style: recall từ khóa + độ tươi + dedupe ───
+function normSearchKey(s) {
+  return decodeHtmlEnt(s).toLowerCase().normalize('NFC').replace(/[^a-z0-9\u00c0-\u1ef9]+/gi, ' ').trim().replace(/\s+/g, ' ');
+}
+function searchQueryTokens(q) {
+  const stop = new Set(['là', 'gì', 'của', 'cho', 'với', 'và', 'các', 'những', 'một', 'cái', 'này', 'kia', 'đó', 'bao', 'nhiêu', 'như', 'thế', 'nào', 'the', 'a', 'an', 'of', 'for', 'with', 'and', 'what', 'who', 'where', 'when', 'how', 'is', 'are', 'do', 'does']);
+  return [...new Set(normSearchKey(q).split(' ').filter(w => w.length > 1 && !stop.has(w)))];
+}
+function parseResultAgeHours(t) {
+  const s = String(t || '').toLowerCase().normalize('NFC');
+  let m = s.match(/(\d+)\s*(phút|phut|minute|min\b)/); if (m) return (+m[1]) / 60;
+  m = s.match(/(\d+)\s*(giờ|gio|hour|hr\b)/); if (m) return +m[1];
+  m = s.match(/(\d+)\s*(ngày|ngay|day\b)/); if (m) return (+m[1]) * 24;
+  m = s.match(/(\d+)\s*(tuần|tuan|week\b)/); if (m) return (+m[1]) * 168;
+  m = s.match(/(\d+)\s*(tháng|thang|month\b)/); if (m) return (+m[1]) * 720;
+  m = s.match(/(\d+)\s*(năm|nam|year\b)/); if (m) return (+m[1]) * 8760;
+  m = s.match(/\w{3}, \d{1,2} \w{3} \d{4} [\d:]+ gmt/);
+  if (m) { const d = Date.parse(m[0]); if (!isNaN(d)) { const h = (Date.now() - d) / 3600000; return h >= 0 ? h : null; } }
+  return null;
+}
+function rankSearchResults(q, arr) {
+  const toks = searchQueryTokens(q);
+  const isNews = /tin tức|thời sự|thời tiết|dự báo|bão|chứng khoán|tỷ giá|bitcoin|crypto|mới nhất|hôm nay|vừa ra mắt|tin nóng|news|today|latest|weather|forecast|stock|price|breaking|giá/i.test(q);
+  const seenUrl = new Set(), seenTitle = new Set();
+  const out = [];
+  for (const r of (arr || [])) {
+    const url = String(r.url || '').trim();
+    const title = String(r.title || '').trim();
+    if (!title) continue;
+    const tkey = normSearchKey(title).slice(0, 90);
+    if (url && seenUrl.has(url)) continue;
+    if (tkey && seenTitle.has(tkey)) continue;
+    if (url) seenUrl.add(url);
+    if (tkey) seenTitle.add(tkey);
+    const tToks = new Set(normSearchKey(title).split(' ').filter(Boolean));
+    const sToks = new Set(normSearchKey(r.snippet).split(' ').filter(Boolean));
+    let hit = 0;
+    for (const w of toks) {
+      if (tToks.has(w)) { hit += 3; continue; }
+      if (w.length >= 4) {
+        let fuzzy = false;
+        for (const t of tToks) { if ((t.includes(w) || w.includes(t)) && t.length >= 4) { fuzzy = true; break; } }
+        if (fuzzy) { hit += 1.5; continue; }
+      }
+      if (sToks.has(w)) hit += 1;
+    }
+    const recall = toks.length ? hit / (toks.length * 3) : 0;
+    const ageH = parseResultAgeHours(r.snippet) ?? parseResultAgeHours(title);
+    const fresh = (ageH === null || ageH === undefined) ? 0.3 : ageH <= 24 ? 1 : ageH <= 72 ? 0.7 : ageH <= 168 ? 0.4 : ageH <= 720 ? 0.15 : 0;
+    const boost = (r.type === 'abstract' || r.type === 'answer') ? 1.2 : 0;
+    out.push({ type: r.type, title, snippet: String(r.snippet || ''), url, source: r.source, _score: recall * 5 + fresh * 2 + boost, _ageH: ageH });
+  }
+  out.sort((a, b) => b._score - a._score);
+  // Câu hỏi tin tức: loại tin cũ (>7 ngày) khi còn đủ tin tươi
+  if (isNews) {
+    const freshOnes = out.filter(r => r._ageH === null || r._ageH === undefined || r._ageH <= 168);
+    if (freshOnes.length >= 3) return freshOnes;
+  }
+  return out;
+}
+
 async function searchWebTool(query) {
   if (!query || !String(query).trim()) return { results: [] };
   const q = String(query).trim();
-  try {
-    // 1) DDG Instant Answer — trả abstract + related topics (JSON sạch)
-    const iaUrl = 'https://api.duckduckgo.com/?q=' + encodeURIComponent(q) + '&format=json&no_html=1&skip_disambig=1';
-    const iaRes = await fetch(iaUrl, { headers: { 'User-Agent': UA } });
-    if (iaRes.ok) {
-      const ia = await iaRes.json();
-      const results = [];
-      if (ia.AbstractText) results.push({ type: 'abstract', title: ia.Heading || q, snippet: ia.AbstractText, url: ia.AbstractURL || '' });
-      if (ia.Answer && ia.AnswerType !== '') results.push({ type: 'answer', title: 'Câu trả lời', snippet: String(ia.Answer), url: '' });
-      if (Array.isArray(ia.RelatedTopics)) {
-        for (const t of ia.RelatedTopics) {
-          if (!t || typeof t !== 'object') continue;
-          if (t.Topics && Array.isArray(t.Topics)) {
-            for (const sub of t.Topics) {
-              if (sub && sub.Text) results.push({ type: 'related', title: sub.FirstURL || '', snippet: sub.Text, url: sub.FirstURL || '' });
-            }
-          } else if (t.Text) {
-            results.push({ type: 'related', title: t.FirstURL || '', snippet: t.Text, url: t.FirstURL || '' });
-          }
-        }
-      }
-      if (results.length) return { results: cleanSearchResults(results).slice(0, 8), source: 'duckduckgo-ia' };
+  // Chạy SONG SONG 4 tầng (thay vì nối tiếp) — tổng ≤ ~8s thay vì ~21s
+  const settled = await Promise.allSettled([layerDDGIA(q), layerDDGHTML(q), layerBing(q), googleNewsRss(q, 8)]);
+  const names = ['duckduckgo-ia', 'duckduckgo-html', 'bing-html', 'google-news-rss'];
+  const tagged = [];
+  settled.forEach((st, i) => {
+    if (st.status === 'fulfilled' && Array.isArray(st.value)) {
+      st.value.forEach(r => tagged.push({ ...r, source: r.source || names[i] }));
     }
-  } catch (e) {
-    console.warn('[Agent][search] DDG IA fail:', e.message);
-  }
-
-  try {
-    // 2) Fallback: HTML scrape html.duckduckgo.com
-    const htmlRes = await fetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: { 'User-Agent': UA } });
-    if (htmlRes.ok) {
-      const html = await htmlRes.text();
-      const out = [];
-      const re = /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-      let m;
-      while ((m = re.exec(html)) !== null && out.length < 8) {
-        out.push({
-          type: 'result',
-          title: m[2].replace(/<[^>]+>/g, '').trim(),
-          snippet: m[3].replace(/<[^>]+>/g, '').trim(),
-          url: m[1]
-        });
-      }
-      if (out.length) return { results: cleanSearchResults(out), source: 'duckduckgo-html' };
-    }
-  } catch (e) {
-    console.warn('[Agent][search] DDG HTML fail:', e.message);
-  }
-
-  try {
-    // 3) Fallback 2: Bing HTML (DDG thường chặn IP datacenter — QA 17/9 Render trả rỗng)
-    const bingRes = await fetch('https://www.bing.com/search?q=' + encodeURIComponent(q) + '&setlang=vi',
-      { headers: { 'User-Agent': UA, 'Accept-Language': 'vi-VN,vi;q=0.9,en;q=0.8' } });
-    if (bingRes.ok) {
-      const bingHtml = await bingRes.text();
-      const outB = [];
-      const reB = /<li class="b_algo"[\s\S]*?<h2><a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a><\/h2>([\s\S]*?)<\/li>/g;
-      let mb;
-      while ((mb = reB.exec(bingHtml)) !== null && outB.length < 8) {
-        const snip = (mb[3].match(/<p[^>]*>([\s\S]*?)<\/p>/) || [])[1] || '';
-        outB.push({
-          type: 'result',
-          title: mb[2].replace(/<[^>]+>/g, '').trim(),
-          snippet: snip.replace(/<[^>]+>/g, '').trim(),
-          url: mb[1]
-        });
-      }
-      if (outB.length) return { results: cleanSearchResults(outB), source: 'bing-html' };
-    }
-  } catch (e) {
-    console.warn('[Agent][search] Bing fail:', e.message);
-  }
-
-  try {
-    // 4) Fallback 3: Google News RSS (hầu như không chặn IP)
-    const news = await googleNewsRss(q);
-    if (news.length) return { results: news, source: 'google-news-rss' };
-  } catch (e) {
-    console.warn('[Agent][search] GoogleNews fail:', e.message);
-  }
-
-  return { results: [] };
+  });
+  const ranked = rankSearchResults(q, tagged);
+  const used = [...new Set(ranked.map(r => r.source))].join('+') || 'none';
+  return {
+    results: ranked.slice(0, 8).map(r => ({
+      type: r.type, title: String(r.title).slice(0, 200),
+      snippet: String(r.snippet).slice(0, 400), url: r.url, source: r.source
+    })),
+    source: 'merged:' + used
+  };
 }
 
 // ========== CALL AI ==========
