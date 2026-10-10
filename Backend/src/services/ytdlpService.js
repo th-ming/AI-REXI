@@ -573,6 +573,18 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   if (!urlOrId) throw new Error('Thiếu URL/ID video');
   if (!outPath) throw new Error('Thiếu đường dẫn file đích');
   let lastErr = null;
+  // Worker residential TRƯỚC CÙNG (mirror getVideoStream): IP nhà không bị
+  // bot-check, Render fetch audio qua tunnel rồi ffmpeg cắt/convert. Ladder
+  // local chỉ chạy khi worker chết/tunnel đứt.
+  const vid0 = extractVideoId(urlOrId);
+  if (vid0 && workerEnabled()) {
+    try {
+      const out = await downloadAudioViaWorker(vid0, outPath);
+      if (out) return out;
+    } catch (e) {
+      console.log(`[ytdlpService] downloadAudioViaWorker(${vid0}) failed: ${(e && e.message) || e}`);
+    }
+  }
   // R4: mirror getVideoStream — no-cookie → fallback public instance → cookie,
   // với deadline 150s (IP Render bị cờ thì ladder thua chậm, đừng treo 5+ phút).
   const startedAt = Date.now();
@@ -652,6 +664,47 @@ async function downloadAudio(urlOrId, outPath, timeoutMs = 150000) {
   );
   err.detail = (lastErr && (lastErr.stderr || lastErr.message)) || '';
   throw toError(err);
+}
+
+// Tải audio qua worker residential cho /youtube/summarize: worker tải audio-only
+// (m4a) từ IP nhà (không bot-check) rồi proxy bytes qua tunnel → Render ffmpeg
+// cắt 10 phút + convert mp3 mono 16kHz (chuẩn Whisper).
+async function downloadAudioViaWorker(vid, outPath) {
+  if (!workerEnabled()) return null;
+  const startedAt = Date.now();
+  const q = new URLSearchParams({ id: vid });
+  if (WORKER_TOKEN) q.set('token', WORKER_TOKEN);
+  const res = await fetch(`${WORKER_URL}/audio?${q.toString()}`, { signal: AbortSignal.timeout(240000) });
+  if (!res.ok) throw new Error(`worker audio HTTP ${res.status}`);
+  const raw = `${outPath}.worker.m4a`;
+  await new Promise((resolve, reject) => {
+    const ws = fs.createWriteStream(raw);
+    res.body.pipe(ws);
+    res.body.on('error', reject);
+    ws.on('error', reject);
+    ws.on('finish', resolve);
+  });
+  const size = fs.existsSync(raw) ? fs.statSync(raw).size : 0;
+  if (!size) throw new Error('worker audio rỗng');
+  const wTitle = decodeURIComponent(res.headers.get('x-worker-title') || '');
+  const wDuration = Number(res.headers.get('x-worker-duration')) || undefined;
+  if (!ffmpegPath) {
+    // Không ffmpeg (hiếm): trả thẳng m4a — Groq/Whisper vẫn ăn.
+    return { ok: true, title: wTitle, file: raw, duration: wDuration };
+  }
+  const dest = `${outPath}.mp3`;
+  await new Promise((resolve, reject) => {
+    require('child_process').execFile(ffmpegPath,
+      ['-y', '-i', raw, '-vn', '-ar', '16000', '-ac', '1', '-b:a', '64k', '-t', String(SUMMARY_MAX_SECONDS), dest],
+      { timeout: 180000 },
+      (err, so, se) => err
+        ? reject(new Error('ffmpeg worker-audio: ' + String(se || so || err.message || '').split('\n').filter(Boolean).slice(-1)[0] || 'lỗi không xác định'))
+        : resolve());
+  });
+  try { fs.unlinkSync(raw); } catch (e) { /* ignore */ }
+  if (!fs.existsSync(dest)) throw new Error('ffmpeg worker-audio không tạo được mp3');
+  console.log(`[ytdlpService] downloadAudioViaWorker(${vid}) ok ${(fs.statSync(dest).size / 1048576).toFixed(2)}MB mp3 in ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
+  return { ok: true, title: wTitle, file: dest, duration: wDuration };
 }
 
 // Tải audio qua public instance cho /youtube/summarize: fetch stream (audio m4a

@@ -2265,6 +2265,10 @@ router.post('/youtube/summarize', async (req, res) => {
     res.json({ success: true, title: dl?.title || '', transcript, summary, srt, stt_source: sttSource });
   } catch (err) {
     console.error('[YouTube] Summarize error:', err.message);
+    // Lỗi có nguyên nhân rõ (bot-check, thiếu key, audio lỗi) → trả thẳng message
+    // thay vì 500 chung chung để user biết đường xử lý.
+    const known = /^(YouTube đang chặn|Không tải được audio|Không tìm thấy file mp3|Thiếu URL\/ID|Thiếu đường dẫn|worker audio|ffmpeg)/.test(err.message || '');
+    if (known) return res.status(502).json({ success: false, error: err.message });
     res.status(500).json({ success: false, error: 'Lỗi tóm tắt video. Vui lòng thử lại.' });
   } finally {
     // Dọn đúng file của request này (không đụng file của request khác)

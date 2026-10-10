@@ -12,6 +12,8 @@
  *   GET /info?id=<videoId>      -> { title, author, duration, stream_url } (stream_url = worker /stream)
  *   GET /stream?id=<id>         -> proxy bytes video (hỗ trợ Range)
  *   GET /stream?url=<watchUrl>  -> như trên với URL đầy đủ
+ *   GET /audio?id=<id>          -> tải audio-only (m4a) từ IP nhà, trả bytes + header
+ *                                  X-Worker-Title / X-Worker-Duration (cho /youtube/summarize)
  *   GET /list?url=<chan/playlist>&limit=<n> -> liệt kê video (flat-playlist)
  *   GET /search?q=<query>&limit=<n> -> tìm kiếm YouTube (pseudo-url ytsearch<n>:q)
  *   GET /fetch?url=<encoded>   -> GET HTML qua IP nhà (whitelist engine tìm kiếm)
@@ -23,6 +25,7 @@
 
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { URL } = require('url');
@@ -205,6 +208,77 @@ async function proxyDirect(req, res, url) {
     const { Readable } = require('stream');
     Readable.fromWeb(upstream.body).pipe(res);
   } else { res.end(); }
+}
+
+// ─── /audio: tải audio-only từ IP nhà cho /youtube/summarize ────────────────
+// IP Render bị bot-check toàn client → Render gọi /audio này, worker tải audio
+// (m4a, không cần ffmpeg) rồi trả bytes. Render cắt/convert bằng ffmpeg của nó.
+const TMP_DIR = process.env.WORKER_TMP || path.join(os.tmpdir(), 'ytdlp-worker');
+const AUDIO_MAX_FILESIZE = '250M';
+
+async function downloadAudioFile(idOrUrl) {
+  const url = watchUrl(idOrUrl);
+  const hasCookies = fs.existsSync(COOKIES_FILE);
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const outTpl = path.join(TMP_DIR, `audio_${stamp}.%(ext)s`);
+  const args = [
+    '-f', 'bestaudio[ext=m4a]/bestaudio',
+    '--no-playlist', '--no-warnings', '--socket-timeout', '20',
+    '--max-filesize', AUDIO_MAX_FILESIZE,
+    '--newline', '--print-json',
+    '-o', outTpl,
+  ];
+  if (hasCookies) args.push('--cookies', COOKIES_FILE);
+  args.push(url);
+  const out = await run(YTDLP, args, 240000);
+  const exts = ['m4a', 'webm', 'mp3', 'opus', 'ogg', 'mp4'];
+  let file = null;
+  for (const e of exts) {
+    const f = path.join(TMP_DIR, `audio_${stamp}.${e}`);
+    if (fs.existsSync(f)) { file = f; break; }
+  }
+  if (!file) {
+    for (const line of out.split('\n').map(l => l.trim()).filter(Boolean)) {
+      try {
+        const j = JSON.parse(line);
+        const fp = j.requested_downloads && j.requested_downloads[0] && j.requested_downloads[0].filepath;
+        if (fp && fs.existsSync(fp)) { file = fp; break; }
+      } catch (e) { /* dòng progress — bỏ qua */ }
+    }
+  }
+  if (!file) throw new Error('yt-dlp tải audio nhưng không tìm thấy file output');
+  let title = '', duration = null;
+  for (const line of out.split('\n').map(l => l.trim()).filter(Boolean)) {
+    try {
+      const j = JSON.parse(line);
+      if (j && (j.title || j.duration != null)) { title = j.title || title; duration = j.duration != null ? j.duration : duration; }
+    } catch (e) { /* bỏ qua */ }
+  }
+  return { file, title, duration };
+}
+
+async function audioHandler(req, res, idOrUrl) {
+  const started = Date.now();
+  try {
+    const r = await downloadAudioFile(idOrUrl);
+    const buf = fs.readFileSync(r.file);
+    try { fs.unlinkSync(r.file); } catch (e) { /* ignore */ }
+    res.writeHead(200, {
+      'Content-Type': /\.m4a$/i.test(r.file) ? 'audio/mp4' : (/\.webm$|\.opus$/i.test(r.file) ? 'audio/webm' : 'audio/mpeg'),
+      'Content-Length': String(buf.length),
+      'X-Worker-Title': encodeURIComponent(r.title || ''),
+      'X-Worker-Duration': String(r.duration == null ? '' : r.duration),
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': 'X-Worker-Title, X-Worker-Duration',
+    });
+    console.log(`[worker] audio ok: "${r.title}", ${(buf.length / 1048576).toFixed(1)}MB, ${Date.now() - started}ms`);
+    return res.end(buf);
+  } catch (e) {
+    console.log(`[worker] audio fail: ${e.message}`);
+    res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    return res.end(JSON.stringify({ ok: false, error: e.message }));
+  }
 }
 
 // Số bình luận: mặc định 100, kẹp tối đa 2000 (tránh lạm dụng).
@@ -452,6 +526,10 @@ const server = http.createServer(async (req, res) => {
         return await proxyDirect(req, res, id);
       }
       return await proxyStream(req, res, id);
+    }
+    if (u.pathname === '/audio') {
+      if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id/url' })); }
+      return await audioHandler(req, res, id);
     }
     if (u.pathname === '/comments') {
       if (!id) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ ok: false, error: 'missing id/url' })); }
