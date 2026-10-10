@@ -5,28 +5,28 @@ import { t } from '../i18n';
 
 // ── Welcome quick-actions (redesign) — thêm/bớt card chỉ sửa mảng này ──
 const QUICK_ACTIONS = [
-  { tab: 'video',      label: 'Tạo Video',       desc: 'Chọn mẫu → điền chữ → render MP4. Hướng dẫn 4 bước, không cần biết code.', icon: <Clapperboard size={20} />, chip: 'bg-purple-500/10 text-purple-300 border-purple-500/25', glow: 'rgba(168,85,247,.40)', borderHover: 'hover:border-purple-500/45', titleHover: 'group-hover:text-purple-300', span: 'lg:col-span-2', delay: 70 },
-  { tab: 'tts',        label: 'Tạo Giọng Đọc',   desc: 'Chữ → file MP3 giọng Việt (Edge/VieNeu, có clone giọng). Lồng tiếng, bài giảng, đọc truyện.', icon: <Mic size={20} />, chip: 'bg-cyan-500/10 text-cyan-300 border-cyan-500/25', glow: 'rgba(34,211,238,.40)', borderHover: 'hover:border-cyan-500/45', titleHover: 'group-hover:text-cyan-300', span: 'lg:col-span-2', delay: 140 },
-  { tab: 'image',      label: 'Tạo Ảnh AI',      desc: 'Mô tả bằng chữ → ảnh AI (Gemini).', icon: <ImageIcon size={20} />, chip: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/25', glow: 'rgba(99,102,241,.40)', borderHover: 'hover:border-indigo-500/45', titleHover: 'group-hover:text-indigo-300', delay: 210 },
-  { tab: 'documents',  label: 'Đọc & Hiểu File', desc: 'PDF/Word/TXT → AI đọc và trả lời theo nội dung.', icon: <FileText size={20} />, chip: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25', glow: 'rgba(16,185,129,.40)', borderHover: 'hover:border-emerald-500/45', titleHover: 'group-hover:text-emerald-300', delay: 280 },
-  { tab: 'youtube',    label: 'YouTube',         desc: 'Tải / tóm tắt / tạo phụ đề video.', icon: <MonitorPlay size={20} />, chip: 'bg-red-500/10 text-red-300 border-red-500/25', glow: 'rgba(239,68,68,.40)', borderHover: 'hover:border-red-500/45', titleHover: 'group-hover:text-red-300', delay: 350 },
-  { tab: 'iptv',       label: 'Xem TV',          desc: 'Kênh truyền hình trực tuyến toàn cầu.', icon: <Tv size={20} />, chip: 'bg-rose-500/10 text-rose-300 border-rose-500/25', glow: 'rgba(244,63,94,.40)', borderHover: 'hover:border-rose-500/45', titleHover: 'group-hover:text-rose-300', delay: 420 },
-  { tab: 'opencut',    label: 'OpenCut',         desc: 'Dựng & biên tập video trên web.', icon: <Scissors size={20} />, chip: 'bg-sky-500/10 text-sky-300 border-sky-500/25', glow: 'rgba(14,165,233,.40)', borderHover: 'hover:border-sky-500/45', titleHover: 'group-hover:text-sky-300', delay: 490 },
-  { tab: 'openshorts', label: 'OpenShorts',      desc: 'Cắt clip ngắn tự động.', icon: <Film size={20} />, chip: 'bg-orange-500/10 text-orange-300 border-orange-500/25', glow: 'rgba(249,115,22,.40)', borderHover: 'hover:border-orange-500/45', titleHover: 'group-hover:text-orange-300', delay: 560 },
-  { tab: 'classroom',  label: 'Lớp Học AI',      desc: 'Học tập, giải thích, luyện đề.', icon: <GraduationCap size={20} />, chip: 'bg-teal-500/10 text-teal-300 border-teal-500/25', glow: 'rgba(20,184,166,.40)', borderHover: 'hover:border-teal-500/45', titleHover: 'group-hover:text-teal-300', delay: 630 },
-  { tab: 'games',      label: 'Trò Chơi',        desc: 'Giải trí, game mini trong app.', icon: <Gamepad2 size={20} />, chip: 'bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/25', glow: 'rgba(217,70,239,.40)', borderHover: 'hover:border-fuchsia-500/45', titleHover: 'group-hover:text-fuchsia-300', delay: 700 },
+  { tab: 'video',      labelKey: 'qaVideo',      descKey: 'qaVideoDesc',      icon: <Clapperboard size={18} /> },
+  { tab: 'tts',        labelKey: 'qaTts',        descKey: 'qaTtsDesc',        icon: <Mic size={18} /> },
+  { tab: 'image',      labelKey: 'qaImage',      descKey: 'qaImageDesc',      icon: <ImageIcon size={18} /> },
+  { tab: 'documents',  labelKey: 'qaDocs',       descKey: 'qaDocsDesc',       icon: <FileText size={18} /> },
+  { tab: 'youtube',    labelKey: 'qaYoutube',    descKey: 'qaYoutubeDesc',    icon: <MonitorPlay size={18} /> },
+  { tab: 'iptv',       labelKey: 'qaIptv',       descKey: 'qaIptvDesc',       icon: <Tv size={18} /> },
+  { tab: 'opencut',    labelKey: 'qaOpenCut',    descKey: 'qaOpenCutDesc',    icon: <Scissors size={18} /> },
+  { tab: 'openshorts', labelKey: 'qaOpenShorts', descKey: 'qaOpenShortsDesc', icon: <Film size={18} /> },
+  { tab: 'classroom',  labelKey: 'qaClassroom',  descKey: 'qaClassroomDesc',  icon: <GraduationCap size={18} /> },
+  { tab: 'games',      labelKey: 'qaGames',      descKey: 'qaGamesDesc',      icon: <Gamepad2 size={18} /> },
 ];
 
 // 6 ô "đại diện" hiện dạng tile; phần còn lại nằm trong dải pill cuộn ngang.
 const FEATURED_ACTIONS = QUICK_ACTIONS.slice(0, 6);
 const EXTRA_ACTIONS = [
-  { tab: 'opencut',    label: 'OpenCut',        icon: <Scissors size={14} />,      iconColor: 'text-sky-300' },
-  { tab: 'openshorts', label: 'OpenShorts',     icon: <Film size={14} />,          iconColor: 'text-orange-300' },
-  { tab: 'classroom',  label: 'Lớp Học AI',     icon: <GraduationCap size={14} />, iconColor: 'text-teal-300' },
-  { tab: 'games',      label: 'Trò Chơi',       icon: <Gamepad2 size={14} />,      iconColor: 'text-fuchsia-300' },
-  { tab: 'browser',    label: 'Trình Duyệt AI', icon: <Bot size={14} />,           iconColor: 'text-purple-300' },
-  { tab: 'files',      label: 'Tệp Tin',        icon: <Folder size={14} />,        iconColor: 'text-amber-300' },
-  { tab: 'desktop',    label: 'Màn Hình',       icon: <Monitor size={14} />,       iconColor: 'text-emerald-300' },
+  { tab: 'opencut',    labelKey: 'qaOpenCut',    icon: <Scissors size={13} /> },
+  { tab: 'openshorts', labelKey: 'qaOpenShorts', icon: <Film size={13} /> },
+  { tab: 'classroom',  labelKey: 'qaClassroom',  icon: <GraduationCap size={13} /> },
+  { tab: 'games',      labelKey: 'qaGames',      icon: <Gamepad2 size={13} /> },
+  { tab: 'browser',    labelKey: 'qaBrowser',   icon: <Bot size={13} /> },
+  { tab: 'files',      labelKey: 'qaFiles',      icon: <Folder size={13} /> },
+  { tab: 'desktop',    labelKey: 'qaDesktop',   icon: <Monitor size={13} /> },
 ];
 
 export default function ChatTab({
@@ -102,37 +102,28 @@ export default function ChatTab({
         <div ref={chatScrollRef} onScroll={handleChatScroll} className="h-full overflow-y-auto space-y-4 pr-1 mt-2">
           {messages.length === 0 ? (
             <div className="relative h-full flex flex-col items-center justify-center px-4 py-6 overflow-hidden">
-              <div className="rexi-aura" aria-hidden="true">
-                <span className="rexi-glow-top" />
-              </div>
-
               <div className="relative z-10 w-full max-w-3xl flex flex-col items-center">
-                <div className="rexi-rise flex flex-col items-center text-center mb-6">
-                  <div className="relative mb-3">
-                    <span className="rexi-halo" aria-hidden="true" />
-                    <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo rexi-hero-logo w-14 h-14 object-contain relative" />
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-bold rexi-grad-text">
-                    Chào {currentUser?.ten_day_du || 'bạn'}! Tôi là Rexi AI Master.
+                <div className="flex flex-col items-center text-center mb-6">
+                  <img src="/rexi_cat_icon.png" alt="Rexi" className="rexi-logo w-12 h-12 object-contain mb-3" />
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-100">
+                    {t(lang, 'welcomeGreeting').replace('{name}', currentUser?.ten_day_du || (lang === 'en' ? 'there' : 'bạn'))}
                   </h2>
-                  <p className="text-[11px] sm:text-xs text-slate-400 mt-1.5">Chọn năng lực để bắt đầu — hoặc gõ câu hỏi bên dưới.</p>
+                  <p className="text-[11px] sm:text-xs text-slate-400 mt-1.5">{t(lang, 'welcomeSub')}</p>
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 w-full">
-                  {FEATURED_ACTIONS.map((a, i) => (
+                  {FEATURED_ACTIONS.map((a) => (
                     <button
                       key={a.tab}
                       onClick={() => onOpenFeature?.(a.tab)}
-                      style={{ animationDelay: `${i * 55}ms` }}
-                      className={`rexi-card rexi-slide group relative flex items-center gap-3 text-left rounded-2xl p-3 bg-[#1e1f20] border border-white/5 ${a.borderHover}`}
+                      className="group flex items-center gap-3 text-left rounded-xl p-3 bg-[#1e1f20] border border-white/[0.06] hover:border-white/[0.14] hover:bg-[#222325] transition-colors duration-150"
                     >
-                      <span className="rexi-card-glow" style={{ background: `radial-gradient(130px 70px at 25% -20%, ${a.glow}, transparent 72%)` }} />
-                      <span className={`rexi-card-icon inline-flex items-center justify-center w-10 h-10 rounded-xl border shrink-0 ${a.chip}`}>
+                      <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg border border-white/[0.08] bg-white/[0.04] text-slate-300 shrink-0">
                         {a.icon}
                       </span>
                       <span className="min-w-0">
-                        <span className={`block text-[13px] font-semibold text-slate-100 ${a.titleHover}`}>{a.label}</span>
-                        <span className="block text-[10.5px] text-slate-500 truncate">{a.desc}</span>
+                        <span className="block text-[13px] font-semibold text-slate-200">{t(lang, a.labelKey)}</span>
+                        <span className="block text-[10.5px] text-slate-500 truncate">{t(lang, a.descKey)}</span>
                       </span>
                     </button>
                   ))}
@@ -145,14 +136,12 @@ export default function ChatTab({
                       onClick={() => onOpenFeature?.(x.tab)}
                       className="rexi-pill inline-flex items-center gap-1.5 shrink-0 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] hover:bg-white/[0.07] text-[11px] text-slate-300 hover:text-white"
                     >
-                      <span className={x.iconColor}>{x.icon}</span>{x.label}
+                      <span className="text-slate-400">{x.icon}</span>{t(lang, x.labelKey)}
                     </button>
                   ))}
                 </div>
 
-                <p className="rexi-rise text-[11px] text-slate-500 mt-4" style={{ animationDelay: '420ms' }}>
-                  👇 Hoặc <b className="text-slate-400">gõ câu hỏi vào ô chat bên dưới</b> rồi bấm Enter.
-                </p>
+                <p className="text-[11px] text-slate-500 mt-4">{t(lang, 'welcomeHint')}</p>
               </div>
             </div>
           ) : (
@@ -166,7 +155,7 @@ export default function ChatTab({
                 )}
                 <div className={`relative max-w-[85%] rounded-2xl p-4 shadow-sm ${
                   msg.vai_tro === 'user'
-                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-tr-none'
+                    ? 'bg-cyan-600 text-white rounded-tr-none'
                     : 'bg-[#1e1f20] border border-white/5 text-slate-200 rounded-tl-none prose-rexi'
                 }`}>
                   {msg.vai_tro === 'user' ? (

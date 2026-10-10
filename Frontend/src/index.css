@@ -278,6 +278,35 @@ select {
 [data-theme="light"] .rexi-logo:hover { filter: brightness(0); }
 [data-theme="light"] .rexi-logo-no-glow { filter: brightness(0) !important; }
 
+/* Chữ màu pastel (200/300/400) → shade mực đậm đọc được trên nền trắng (ScrapePanel + dùng chung) */
+[data-theme="light"] .text-cyan-200 { color: #2f5fd0; }
+[data-theme="light"] .text-cyan-300 { color: #2f5fd0; }
+[data-theme="light"] .text-cyan-400 { color: #20439f; }
+[data-theme="light"] .text-rose-300 { color: #c0392b; }
+[data-theme="light"] .text-rose-400 { color: #8f241c; }
+[data-theme="light"] .text-sky-300 { color: #1c5fa8; }
+[data-theme="light"] .text-amber-300 { color: #95660f; }
+[data-theme="light"] .text-amber-400 { color: #6f4c08; }
+[data-theme="light"] .text-emerald-200 { color: #1f7a52; }
+[data-theme="light"] .text-emerald-300 { color: #1f7a52; }
+[data-theme="light"] .text-emerald-400 { color: #155c3d; }
+[data-theme="light"] .text-violet-200 { color: #5b3fa8; }
+[data-theme="light"] .text-violet-300 { color: #5b3fa8; }
+[data-theme="light"] .text-violet-400 { color: #47308a; }
+[data-theme="light"] .text-fuchsia-300 { color: #9a2f7a; }
+[data-theme="light"] .text-teal-300 { color: #116b63; }
+[data-theme="light"] .text-orange-300 { color: #9a5b13; }
+[data-theme="light"] .text-red-300 { color: #c0392b; }
+/* Tint nền white/x nhạt → mực nhạt */
+[data-theme="light"] .bg-white\/\[0\.02\] { background-color: rgba(26,32,51,.03); }
+[data-theme="light"] .bg-white\/\[0\.03\] { background-color: rgba(26,32,51,.04); }
+[data-theme="light"] .bg-white\/\[0\.04\] { background-color: rgba(26,32,51,.05); }
+[data-theme="light"] .bg-cyan-500\/15 { background-color: rgba(47,95,208,.10); }
+[data-theme="light"] .bg-violet-500\/15 { background-color: rgba(91,63,168,.10); }
+[data-theme="light"] .bg-violet-500\/5 { background-color: rgba(91,63,168,.05); }
+[data-theme="light"] .divide-white\/5 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(26,32,51,.1); }
+[data-theme="light"] .divide-white\/10 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(26,32,51,.14); }
+
 /* Surfaces cứng → light (trừ khung code/game giữ tối như app thật) */
 [data-theme="light"] .bg-\[\#1e1f20\] { background-color: #ffffff; }
 [data-theme="light"] .bg-\[\#181920\] { background-color: #eef0f6; }

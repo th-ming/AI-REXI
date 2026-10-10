@@ -1713,9 +1713,9 @@ useEffect(() => {
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="group inline-flex items-center justify-center w-9 h-9 text-slate-400 hover:bg-white/10 hover:text-cyan-300 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 rounded-lg transition-all duration-200 shrink-0"
-                title="Mở menu"
-                aria-label="Mở menu"
+                className="group inline-flex items-center justify-center w-9 h-9 translate-y-[3px] text-slate-400 hover:bg-white/10 hover:text-cyan-300 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50 rounded-lg transition-all duration-200 shrink-0"
+                title={t(lang, 'openMenu')}
+                aria-label={t(lang, 'openMenu')}
               >
                 <PanelLeftOpen size={18} className="transition-transform duration-200 group-hover:translate-x-0.5" />
               </button>
