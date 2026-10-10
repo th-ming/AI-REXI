@@ -125,8 +125,9 @@ try {
     else if (Array.isArray(data.models)) rawItems = data.models;
     let models = rawItems.map(m => (m && typeof m === 'object' ? (m.id || m.name || m) : m));
 
-    // Filter only string IDs
-    models = models.filter(m => typeof m === 'string' && m.length > 0);
+    // Filter only string IDs + chuan hoa: Gemini tra ve 'models/xxx' -> strip prefix
+    // (de lai la goi API double-prefix + lech key cache/DB).
+    models = models.filter(m => typeof m === 'string' && m.length > 0).map(m => m.replace(/^models\//, ''));
 
     // Tier từ listing (vd xkiro: access_tier = free|paid|premium) — scanner dùng để
     // khỏi đốt call test từng model trả phí (probe 1 cái là đủ, xem scanProvider).
@@ -587,12 +588,15 @@ async function scanProvider(providerId) {
       break;
     }
 
-    // Early bail-out: batch đầu TESTED toàn fail auth → key invalid (chỉ xét model đã test thật)
+    // Early bail-out: batch đầu TESTED toàn fail auth → key invalid (chỉ xét model đã test thật).
+    // CHU Y: 'Invalid model'/'no such model' la MODEL chet (se phan loai dead), KHONG phai key hong
+    // nen loai khoi dieu kien — keo ca provider bi abort oan nhu vu mistral-ocr.
     const testedResults = batchResults.filter(r => r.tested);
     const batchFailed = testedResults.filter(r => r.status === 'failed').length;
     const hasAuthError = testedResults.some(r => {
       const e = (r.error || '').toLowerCase();
-      return e.includes('401') || e.includes('403') || e.includes('unauthorized') || e.includes('invalid') || e.includes('forbidden');
+      if (/no such (model|deployment)|invalid model|model_not_found|does not exist/.test(e)) return false;
+      return e.includes('401') || e.includes('unauthorized') || /invalid (api )?key|incorrect.*key|authentication failed/.test(e);
     });
     const allFailed = testedResults.length > 0 && batchFailed === testedResults.length;
     consecutiveFailures = allFailed && hasAuthError ? consecutiveFailures + batch.length : (allFailed ? consecutiveFailures : 0);
@@ -657,6 +661,8 @@ async function scanProvider(providerId) {
         return 'free';
       };
       await db.withTransaction(async (tx) => {
+        // Dam bao provider row ton tai (MinRouter tung FK-fail vi thieu row) truoc khi upsert models
+        await tx.run(`INSERT INTO ai_providers (ma_nha_cung_cap, ten_hien_thi, kich_hoat) VALUES (?, ?, 1) ON CONFLICT(ma_nha_cung_cap) DO NOTHING`, [providerId, cfg.name]);
         const upsert = (modelId, loai) => {
           const displayName = modelId.includes('/') ? modelId.split('/').pop() : modelId;
           return tx.run(
@@ -824,6 +830,8 @@ async function startModelScannerScheduler() {
   try {
     const n = await runSql(`DELETE FROM model_scan_cache WHERE loi_chi_tiet LIKE '%fuse%'`);
     if (n) console.log(`[ModelScanner] Migration: xoa ${n} row fuse-error cu (model chua test se hien lai)`);
+    const n2 = await runSql(`DELETE FROM model_scan_cache WHERE ma_model LIKE 'models/%'`);
+    if (n2) console.log(`[ModelScanner] Migration: xoa ${n2} row cache prefix cu 'models/*' (Gemini doi sang id sach)`);
   } catch (e) { console.error('[ModelScanner] Migration fuse-cleanup error:', e.message); }
   try {
     await scheduleWeeklyReset();  // ← Weekly reset: CN → T2 00:00 VN
