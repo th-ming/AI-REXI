@@ -433,7 +433,49 @@ async function callAI(prompt, m) {
     console.warn('[Agent][callAI] OmniRoute fallback fail:', e.message);
   }
 
-  return 'Lỗi AI: Không có nguồn AI khả dụng (OpenCode chưa cài / OmniRoute chưa chạy).';
+  // FALLBACK (cloud): provider OpenAI-compatible có key trong khoa_api — cùng chain internalAgent.
+  // Trên Render (Linux) không có opencode.exe/OmniRoute → bắt buộc đi qua đây.
+  try {
+    const db = require('../config/db');
+    const { decryptKey } = require('../utils/cryptoKeys');
+    const { PROVIDER_ENDPOINTS } = require('../model-scanner.scheduler');
+    const getCKey = async (prov) => {
+      const rows = await new Promise((res) => db.all(
+        "SELECT gia_tri_khoa FROM khoa_api WHERE LOWER(ten_nha_cung_cap) = ? AND gia_tri_khoa IS NOT NULL AND TRIM(gia_tri_khoa) <> '' LIMIT 1",
+        [prov], (e, r) => res(e ? [] : (r || []))));
+      if (!rows.length) return process.env[`${prov.toUpperCase()}_API_KEY`] || null;
+      try { return decryptKey(rows[0].gia_tri_khoa).trim(); } catch { return rows[0].gia_tri_khoa; }
+    };
+    const chain = [];
+    if (process.env.AGENT_PROVIDER && process.env.AGENT_MODEL) {
+      chain.push({ provider: String(process.env.AGENT_PROVIDER).toLowerCase(), model: process.env.AGENT_MODEL });
+    }
+    chain.push({ provider: 'xkiro', model: 'mistralai/mistral-small-2603' });
+    chain.push({ provider: 'kiosapi', model: 'sensenova-6.8-flash' });
+    for (const c of chain) {
+      try {
+        const key = await getCKey(c.provider);
+        const ep = PROVIDER_ENDPOINTS[c.provider];
+        if (!key || !ep || !ep.endpoint) continue;
+        const url = ep.endpoint.replace(/\/models\/?$/, '') + '/chat/completions';
+        const cres = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: c.model, messages: [{ role: 'user', content: prompt }], temperature: 0.2, max_tokens: 2048 }),
+          signal: AbortSignal.timeout(90000),
+        });
+        const ctext = await cres.text();
+        if (!cres.ok) { console.warn('[Agent][callAI] cloud ' + c.provider + ' HTTP ' + cres.status); continue; }
+        let j = null; try { j = JSON.parse(ctext); } catch { /* noop */ }
+        const out = (j && j.choices && j.choices[0] && (j.choices[0].message?.content || j.choices[0].text)) || '';
+        if (String(out).trim()) return String(out).trim();
+      } catch (e2) { console.warn('[Agent][callAI] cloud ' + c.provider + ' fail:', e2.message); }
+    }
+  } catch (eCloud) {
+    console.warn('[Agent][callAI] cloud chain fail:', eCloud.message);
+  }
+
+  return 'Lỗi AI: Không có nguồn AI khả dụng (OpenCode chưa cài / OmniRoute chưa chạy / cloud LLM đều fail).';
 }
 
 module.exports = { executeTool, TOOL_REGISTRY, callAI, searchWebTool };
