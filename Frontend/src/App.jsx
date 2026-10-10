@@ -154,18 +154,20 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
     return { bg: 'bg-slate-500/10 border-slate-500/30 text-slate-300', IconComp: Sparkles };
   };
 
+  const msLang = getLang();
+
   return (
     <div className="relative shrink-0" ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#181a20] via-[#15161c] to-[#121318] border border-blue-500/40 hover:border-blue-400/70 shadow-lg text-xs font-medium text-slate-200 transition-all cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
+        className="rexi-ms-trigger flex items-center gap-2 px-3 py-1.5 rounded-xl border border-blue-500/40 shadow-lg text-xs font-medium transition-all cursor-pointer group hover:scale-[1.02] active:scale-[0.98]"
       >
         <span className="flex items-center gap-1.5 truncate max-w-[170px] sm:max-w-[240px]">
           <Zap size={14} className="text-cyan-400" />
           <span className="font-bold text-cyan-100 truncate">{activeModelObj.name || activeModelObj.id}</span>
           {(activeModelObj.status === 'needs_balance' || activeModelObj.type === 'paid') && (
-            <span className="text-[9px] font-extrabold rounded-md bg-amber-500/20 text-amber-300 uppercase border border-amber-500/30 shrink-0" title="Model tồn tại nhưng key hiện tại thiếu tiền/quyền"><Lock size={10} /></span>
+            <span className="text-[9px] font-extrabold rounded-md bg-amber-500/20 text-amber-300 uppercase border border-amber-500/30 shrink-0" title={t(msLang, 'msBalanceTip')}><Lock size={10} /></span>
           )}
           <span className="px-1.5 py-0.5 text-[9px] font-extrabold rounded-md bg-cyan-500/20 text-cyan-300 uppercase border border-cyan-500/30 shrink-0">
             {(activeModelObj.provider || 'AI').toUpperCase()}
@@ -175,25 +177,25 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 w-[340px] sm:w-[380px] max-h-[460px] bg-[#12141c] border border-cyan-500/50 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] z-[9999999] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
-          <div className="p-3 border-b border-white/10 bg-[#171922] flex flex-col gap-2">
+        <div className="rexi-ms-pop absolute top-full left-0 mt-2 w-[340px] sm:w-[380px] max-h-[460px] border border-cyan-500/50 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] z-[9999999] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+          <div className="rexi-ms-head p-3 border-b border-white/10 flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
-                <Cpu size={14} className="text-cyan-400 animate-pulse" /> Chọn Mô Hình AI (Model Selector)
+              <span className="text-xs font-bold flex items-center gap-1.5">
+                <Cpu size={14} className="text-cyan-400 animate-pulse" /> {t(msLang, 'msTitle')}
               </span>
               <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
                 {availableModels.length} Models
               </span>
             </div>
-            
+
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
               <input
                 type="text"
-                placeholder="Tìm kiếm model hoặc provider (Gemini, Groq...)"
+                placeholder={t(msLang, 'msSearch')}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full bg-[#16171d] text-xs text-slate-100 pl-8 pr-3 py-1.5 rounded-xl border border-white/10 focus:border-cyan-400 outline-none placeholder:text-slate-500 transition-all"
+                className="rexi-ms-input w-full text-xs pl-8 pr-3 py-1.5 rounded-xl border border-white/10 focus:border-cyan-400 outline-none placeholder:text-slate-500 transition-all"
                 autoFocus
               />
             </div>
@@ -212,7 +214,7 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
             >
               <span className="flex items-center gap-2">
                 <span className="text-indigo-300"><Bot size={16} /></span>
-                <span>Auto — Tự chọn model thông minh</span>
+                <span>{t(msLang, 'msAuto')}</span>
               </span>
               <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 uppercase shrink-0">VIP</span>
             </button>
@@ -245,7 +247,7 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs truncate">{m.name || m.id}</span>
                                 {(m.status === 'needs_balance' || m.type === 'paid') && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold shrink-0" title="Model tồn tại nhưng key hiện tại thiếu tiền/quyền — nạp tiền là dùng được">🔒 trả phí</span>
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold shrink-0" title={t(msLang, 'msPaidTip')}>🔒 {t(msLang, 'msPaidShort')}</span>
                                 )}
                               </div>
                               <span className="text-[10px] text-slate-500 font-mono truncate">{m.id}</span>
@@ -266,13 +268,13 @@ const ModelSelectorPopover = ({ availableModels, modelName, setModelName, setPro
             ) : (
               <div className="p-6 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
                 <AlertTriangle size={20} className="text-amber-400" />
-                <span>Không tìm thấy model nào phù hợp với từ khóa "{search}"</span>
+                <span>{t(msLang, 'msNoFoundPre')}"{search}"</span>
               </div>
             )}
           </div>
 
-          <div className="p-2 border-t border-white/10 bg-[#0e0f15] text-[10px] text-slate-400 flex items-center justify-between">
-            <span className="flex items-center gap-1"><Zap size={11} className="text-cyan-400" /> Tự động chuyển Provider</span>
+          <div className="rexi-ms-foot p-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center justify-between">
+            <span className="flex items-center gap-1"><Zap size={11} className="text-cyan-400" /> {t(msLang, 'autoProvider')}</span>
             <span className="text-cyan-400 font-mono">Rexi AI OS</span>
           </div>
         </div>
@@ -303,12 +305,12 @@ const FabItem = ({ item, activeTab, onPick }) => (
 
 
 const AI_SPECIALTIES = [
-  { id: 'general', name: 'Trợ Lý Toàn Năng' },
-  { id: 'business', name: 'Doanh Nghiệp & Hợp Đồng' },
-  { id: 'marketing', name: 'Content Marketing' },
-  { id: 'education', name: 'Phân Tích Chuyên Sâu' },
-  { id: 'health', name: 'Sức Khỏe & Dinh Dưỡng' },
-  { id: 'coder', name: 'Lập Trình & Architect' }
+  { id: 'general', key: 'spGeneral' },
+  { id: 'business', key: 'spBusiness' },
+  { id: 'marketing', key: 'spMarketing' },
+  { id: 'education', key: 'spEducation' },
+  { id: 'health', key: 'spHealth' },
+  { id: 'coder', key: 'spCoder' }
 ];
 
 
@@ -1737,7 +1739,7 @@ useEffect(() => {
               >
                 {AI_SPECIALTIES.map(s => (
                   <option key={s.id} value={s.id} className="bg-[#1e1f20] text-slate-200">
-                    {s.name}
+                    {t(lang, s.key)}
                   </option>
                 ))}
               </select>
@@ -1749,8 +1751,8 @@ useEffect(() => {
                 onChange={e => setThinkingLevel(e.target.value)}
                 className="bg-[#131417] text-xs text-slate-300 border border-white/10 rounded-xl px-2.5 py-1.5 outline-none cursor-pointer"
               >
-                <option value="standard">Nhanh (Standard)</option>
-                <option value="deep">Suy Luận Sâu (Deep Think)</option>
+                <option value="standard">{t(lang, 'thFast')}</option>
+                <option value="deep">{t(lang, 'thDeep')}</option>
               </select>
             </div>
           </div>
@@ -1777,7 +1779,7 @@ useEffect(() => {
             {/* TTS Voice Selector */}
             <div className="flex items-center gap-1.5">
               <select
-                title="Chuyển đổi giọng nói thành server (edge-tts)"
+                title={lang === 'vi' ? 'Chuyển đổi giọng nói thành server (edge-tts)' : 'Switch voice output to server (edge-tts)'}
                 value={ttsUsingServer ? 'server' : 'browser'}
                 onChange={e => {
                   const useServer = e.target.value === 'server';
@@ -1786,13 +1788,13 @@ useEffect(() => {
                 }}
                 className="bg-[#131417] text-[10px] font-medium text-slate-300 border border-white/10 rounded-xl px-2 py-1 outline-none cursor-pointer hover:border-cyan-500/40 transition-all shrink-0"
               >
-                <option value="browser" className="bg-[#1e1f20] text-slate-200">Trình duyệt (miễn phí)</option>
-                <option value="server" className="bg-[#1e1f20] text-cyan-300">Server (edge-tts chất lượng cao)</option>
+                <option value="browser" className="bg-[#1e1f20] text-slate-200">{t(lang, 'ttsBrowser')}</option>
+                <option value="server" className="bg-[#1e1f20] text-cyan-300">{t(lang, 'ttsServer')}</option>
               </select>
 
               {ttsUsingServer && ttsVoices.length > 0 && (
                 <select
-                  title="Chọn giọng đọc tiếng Việt"
+                  title={t(lang, 'tipVoice')}
                   value={ttsVoice}
                   onChange={e => {
                     setTtsVoice(e.target.value);
@@ -1812,7 +1814,7 @@ useEffect(() => {
             <button
               type="button"
               onClick={() => setCurrentTheme(prev => (prev === 'dark' ? 'light' : 'dark'))}
-              title={currentTheme === 'dark' ? 'Chuyển sang Light' : 'Chuyển sang Dark'}
+              title={currentTheme === 'dark' ? t(lang, 'themeToLight') : t(lang, 'themeToDark')}
               className="group relative w-8 h-8 flex items-center justify-center rounded-xl border border-white/10 bg-[#131417] text-slate-300 hover:text-white hover:border-white/20 transition-all active:scale-90"
             >
               <Sun
@@ -1840,7 +1842,7 @@ useEffect(() => {
               <button
                 type="button"
                 onClick={() => setMoreMenuOpen(v => !v)}
-                title="Thêm"
+                title={t(lang, 'tipAdd')}
                 className="inline-flex items-center justify-center w-8 h-8 rounded-xl border border-white/10 bg-[#131417] text-slate-300 hover:text-white hover:border-white/20 transition-all"
               >
                 <MoreVertical size={16} />
@@ -1850,16 +1852,16 @@ useEffect(() => {
                   <div className="fixed inset-0 z-40" onClick={() => setMoreMenuOpen(false)} />
                   <div className="absolute right-0 mt-2 w-56 bg-[#141522] border border-white/10 rounded-xl shadow-2xl p-1 z-50">
                     <button onClick={() => { handleNewConversation(); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
-                      <Plus size={14} /> Cuộc trò chuyện mới
+                      <Plus size={14} /> {t(lang, 'newConversation')}
                     </button>
-                    <button onClick={async () => { setMoreMenuOpen(false); try { const u = await handleShareConversation(); try { await navigator.clipboard?.writeText(u); showToast?.('Đã copy link chia sẻ', 'success'); } catch (e) { console.warn(e); } if (navigator.share) navigator.share({ title: 'Rexi AI', url: u }).catch(() => {}); } catch (e) { showToast?.(e.message, 'error'); } }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
-                      <Share2 size={14} /> Chia sẻ hội thoại
+                    <button onClick={async () => { setMoreMenuOpen(false); try { const u = await handleShareConversation(); try { await navigator.clipboard?.writeText(u); showToast?.(lang === 'vi' ? 'Đã copy link chia sẻ' : 'Share link copied', 'success'); } catch (e) { console.warn(e); } if (navigator.share) navigator.share({ title: 'Rexi AI', url: u }).catch(() => {}); } catch (e) { showToast?.(e.message, 'error'); } }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
+                      <Share2 size={14} /> {t(lang, 'shareConv')}
                     </button>
                     <button onClick={() => { try { exportMd(); } catch (e) { console.warn(e); } setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
-                      <Download size={14} /> Xuất Markdown
+                      <Download size={14} /> {t(lang, 'exportMd')}
                     </button>
                     <button onClick={() => { setSettingsOpen(true); setMoreMenuOpen(false); }} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-300 hover:bg-white/5 hover:text-white transition-colors">
-                      <Settings size={14} /> Cài đặt
+                      <Settings size={14} /> {t(lang, 'menuSettings')}
                     </button>
                   </div>
                 </>
@@ -1875,22 +1877,22 @@ useEffect(() => {
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1.5 text-xs text-blue-200/90">
                 <span className="text-blue-400 flex items-center"><User size={14} /></span>
-                <span className="font-semibold text-blue-300">Chế độ Khách</span>
+                <span className="font-semibold text-blue-300">{t(lang, 'guestMode')}</span>
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
                 <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.messages.remaining}</span>
-                <span className="text-blue-200/60">/ {guestLimits.messages.limit} tin nhắn</span>
+                <span className="text-blue-200/60">/ {guestLimits.messages.limit} {t(lang, 'guestMsgUnit')}</span>
               </span>
               <span className="flex items-center gap-1.5 text-[11px]">
                 <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">{guestLimits.agentTasks.remaining}</span>
-                <span className="text-blue-200/60">/ {guestLimits.agentTasks.limit} Agent tasks</span>
+                <span className="text-blue-200/60">/ {guestLimits.agentTasks.limit} {t(lang, 'guestTaskUnit')}</span>
               </span>
             </div>
-            <button 
+            <button
               onClick={() => setAuthModalOpen(true)}
               className="text-[11px] font-semibold px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 transition-all"
             >
-              Đăng nhập →
+              {t(lang, 'login')}
             </button>
           </div>
         )}
@@ -2061,7 +2063,7 @@ useEffect(() => {
                   });
                   setTimeout(fetchDesktopScreenshot, 600);
                 }}
-                title="Click vào ảnh để điều khiển chuột"
+                title={t(lang, 'tipDesktopMouse')}
               >
                 {desktopScreenshot ? (
                   <img src={desktopScreenshot} alt="Desktop" className="max-h-full max-w-full object-contain" />
@@ -2113,10 +2115,10 @@ useEffect(() => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => { setSuperToolsOpen(false); setScrapeOpen(true); }}
-                  title="Cào dữ liệu — trích xuất từ link (YouTube/TikTok/Instagram/X/Facebook/web)"
+                  title={t(lang, 'tipScrape')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-cyan-300 hover:text-white bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all"
                 >
-                  <Download size={14} /> Cào dữ liệu
+                  <Download size={14} /> {lang === 'vi' ? 'Cào dữ liệu' : 'Scrape data'}
                 </button>
                 <button onClick={() => setSuperToolsOpen(false)} className="text-slate-400 hover:text-white">
                   <X size={18} />
@@ -2134,7 +2136,7 @@ useEffect(() => {
                     value={execCommand}
                     onChange={e => setExecCommand(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleExecCommand()}
-                    placeholder="Lệnh CLI (vd: dir, git status, node -v)..."
+                    placeholder={t(lang, 'phCli')}
                     className="flex-1 bg-[#181920] border border-white/10 rounded-xl px-3 py-1.5 text-slate-200 outline-none font-mono"
                   />
                   <button onClick={handleExecCommand} className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-white rounded-xl font-medium inline-flex items-center gap-1"><Play size={13} /> Chạy</button>
@@ -2185,7 +2187,7 @@ useEffect(() => {
                     value={newMemory}
                     onChange={e => setNewMemory(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleAddMemory()}
-                    placeholder="Ghi nhớ quy tắc, thông tin cá nhân..."
+                    placeholder={t(lang, 'phMemory')}
                     className="flex-1 bg-[#181920] border border-white/10 rounded-xl px-3 py-1.5 text-slate-200 outline-none"
                   />
                   <button onClick={handleAddMemory} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-medium inline-flex items-center gap-1"><Plus size={13} /> Lưu</button>
@@ -2232,7 +2234,7 @@ useEffect(() => {
                 <h3 className="text-sm font-bold text-white text-center">Quên Mật Khẩu</h3>
                 <p className="text-xs text-slate-400 text-center">Nhập tài khoản để nhận mã OTP đặt lại mật khẩu.</p>
                 <input type="text" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
-                  placeholder="Nhập tài khoản" className="w-full px-3 py-2.5 bg-[#131417] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                  placeholder={t(lang, 'phUser')} className="w-full px-3 py-2.5 bg-[#131417] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
                 {forgotMessage && <p className="text-xs text-cyan-300 text-center">{forgotMessage}</p>}
                 <button type="button" onClick={async () => {
                   try {
@@ -2256,11 +2258,11 @@ useEffect(() => {
                 <h3 className="text-sm font-bold text-white text-center">Đặt Lại Mật Khẩu</h3>
                 {forgotMessage && <p className="text-xs text-cyan-300 text-center">{forgotMessage}</p>}
                 <input type="text" inputMode="numeric" value={forgotOtp} onChange={e => setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Nhập OTP" className="w-full px-3 py-2.5 bg-[#131417] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                  placeholder={t(lang, 'phOtp')} className="w-full px-3 py-2.5 bg-[#131417] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
                 <div className="relative">
                   <input type={showForgotNewPassword ? 'text' : 'password'} value={forgotNewPassword} onChange={e => setForgotNewPassword(e.target.value)}
-                    placeholder="Mật khẩu mới" className="w-full px-3 py-2.5 pr-10 bg-[#131417] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
-                  <button type="button" onClick={() => setShowForgotNewPassword(!showForgotNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" aria-label={showForgotNewPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}>
+                    placeholder={t(lang, 'phNewPass')} className="w-full px-3 py-2.5 pr-10 bg-[#131417] border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-500/50" />
+                  <button type="button" onClick={() => setShowForgotNewPassword(!showForgotNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white" aria-label={showForgotNewPassword ? (lang === 'vi' ? 'Ẩn mật khẩu' : 'Hide password') : (lang === 'vi' ? 'Hiện mật khẩu' : 'Show password')}>
                     {showForgotNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
@@ -2313,12 +2315,12 @@ useEffect(() => {
                   {authMode === 'register' && (
                     <div>
                       <label className="block text-slate-400 font-medium mb-1">{t(lang, 'fullName')}</label>
-                      <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)} placeholder="Nguyễn Văn A" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
+                      <input type="text" value={authFullName} onChange={e => setAuthFullName(e.target.value)} placeholder={t(lang, 'phName')} className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
                     </div>
                   )}
                   <div>
 <label className="block text-slate-500 font-medium mb-1">{t(lang, 'account')}</label>
-                     <input type="text" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder="Nhập tài khoản" className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
+                     <input type="text" required value={authEmail} onChange={e => setAuthEmail(e.target.value)} placeholder={t(lang, 'phUser')} className="w-full bg-[#131417] border border-white/10 rounded-xl p-2.5 text-slate-200 outline-none" />
                   </div>
                   <div>
 <label className="block text-slate-500 font-medium mb-1">{t(lang, 'password')}</label>
@@ -2360,7 +2362,7 @@ useEffect(() => {
                   <button
                     type="button"
                     onClick={() => openGoogleOAuth(true)}
-                    title="Cần cấp quyền YouTube (Google sẽ hiện 1 màn xác nhận vì app chưa verify)"
+                    title={t(lang, 'tipYtAuth')}
                     className="mt-2 w-full text-[11px] text-slate-500 hover:text-rose-300 transition-colors flex items-center justify-center gap-1.5"
                   >
                     ▶ Kết nối YouTube để bình luận (tùy chọn)
@@ -2421,7 +2423,7 @@ useEffect(() => {
                 { tab: 'tts', icon: <Mic size={17} />, label: t(lang, 'fabTts'), color: 'text-cyan-400', desc: t(lang, 'fabTtsDesc') },
                 { tab: 'documents', icon: <FileText size={17} />, label: t(lang, 'fabDocs'), color: 'text-emerald-400', desc: t(lang, 'fabDocsDesc') },
                 { tab: 'video', icon: <Video size={17} />, label: 'Video Creator', color: 'text-purple-400', desc: t(lang, 'fabVideoDesc') },
-                { tab: 'videoedit', icon: <Wand2 size={17} />, label: 'Dựng Video', color: 'text-cyan-400', desc: 'Cắt/ghép/chữ/nhạc → MP4 (server, không cần cài)' },
+                { tab: 'videoedit', icon: <Wand2 size={17} />, label: t(lang, 'fabVideoedit'), color: 'text-cyan-400', desc: t(lang, 'fabVideoeditDesc') },
                 { tab: 'opencut', icon: <Clapperboard size={17} />, label: t(lang, 'fabOpenCut'), color: 'text-sky-400', desc: t(lang, 'fabOpenCutDesc') },
                 { tab: 'openshorts', icon: <Scissors size={17} />, label: t(lang, 'fabOpenShorts'), color: 'text-orange-400', desc: t(lang, 'fabOpenShortsDesc') },
                 { tab: 'youtube', icon: <MonitorPlay size={17} />, label: t(lang, 'youtube'), color: 'text-red-400', desc: t(lang, 'fabYoutubeDesc') },
@@ -2446,7 +2448,7 @@ useEffect(() => {
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 px-3 pt-2 pb-1">{t(lang, 'fabHelp')}</p>
               <button
                 onClick={() => { setHelpOpen(true); setFabOpen(false); }}
-                title="Hướng Dẫn Sử Dụng — Học cách dùng mọi tính năng"
+                title={t(lang, 'tipHelp')}
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all text-slate-300 hover:text-white hover:bg-white/10"
               >
                 <span className="text-sky-400"><BookOpen size={17} /></span>
@@ -2462,7 +2464,7 @@ useEffect(() => {
               {/* Nhóm Quick Tools (Modals) */}
               <button
                 onClick={() => { setSkillsOpen(true); setFabOpen(false); }}
-                title="35+ Agent Skills — Xem và kích hoạt kỹ năng AI"
+                title={t(lang, 'tipSkillsBtn')}
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-purple-300 hover:text-white hover:bg-purple-500/20 transition-all"
               >
                 <Layers size={17} className="text-purple-400" />
@@ -2480,16 +2482,16 @@ useEffect(() => {
 
               <button
                 onClick={() => { setScrapeOpen(true); setFabOpen(false); }}
-                title="Cào dữ liệu — trích xuất từ link (YouTube/TikTok/Instagram/X/Facebook/web)"
+                title={t(lang, 'tipScrape')}
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-cyan-300 hover:text-white hover:bg-cyan-500/20 transition-all"
               >
                 <Download size={17} className="text-cyan-400" />
-                <span className="whitespace-nowrap">Cào dữ liệu</span>
+                <span className="whitespace-nowrap">{t(lang, 'fabScrape')}</span>
               </button>
 
               <button
                 onClick={() => { setSettingsOpen(true); setFabOpen(false); }}
-                title="Cài Đặt Hệ Thống — API key, model, theme"
+                title={t(lang, 'tipSettings')}
                 className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-slate-300 hover:text-white hover:bg-white/10 transition-all"
               >
                 <Settings size={17} className="text-slate-400" />
@@ -2509,7 +2511,7 @@ useEffect(() => {
                   ? '-translate-x-1 rexi-fab-tab-open'
                   : 'hover:-translate-x-3 active:scale-[0.98]')
               }
-              title={fabOpen ? 'Thu gọn menu' : 'Mở thanh công cụ nhanh'}
+              title={fabOpen ? t(lang, 'ariaCollapse') : t(lang, 'openMenu')}
             >
               {/* LED light — nguon sang xanh nhe, khong to mau */}
               <span className={`rexi-fab-led absolute left-[7px] top-3 bottom-3 w-px transition-opacity duration-500 ${fabOpen ? 'opacity-100' : 'opacity-55 group-hover:opacity-100'}`} />
@@ -2531,7 +2533,7 @@ useEffect(() => {
             {toastType === 'success' ? <CheckCircle2 size={16} /> : toastType === 'error' ? <XCircle size={16} /> : <Info size={16} />}
           </span>
           <span className="max-w-[440px] overflow-hidden text-ellipsis whitespace-nowrap">{toastMsg}</span>
-          <button onClick={() => setToastMsg('')} className="ml-2 opacity-60 hover:opacity-100 transition-opacity inline-flex items-center" aria-label="Đóng"><X size={14} /></button>
+          <button onClick={() => setToastMsg('')} className="ml-2 opacity-60 hover:opacity-100 transition-opacity inline-flex items-center" aria-label={t(lang, 'ariaClose')}><X size={14} /></button>
         </div>
       )}
     </div>

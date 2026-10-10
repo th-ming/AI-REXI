@@ -368,6 +368,13 @@ select {
 [data-theme="light"] .text-white\/50 { color: rgba(26,32,51,.5) !important; }
 [data-theme="light"] .text-white\/40 { color: rgba(26,32,51,.4) !important; }
 
+/* ═══ EXCEPT: giữ chữ TRẮNG trên nền màu bão hòa (nút action bg-cyan-600 text-white...) ═══ */
+/* Specificity (0,3,0) > catch-all (0,2,0) → thắng cả !important */
+[data-theme="light"] :is(.bg-cyan-500,.bg-cyan-600,.bg-cyan-700,.bg-blue-500,.bg-blue-600,.bg-blue-700,.bg-rose-500,.bg-rose-600,.bg-rose-700,.bg-red-500,.bg-red-600,.bg-emerald-500,.bg-emerald-600,.bg-emerald-500\/80,.bg-violet-500,.bg-violet-600,.bg-purple-500,.bg-purple-600,.bg-fuchsia-500,.bg-fuchsia-600,.bg-orange-500,.bg-orange-600,.bg-amber-600,.bg-teal-500,.bg-teal-600,.bg-sky-500,.bg-sky-600,.bg-indigo-500,.bg-indigo-600,.bg-green-500,.bg-green-600,.bg-pink-500,.bg-pink-600,.bg-rose-500\/80) .text-white,
+[data-theme="light"] :is(.bg-cyan-500,.bg-cyan-600,.bg-cyan-700,.bg-blue-500,.bg-blue-600,.bg-blue-700,.bg-rose-500,.bg-rose-600,.bg-rose-700,.bg-red-500,.bg-red-600,.bg-emerald-500,.bg-emerald-600,.bg-emerald-500\/80,.bg-violet-500,.bg-violet-600,.bg-purple-500,.bg-purple-600,.bg-fuchsia-500,.bg-fuchsia-600,.bg-orange-500,.bg-orange-600,.bg-amber-600,.bg-teal-500,.bg-teal-600,.bg-sky-500,.bg-sky-600,.bg-indigo-500,.bg-indigo-600,.bg-green-500,.bg-green-600,.bg-pink-500,.bg-pink-600,.bg-rose-500\/80).text-white { color: #fff !important; }
+[data-theme="light"] :is(.bg-cyan-600,.bg-blue-600,.bg-rose-600,.bg-emerald-600,.bg-violet-600,.bg-purple-600,.bg-fuchsia-600,.bg-orange-600,.bg-teal-600,.bg-indigo-600,.bg-red-600,.bg-pink-600) .text-white\/70,
+[data-theme="light"] :is(.bg-cyan-600,.bg-blue-600,.bg-rose-600,.bg-emerald-600,.bg-violet-600,.bg-purple-600,.bg-fuchsia-600,.bg-orange-600,.bg-teal-600,.bg-indigo-600,.bg-red-600,.bg-pink-600) .text-white\/60 { color: rgba(255,255,255,.85) !important; }
+
 /* bg-white/5, bg-white/10 on light → need contrast */
 [data-theme="light"] .bg-white\/5 { background-color: rgba(26,32,51,.05); }
 [data-theme="light"] .hover\:bg-white\/5:hover { background-color: rgba(26,32,51,.08); }
@@ -932,3 +939,51 @@ select {
   --color-orange-900: var(--c-warn-strong);
   --color-orange-950: var(--c-warn-strong);
 }
+
+
+/* ============ Model Selector - 2 theme (rexi-ms-*) ============ */
+.rexi-ms-trigger {
+  background-image: linear-gradient(to right, #181a20, #15161c, #121318);
+  color: #e2e8f0;
+}
+.rexi-ms-trigger .text-cyan-100 { color: #cffafe; }
+.rexi-ms-pop { background-color: #12141c; }
+.rexi-ms-head { background-color: #171922; }
+.rexi-ms-input { background-color: #16171d; color: #f1f5f9; }
+.rexi-ms-foot { background-color: #0e0f15; }
+
+[data-theme='light'] .rexi-ms-trigger {
+  background-image: linear-gradient(to right, #ffffff, #f1f5f9);
+  color: #334155;
+}
+[data-theme='light'] .rexi-ms-trigger .text-cyan-100 { color: #155e75; }
+[data-theme='light'] .rexi-ms-pop { background-color: #ffffff; }
+[data-theme='light'] .rexi-ms-head { background-color: #f1f5f9; }
+[data-theme='light'] .rexi-ms-head .text-slate-400,
+[data-theme='light'] .rexi-ms-foot .text-slate-400 { color: #64748b; }
+[data-theme='light'] .rexi-ms-input { background-color: #ffffff; color: #0f172a; }
+[data-theme='light'] .rexi-ms-foot { background-color: #f8fafc; }
+
+/* ============ rexi-lightfix ============ */
+/* Boc .rexi-lightfix quanh component dung class trang (bg-white/slate-*).
+   Dark mode override scoped - khong pha toggle knob / iframe noi trang la dung. */
+[data-theme='dark'] .rexi-lightfix { color: #e2e8f0; }
+[data-theme='dark'] .rexi-lightfix .bg-white { background-color: #16181f; }
+[data-theme='dark'] .rexi-lightfix .bg-white\/90 { background-color: rgba(22, 24, 31, 0.9); }
+[data-theme='dark'] .rexi-lightfix .border-slate-200 { border-color: rgba(255, 255, 255, 0.1); }
+[data-theme='dark'] .rexi-lightfix .border-slate-100 { border-color: rgba(255, 255, 255, 0.08); }
+[data-theme='dark'] .rexi-lightfix .border-slate-300 { border-color: rgba(255, 255, 255, 0.15); }
+[data-theme='dark'] .rexi-lightfix .text-slate-900 { color: #f8fafc; }
+[data-theme='dark'] .rexi-lightfix .text-gray-900 { color: #f8fafc; }
+[data-theme='dark'] .rexi-lightfix .text-slate-800 { color: #e2e8f0; }
+[data-theme='dark'] .rexi-lightfix .text-slate-700 { color: #cbd5e1; }
+[data-theme='dark'] .rexi-lightfix .text-slate-600 { color: #94a3b8; }
+[data-theme='dark'] .rexi-lightfix .text-slate-500 { color: #94a3b8; }
+[data-theme='dark'] .rexi-lightfix .text-slate-400 { color: #64748b; }
+[data-theme='dark'] .rexi-lightfix .text-slate-300 { color: #94a3b8; }
+[data-theme='dark'] .rexi-lightfix .bg-slate-50 { background-color: rgba(255, 255, 255, 0.05); }
+[data-theme='dark'] .rexi-lightfix .bg-slate-100 { background-color: rgba(255, 255, 255, 0.08); }
+[data-theme='dark'] .rexi-lightfix .bg-slate-200\/10 { background-color: rgba(255, 255, 255, 0.08); }
+[data-theme='dark'] .rexi-lightfix .bg-slate-400 { background-color: rgba(255, 255, 255, 0.2); }
+[data-theme='dark'] .rexi-lightfix .placeholder-slate-400::placeholder { color: #64748b; }
+[data-theme='dark'] .rexi-lightfix .placeholder-slate-500::placeholder { color: #64748b; }
