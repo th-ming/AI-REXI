@@ -774,9 +774,9 @@ async function scanOnStartup() {
 let schedulerStarted = false;
 
 async function startModelScannerScheduler() {
-  // SKIP startup scan — tránh boot chậm 30-60s (health check đã chạy lúc boot).
-  // Chỉ quét theo lịch hàng tuần. Bật lại qua env ENABLE_STARTUP_SCAN=true nếu cần.
-  if (process.env.ENABLE_STARTUP_SCAN === 'true') {
+  // Startup scan MAC DINH BAT (tat qua env ENABLE_STARTUP_SCAN=false): chay background sau boot 5s,
+  // co cooldown 6h/provider (wasRecentlyScanned) nen khong dot quota + khong cham boot.
+  if (process.env.ENABLE_STARTUP_SCAN !== 'false') {
     setTimeout(() => {
       scanOnStartup().catch(e => console.error('[ModelScanner] Startup scan failed:', e.message));
     }, 5000);
@@ -787,7 +787,7 @@ async function startModelScannerScheduler() {
     await scheduleWeeklyReset();  // ← Weekly reset: CN → T2 00:00 VN
     const schedule = await getWeeklySchedule();
     const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    console.log(`[ModelScanner] Scheduler started: startup scan in 5s, weekly reset ${dayNames[schedule.day]} ${schedule.time}`);
+    console.log(`[ModelScanner] Scheduler started: startup scan ${process.env.ENABLE_STARTUP_SCAN === 'false' ? 'DISABLED (env)' : 'in 5s (cooldown 6h/provider)'}, weekly reset ${dayNames[schedule.day]} ${schedule.time}`);
   } catch (e) {
     console.error('[ModelScanner] Scheduler init error:', e.message);
   }
