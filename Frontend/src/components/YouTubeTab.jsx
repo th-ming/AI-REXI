@@ -189,6 +189,7 @@ showToast, active }) {
   // Tốc độ phát kiểu YouTube (0.25x–2x) — playbackRate trực tiếp, giữ vị trí phát
   const [playbackRate, setPlaybackRate] = useState(1);
   const [speedOpen, setSpeedOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const setRate = (r) => {
     setPlaybackRate(r);
     try { if (videoRef.current) videoRef.current.playbackRate = r; } catch (e) { /* ignore */ }
@@ -495,7 +496,7 @@ showToast, active }) {
       if (!data.success) throw new Error(data.error || 'Không phát được video');
       // Nếu user đã bấm video khác trong lúc chờ → bỏ kết quả cũ, không ghi đè video mới
       if (seq !== playSeqRef.current) return;
-      setSelected((prev) => ({ ...prev, stream_url: data.stream_url, description: data.description, channel_id: data.channel_id || prev.channel_id || null }));
+      setSelected((prev) => ({ ...prev, stream_url: data.stream_url, stream_direct: data.stream_client === 'worker:residential', description: data.description, channel_id: data.channel_id || prev.channel_id || null }));
       setStreamLoading(false);
       const _tok = (() => { try { return localStorage.getItem('rexi_token') || ''; } catch { return ''; } })();
       const pUrl = `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(data.stream_url)}${_tok ? `&token=${encodeURIComponent(_tok)}` : ''}`;
@@ -563,11 +564,15 @@ showToast, active }) {
     a.click();
   };
 
-  // Dùng proxy backend để tránh CORS
-  // P2-19d: proxy yêu cầu auth — <video> không gửi header nên kèm token qua ?token=
+  // Worker residential: stream_url đã kèm token + worker trả CORS * → <video>/hls.js
+  // đi THẲNG worker (browser→tunnel ~1.7MB/s) thay vì vòng qua proxy Render
+  // (Render→tunnel ~0.43MB/s = nguyên nhân video kẹt t=0 trên cloud). Fallback
+  // googlevideo resolve từ IP Render thì bắt buộc đi proxy (IP-lock googlevideo).
   const _ytToken = (() => { try { return localStorage.getItem('rexi_token') || ''; } catch { return ''; } })();
   const proxyUrl = selected?.stream_url
-    ? `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(selected.stream_url)}${_ytToken ? `&token=${encodeURIComponent(_ytToken)}` : ''}`
+    ? (selected.stream_direct
+        ? selected.stream_url
+        : `${API_BASE}/services/youtube/proxy?url=${encodeURIComponent(selected.stream_url)}${_ytToken ? `&token=${encodeURIComponent(_ytToken)}` : ''}`)
     : '';
 
   // Chia sẻ: copy link YouTube gốc
@@ -579,6 +584,33 @@ showToast, active }) {
       showToast?.('Đã copy link video!');
     } catch {
       showToast?.(url);
+    }
+  };
+
+  // Tải video về máy: fetch stream → blob → <a download>. Dùng proxyUrl hiện có
+  // (worker direct khi worker phục vụ → nhanh; googlevideo → qua proxy Render).
+  // Video dài = file lớn: giới hạn 10 phút timeout, báo toast tiến độ.
+  const downloadVideo = async () => {
+    if (!selected || !proxyUrl || downloading) return;
+    setDownloading(true);
+    showToast?.('Đang tải video — video dài có thể mất vài phút...', 'info');
+    const ctl = new AbortController();
+    const hardTo = setTimeout(() => ctl.abort(), 600000);
+    try {
+      const res = await fetch(proxyUrl, { signal: ctl.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(selected.title || 'youtube').replace(/[^\w\d]+/g, '_').slice(0, 60)}.${selected.ext || 'mp4'}`;
+      a.click();
+      setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) { /* ignore */ } }, 60000);
+      showToast?.('Đã tải video về máy!', 'success');
+    } catch (e) {
+      showToast?.(e.name === 'AbortError' ? 'Tải video quá lâu — thử video ngắn hơn.' : 'Lỗi tải video: ' + e.message, 'error');
+    } finally {
+      clearTimeout(hardTo);
+      setDownloading(false);
     }
   };
 
@@ -908,6 +940,16 @@ showToast, active }) {
                     title="Mở cửa sổ nổi để vừa xem vừa làm việc khác"
                   >
                     <PictureInPicture2 size={13} /> {pipActive ? 'Đang phát nền' : 'Phát nền'}
+                  </button>
+                )}
+                {proxyUrl && (
+                  <button
+                    onClick={downloadVideo}
+                    disabled={downloading}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all disabled:opacity-50"
+                    title="Tải file video về máy"
+                  >
+                    {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} {downloading ? 'Đang tải...' : 'Tải xuống'}
                   </button>
                 )}
               </div>
