@@ -1367,8 +1367,8 @@ async function buildAutoContext(req, id, noi_dung) {
       let s = webCacheGet(ck);
       if (!s) { s = await searchWebTool(q); webCacheSet(ck, s); }
       if (s && s.results && s.results.length) {
-        out.webSearchText = '\n\n🌐 THÔNG TIN MỚI TỪ WEB (trả lời dựa trên nội dung này nếu liên quan):\n' +
-          s.results.slice(0, 5).map(r => `- ${r.title}: ${r.snippet}`).join('\n');
+        out.webSearchText = '\n\n🌐 THÔNG TIN MỚI TỪ WEB — BẮT BUỘC dùng khối này để trả lời câu hỏi (trích số liệu cụ thể, KHÔNG trả lời chung chung, KHÔNG chỉ đưa link):\n' +
+          s.results.slice(0, 5).map(r => `- ${r.title}: ${r.snippet}` + (r.url ? ` (Nguồn: ${r.url})` : '')).join('\n');
       }
     } catch (e) { console.log('[AutoWeb] error:', e.message); }
   }

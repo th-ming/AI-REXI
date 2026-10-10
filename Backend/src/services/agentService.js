@@ -277,6 +277,28 @@ async function executeTool(toolName, args) {
 //  4. Fallback 3 (QA 17/9): Google News RSS — JSON-free, gần như không chặn IP
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
+// Giải mã HTML entities trong kết quả scrape (Bing/DDG trả &#224; &nbsp;...) + cắt gọn
+function decodeHtmlEnt(s) {
+  return String(s || '')
+    .replace(/&#(\d+);/g, (_, n) => { const c = parseInt(n, 10); return (c > 0 && c < 0x10FFFF) ? String.fromCharCode(c) : _; })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => { const c = parseInt(h, 16); return (c > 0 && c < 0x10FFFF) ? String.fromCharCode(c) : _; })
+    .replace(/&nbsp;|&#0?160;/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;|&#0?34;/g, '"').replace(/&#0?39;|&apos;|&rsquo;|&lsquo;/g, "'")
+    .replace(/&ldquo;|&rdquo;/g, '"').replace(/&hellip;/g, '...').replace(/&emdash;|&mdash;/g, '—').replace(/&ndash;/g, '–')
+    .replace(/&[a-zA-Z]+;/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+function cleanSearchResults(arr) {
+  return (arr || []).map(r => ({
+    type: r.type,
+    title: decodeHtmlEnt(r.title).slice(0, 200),
+    snippet: decodeHtmlEnt(r.snippet).slice(0, 400),
+    url: String(r.url || '').replace(/&amp;/g, '&').trim(),
+    source: r.source
+  }));
+}
+
 async function googleNewsRss(query, limit = 8) {
   const rssRes = await fetch('https://news.google.com/rss/search?q=' + encodeURIComponent(query) + '&hl=vi&gl=VN&ceid=VN:vi',
     { headers: { 'User-Agent': UA } });
@@ -291,7 +313,7 @@ async function googleNewsRss(query, limit = 8) {
     const link = (item.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || '';
     const pubDate = (item.match(/<pubDate>([\s\S]*?)<\/pubDate>/) || [])[1] || '';
     const source = (item.match(/<source[^>]*>([\s\S]*?)<\/source>/) || [])[1] || '';
-    if (title) out.push({ type: 'news', title: title.trim(), url: link.trim(), snippet: (source.trim() + ' — ' + pubDate.trim()).replace(/^ — /, ''), source: 'google-news-rss' });
+    if (title) out.push({ type: 'news', title: decodeHtmlEnt(title), url: link.trim().replace(/&amp;/g, '&'), snippet: decodeHtmlEnt((source.trim() + ' — ' + pubDate.trim()).replace(/^ — /, '')), source: 'google-news-rss' });
   }
   return out;
 }
@@ -320,7 +342,7 @@ async function searchWebTool(query) {
           }
         }
       }
-      if (results.length) return { results: results.slice(0, 8), source: 'duckduckgo-ia' };
+      if (results.length) return { results: cleanSearchResults(results).slice(0, 8), source: 'duckduckgo-ia' };
     }
   } catch (e) {
     console.warn('[Agent][search] DDG IA fail:', e.message);
@@ -342,7 +364,7 @@ async function searchWebTool(query) {
           url: m[1]
         });
       }
-      if (out.length) return { results: out, source: 'duckduckgo-html' };
+      if (out.length) return { results: cleanSearchResults(out), source: 'duckduckgo-html' };
     }
   } catch (e) {
     console.warn('[Agent][search] DDG HTML fail:', e.message);
@@ -366,7 +388,7 @@ async function searchWebTool(query) {
           url: mb[1]
         });
       }
-      if (outB.length) return { results: outB, source: 'bing-html' };
+      if (outB.length) return { results: cleanSearchResults(outB), source: 'bing-html' };
     }
   } catch (e) {
     console.warn('[Agent][search] Bing fail:', e.message);
