@@ -102,11 +102,11 @@ export default function SettingsModal({
         localStorage.setItem('rexi_model', next);
       } else {
         setScanModels([]);
-        setScanError(data.error || 'Không tìm thấy model nào.');
+        setScanError(data.error || t(lang, 'smScanNone'));
       }
     } catch (e) {
       if (e.name === 'AbortError') return;
-      setScanError('Lỗi quét: ' + e.message);
+      setScanError(t(lang, 'smScanErr') + e.message);
     } finally {
       if (!ac || !ac.signal.aborted) setScanning(false);
     }
@@ -140,7 +140,7 @@ export default function SettingsModal({
       <div className="bg-[#141522] border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-white/10 pb-3">
           <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-            <Settings size={18} className="text-cyan-500" /> Cài Đặt Hệ Thống Rexi AI
+            <Settings size={18} className="text-cyan-500" /> {t(lang, 'smTitle')}
           </h2>
           <div className="flex items-center gap-2">
             <button onClick={fetchProviders} title={t(lang, 'tipProvReload')} className="p-1.5 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white">
@@ -153,8 +153,8 @@ export default function SettingsModal({
         <div className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-slate-400">Nhà cung cấp AI (Tự động cập nhật)</label>
-              {loadingProviders && <span className="text-[10px] text-cyan-400 animate-pulse">Đang cập nhật...</span>}
+              <label className="text-xs font-medium text-slate-400">{t(lang, 'smProvider')}</label>
+              {loadingProviders && <span className="text-[10px] text-cyan-400 animate-pulse">{t(lang, 'smUpdating')}</span>}
             </div>
             <select
               value={provider}
@@ -171,12 +171,12 @@ export default function SettingsModal({
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-slate-400">Model AI (Tự quét từ API)</label>
+              <label className="text-xs font-medium text-slate-400">{t(lang, 'smModel')}</label>
               <div className="flex items-center gap-2">
-                {scanning && <span className="text-[10px] text-cyan-400 animate-pulse">Đang quét...</span>}
+                {scanning && <span className="text-[10px] text-cyan-400 animate-pulse">{t(lang, 'smScanning')}</span>}
                 <button type="button" onClick={runScan} title={t(lang, 'tipModelScan')}
                   className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1">
-                  <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> Quét lại
+                  <RefreshCw size={11} className={scanning ? 'animate-spin' : ''} /> {t(lang, 'smRescan')}
                 </button>
               </div>
             </div>
@@ -200,7 +200,7 @@ export default function SettingsModal({
               />
             )}
             {scanModels.length > 0 && (
-              <p className="text-[10px] text-emerald-400 mt-1">Đã quét được {scanModels.length} model từ API — chọn trong danh sách</p>
+              <p className="text-[10px] text-emerald-400 mt-1">{t(lang, 'smScanFoundA')}{scanModels.length}{t(lang, 'smScanFoundB')}</p>
             )}
             {scanModels.length === 0 && scanError && (
               <p className="text-[10px] text-amber-400 mt-1">{scanError}</p>
@@ -226,28 +226,28 @@ export default function SettingsModal({
               {apiKey ? (
                 <button type="button" onClick={handleClearKey}
                   className="mt-1 text-[10px] text-rose-500 hover:text-rose-400">
-                  Xóa key đã lưu khỏi máy này
+                  {t(lang, 'smClearKey')}
                 </button>
               ) : null}
             </div>
           )}
 
           <div>
-            <label className="text-xs font-medium text-slate-400 mb-1 block">Base URL Endpoint (Địa chỉ API)</label>
+            <label className="text-xs font-medium text-slate-400 mb-1 block">{t(lang, 'smBaseUrl')}</label>
             <input
               type="text"
               value={baseUrl}
               onChange={e => { setBaseUrl(e.target.value); localStorage.setItem('rexi_base_url', e.target.value); }}
               placeholder={
-                provider === 'gemini' ? 'Không cần điền — Gemini dùng API Key trực tiếp'
-                : provider === 'claude' ? 'Không cần điền — Claude dùng API Key trực tiếp'
-                : provider === 'opencode' ? 'Internal engine — không cần URL'
+                provider === 'gemini' ? t(lang, 'smNoUrlGem')
+                : provider === 'claude' ? t(lang, 'smNoUrlClaude')
+                : provider === 'opencode' ? t(lang, 'smNoUrlOC')
                 : 'https://api.openai.com/v1'
               }
               className="w-full px-3 py-2.5 bg-[#0e0f16] border border-white/10 rounded-xl text-sm text-slate-100 placeholder-slate-400 outline-none focus:border-cyan-400 font-mono"
             />
             {(provider === 'gemini' || provider === 'claude' || provider === 'opencode') && (
-              <p className="text-[10px] text-slate-400 mt-1">Provider này dùng API Key trực tiếp, không cần Base URL</p>
+              <p className="text-[10px] text-slate-400 mt-1">{t(lang, 'smDirectKey')}</p>
             )}
           </div>
 
@@ -255,7 +255,7 @@ export default function SettingsModal({
             onClick={() => setSettingsOpen(false)}
             className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5"
           >
-            <Zap size={15} /> Lưu Cài Đặt
+            <Zap size={15} /> {t(lang, 'smSave')}
           </button>
 
           <SocialConnect showToast={showToast} />
