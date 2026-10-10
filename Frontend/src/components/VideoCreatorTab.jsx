@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { t, getLang } from '../i18n';
+const T = t; // alias tránh bị che bởi biến template 't'
 import {
   Video, Download, Loader2, Code,
   Sparkles, Check, ArrowLeft, ArrowRight, Info,
@@ -381,9 +382,9 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   const [selectedTemplate, setSelectedTemplate] = useState(EASY_TEMPLATES[0]);
   const [fields, setFields] = useState(() => {
     const t = EASY_TEMPLATES[0];
-    return t.fields.reduce((acc, f) => ({ ...acc, [f.key]: f.default }), {});
+    return t.fields.reduce((acc, f) => ({ ...acc, [f.key]: T(getLang(), f.default) }), {});
   });
-  const [html, setHtml] = useState(() => EASY_TEMPLATES[0].build(EASY_TEMPLATES[0].fields.reduce((acc, f) => ({ ...acc, [f.key]: f.default }), {}), 5));
+  const [html, setHtml] = useState(() => EASY_TEMPLATES[0].build(EASY_TEMPLATES[0].fields.reduce((acc, f) => ({ ...acc, [f.key]: T(getLang(), f.default) }), {}), 5));
   const [format, setFormat] = useState('landscape');
   const [duration, setDuration] = useState(5);
   const [rendering, setRendering] = useState(false);
@@ -428,12 +429,12 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   }, [step, rendering, videoUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rebuildHtml = (tpl, flds, dur) => {
-    const merged = tpl.fields.reduce((acc, f) => ({ ...acc, [f.key]: flds[f.key] ?? f.default }), {});
+    const merged = tpl.fields.reduce((acc, f) => ({ ...acc, [f.key]: flds[f.key] ?? T(getLang(), f.default) }), {});
     return tpl.build(merged, dur ?? duration);
   };
 
   const pickTemplate = (tpl) => {
-    const defaults = tpl.fields.reduce((acc, f) => ({ ...acc, [f.key]: f.default }), {});
+    const defaults = tpl.fields.reduce((acc, f) => ({ ...acc, [f.key]: T(getLang(), f.default) }), {});
     setSelectedTemplate(tpl);
     setFields(defaults);
     setHtml(rebuildHtml(tpl, defaults, duration));
@@ -456,19 +457,19 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
   const handleRender = async () => {
     if (!html.trim()) return;
     setRendering(true);
-    setRenderProgress('Đang gửi nội dung đến server...');
+    setRenderProgress(T(getLang(), 'Đang gửi nội dung đến server...'));
     setVideoUrl(null);
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-      setRenderProgress('Đang render video... (mất 30-60 giây)');
+      setRenderProgress(T(getLang(), 'Đang render video... (mất 30-60 giây)'));
       const res = await fetch(`${API_BASE}/services/video/render`, {
         method: 'POST', headers, credentials: 'include',
         body: JSON.stringify({ html, width: selectedFormat.w, height: selectedFormat.h, fps: 30, duration })
       });
       if (res.status === 404 || res.status === 410) {
         setRenderProgress('');
-        showToast('Link render đã hết hạn (server restart) — render lại nhé.', 'error');
+        showToast(T(getLang(), 'Link render đã hết hạn (server restart) — render lại nhé.'), 'error');
         return;
       }
       const data = await res.json();
@@ -478,26 +479,26 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         setVideoSize(data.size);
         setRenderProgress('');
         setStep(4);
-        showToast(`Video render thành công! (${(data.size / 1024 / 1024).toFixed(1)}MB)`, 'success');
+        showToast(`${T(getLang(), 'Video render thành công!')} (${(data.size / 1024 / 1024).toFixed(1)}MB)`, 'success');
       } else {
         setRenderProgress('');
-        showToast(data.error || 'Render thất bại', 'error');
+        showToast(data.error || T(getLang(), 'Render thất bại'), 'error');
       }
     } catch (err) {
       setRenderProgress('');
-      showToast('Lỗi: ' + err.message, 'error');
+      showToast(T(getLang(), 'Lỗi: ') + err.message, 'error');
     } finally {
       setRendering(false);
     }
   };
 
   const handleAiVideo = async () => {
-    if (!aiPrompt.trim()) { showToast('Nhập mô tả video trước nhé.', 'error'); return; }
+    if (!aiPrompt.trim()) { showToast(T(getLang(), 'Nhập mô tả video trước nhé.'), 'error'); return; }
     setAiBusy(true);
     setVideoUrl(null);
     setRenderProgress(aiScenes > 1
-      ? `AI đang kể truyện: chia ${aiScenes} cảnh, tạo từng clip rồi ghép lại... (có thể mất ~${aiScenes * 25} giây)`
-      : 'AI đang tạo video... (20-90 giây, dùng Space công khai miễn phí)');
+      ? `${T(getLang(), 'AI đang kể truyện: chia ')}${aiScenes} ${T(getLang(), 'cảnh, tạo từng clip rồi ghép lại... (có thể mất ~')}${aiScenes * 25} ${T(getLang(), 'giây')}`
+      : T(getLang(), 'AI đang tạo video... (20-90 giây, dùng Space công khai miễn phí)'));
     try {
       const headers = { 'Content-Type': 'application/json' };
       if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
@@ -511,14 +512,14 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         setVideoSize(data.bytes || 0);
         setRenderProgress('');
         setStep(4);
-        showToast(`Video AI xong! (${data.provider || 'ai'}${data.scenes ? `, ${data.scenes} cảnh ~${data.durationSec}s` : ''})`, 'success');
+        showToast(`${T(getLang(), 'Video AI xong!')} (${data.provider || 'ai'}${data.scenes ? `, ${data.scenes} ${T(getLang(), 'cảnh')} ~${data.durationSec}s` : ''})`, 'success');
       } else {
         setRenderProgress('');
-        showToast(data.error || 'Tạo video AI thất bại', 'error');
+        showToast(data.error || T(getLang(), 'Tạo video AI thất bại'), 'error');
       }
     } catch (err) {
       setRenderProgress('');
-      showToast('Lỗi: ' + err.message, 'error');
+      showToast(T(getLang(), 'Lỗi: ') + err.message, 'error');
     } finally {
       setAiBusy(false);
     }
@@ -531,7 +532,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
     a.download = `rexi_video_${Date.now()}.mp4`;
     a.click();
     setDownloaded(true);
-    showToast('Đã tải video MP4!', 'success');
+    showToast(T(getLang(), 'Đã tải video MP4!'), 'success');
   };
 
   const startOver = () => {
@@ -570,8 +571,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
              <Video size={18} className="text-[#4a7dff]" />
            </div>
            <div>
-             <h1 className="text-sm font-bold text-slate-800">Tạo Video</h1>
-             <p className="text-[10px] text-slate-500">Tạo video HTML animation đẹp mắt</p>
+             <h1 className="text-sm font-bold text-slate-800">{T(getLang(), 'Tạo Video')}</h1>
+             <p className="text-[10px] text-slate-500">{T(getLang(), 'Tạo video HTML animation đẹp mắt')}</p>
            </div>
         </div>
         {/* Format Selector */}
@@ -589,7 +590,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 }`}
               >
                 <Icon size={12} />
-                <span className="hidden sm:inline">{f.label}</span>
+                <span className="hidden sm:inline">{T(getLang(), f.label)}</span>
               </button>
             );
           })}
@@ -627,14 +628,14 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                         ? 'text-emerald-400 hover:bg-slate-100'
                         : 'text-slate-600'
                   }`}
-                  title={s.n < step ? (lang === 'vi' ? 'Quay lại bước này' : 'Go back to this step') : s.label}
+                  title={s.n < step ? (lang === 'vi' ? 'Quay lại bước này' : 'Go back to this step') : T(getLang(), s.label)}
                 >
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
                     step > s.n ? 'bg-emerald-500 text-white' : step === s.n ? 'bg-[#4a7dff] text-white' : 'bg-slate-200/10 text-slate-500'
                   }`}>
                     {step > s.n ? '✓' : s.n}
                   </span>
-                  <span className="hidden sm:inline">{s.label}</span>
+                  <span className="hidden sm:inline">{T(getLang(), s.label)}</span>
                 </button>
               </React.Fragment>
             );
@@ -646,7 +647,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-2">
           <Info size={13} className="text-amber-400 shrink-0 mt-0.5" />
           <p className="text-[10px] text-amber-200/80 leading-relaxed">
-            Chưa cấu hình render video (thiếu ffmpeg hoặc Chrome/Chromium). Trên server: chạy <code className="bg-black/30 px-1 py-0.5 rounded font-mono text-[9px]">npx playwright install chromium</code> trong Backend. Bạn vẫn xem được preview.
+            {T(getLang(), 'Chưa cấu hình render video (thiếu ffmpeg hoặc Chrome/Chromium). Trên server: chạy')} <code className="bg-black/30 px-1 py-0.5 rounded font-mono text-[9px]">npx playwright install chromium</code> {T(getLang(), 'trong Backend. Bạn vẫn xem được preview.')}
           </p>
         </div>
       )}
@@ -657,18 +658,18 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
         {step === 1 && (
           <div className="p-5 max-w-5xl mx-auto">
             <div className="text-center mb-5">
-              <h2 className="text-lg font-bold text-white">Chọn mẫu video</h2>
-              <p className="text-[11px] text-slate-500 mt-1">Bấm chọn mẫu — sau đó điền nội dung của bạn</p>
+              <h2 className="text-lg font-bold text-white">{T(getLang(), 'Chọn mẫu video')}</h2>
+              <p className="text-[11px] text-slate-500 mt-1">{T(getLang(), 'Bấm chọn mẫu — sau đó điền nội dung của bạn')}</p>
             </div>
 
             {/* Tạo video bằng AI (free) — HF Spaces */}
             <div className="mb-6 rounded-2xl border border-[#4a7dff]/30 bg-[#4a7dff]/5 p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles size={14} className="text-[#4a7dff]" />
-                <p className="text-xs font-bold text-slate-800">Tạo video bằng AI (miễn phí)</p>
+                <p className="text-xs font-bold text-slate-800">{T(getLang(), 'Tạo video bằng AI (miễn phí)')}</p>
               </div>
               <p className="text-[10px] text-slate-500 mb-3">
-                Mô tả cảnh bạn muốn — AI dựng video MP4. Dán URL ảnh để làm video từ ảnh (image → video).
+                {T(getLang(), 'Mô tả cảnh bạn muốn — AI dựng video MP4. Dán URL ảnh để làm video từ ảnh (image → video).')}
               </p>
               <textarea
                 value={aiPrompt}
@@ -678,7 +679,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#4a7dff]/30"
               />
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <label className="text-[10px] text-slate-500 whitespace-nowrap">Số cảnh (1 cảnh ≈ 3 giây):</label>
+                <label className="text-[10px] text-slate-500 whitespace-nowrap">{T(getLang(), 'Số cảnh (1 cảnh ≈ 3 giây):')}</label>
                 <select
                   value={aiScenes}
                   onChange={(e) => setAiScenes(parseInt(e.target.value, 10) || 1)}
@@ -688,7 +689,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                 </select>
                 {aiScenes > 1 && (
                   <span className="text-[10px] text-[#4a7dff]">
-                    Kể truyện ngắn — AI tự chia {aiScenes} cảnh rồi ghép thành video ~{aiScenes * 3} giây
+                    {T(getLang(), 'Kể truyện ngắn — AI tự chia')} {aiScenes} {T(getLang(), 'cảnh rồi ghép thành video ~')}{aiScenes * 3} {T(getLang(), 'giây')}
                   </span>
                 )}
               </div>
@@ -704,7 +705,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                   disabled={aiBusy}
                   className={`px-5 py-2 rounded-lg text-xs font-bold text-white shadow transition-all active:scale-95 ${aiBusy ? 'bg-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff]'}`}
                 >
-                  {aiBusy ? 'Đang tạo...' : 'Tạo video AI'}
+                  {aiBusy ? T(getLang(), 'Đang tạo...') : T(getLang(), 'Tạo video AI')}
                 </button>
               </div>
               {renderProgress && aiBusy && <p className="text-[10px] text-slate-500 mt-2">{renderProgress}</p>}
@@ -734,7 +735,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
             {/* Template Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTemplates.map(t => {
-                const previewHtml = t.build(t.fields.reduce((a, f) => ({ ...a, [f.key]: f.default }), {}), duration);
+                const previewHtml = t.build(t.fields.reduce((a, f) => ({ ...a, [f.key]: T(getLang(), f.default) }), {}), duration);
                 const previewSrc = `data:text/html;base64,${utf8ToBase64(previewHtml)}`;
                 return (
                   <button
@@ -753,7 +754,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                         className="w-full h-full border-0 pointer-events-none"
                         sandbox="allow-scripts"
                         loading="lazy"
-                        title={t.name}
+                        title={T(getLang(), t.name)}
                       />
                       {/* Play Button Overlay */}
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/30">
@@ -770,8 +771,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                     </div>
                     {/* Info */}
                     <div className="px-4 py-3 bg-slate-50">
-                      <p className="text-xs font-bold text-slate-800">{t.name}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{t.desc}</p>
+                      <p className="text-xs font-bold text-slate-800">{T(getLang(), t.name)}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{T(getLang(), t.desc)}</p>
                     </div>
                   </button>
                 );
@@ -783,7 +784,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                  onClick={() => setStep(2)}
                  className="px-8 py-3 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white font-bold text-sm shadow-lg shadow-[4a7dff]/20 transition-all flex items-center gap-2 active:scale-95"
                >
-                 Chọn mẫu này <ArrowRight size={16} />
+                 {T(getLang(), 'Chọn mẫu này')} <ArrowRight size={16} />
                </button>
              </div>
           </div>
@@ -794,24 +795,24 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
           <div className="p-5 max-w-2xl mx-auto">
 <div className="flex items-center justify-between mb-4">
                <div>
-                 <h2 className="text-base font-bold text-slate-800">Nhập nội dung</h2>
+                 <h2 className="text-base font-bold text-slate-800">{T(getLang(), 'Nhập nội dung')}</h2>
                  <p className="text-[11px] text-slate-500 mt-0.5">
-                   Mẫu: <span className="text-[#4a7dff]">{selectedTemplate.name}</span>
+                   {T(getLang(), 'Mẫu:')} <span className="text-[#4a7dff]">{T(getLang(), selectedTemplate.name)}</span>
                  </p>
                </div>
                <button onClick={() => setStep(1)} className="text-[11px] text-slate-400 hover:text-slate-800 flex items-center gap-1 transition-colors">
-                 <ArrowLeft size={12} /> Đổi mẫu
+                 <ArrowLeft size={12} /> {T(getLang(), 'Đổi mẫu')}
                </button>
              </div>
             <div className="space-y-3">
 {selectedTemplate.fields.map(f => (
                  <div key={f.key} className="space-y-1.5">
-                   <label className="text-[11px] font-semibold text-slate-600">{f.label}</label>
+                   <label className="text-[11px] font-semibold text-slate-600">{T(getLang(), f.label)}</label>
                    <input
                      type="text"
-                     value={fields[f.key] ?? f.default}
+                     value={fields[f.key] ?? T(getLang(), f.default)}
                      onChange={e => updateField(f.key, e.target.value)}
-                     placeholder={f.placeholder}
+                     placeholder={T(getLang(), f.placeholder)}
                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 placeholder-slate-500 outline-none focus:border-[#4a7dff]/50 focus:ring-2 focus:ring-[4a7dff]/10 transition-all"
                    />
                  </div>
@@ -819,10 +820,10 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
             </div>
 <div className="flex justify-between mt-6">
                <button onClick={() => setStep(1)} className="px-5 py-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-all flex items-center gap-2 active:scale-95">
-                 <ArrowLeft size={14} /> Quay lại
+                 <ArrowLeft size={14} /> {T(getLang(), 'Quay lại')}
                </button>
                <button onClick={() => setStep(3)} className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white text-xs font-bold shadow-lg shadow-[4a7dff]/20 transition-all flex items-center gap-2 active:scale-95">
-                 Xem trước <ArrowRight size={14} />
+                 {T(getLang(), 'Xem trước')} <ArrowRight size={14} />
                </button>
              </div>
           </div>
@@ -833,13 +834,13 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
           <div className="p-5 max-w-4xl mx-auto">
 <div className="flex items-center justify-between mb-3">
                <div>
-                 <h2 className="text-base font-bold text-slate-800">Xem trước video</h2>
+                 <h2 className="text-base font-bold text-slate-800">{T(getLang(), 'Xem trước video')}</h2>
                  <p className="text-[11px] text-slate-500 mt-0.5">
-                   {selectedFormat.label} • {selectedFormat.w}×{selectedFormat.h}
+                   {T(getLang(), selectedFormat.label)} • {selectedFormat.w}×{selectedFormat.h}
                  </p>
                </div>
                <button onClick={() => setStep(2)} className="text-[11px] text-slate-400 hover:text-slate-800 flex items-center gap-1 transition-colors">
-                 <ArrowLeft size={12} /> Sửa nội dung
+                 <ArrowLeft size={12} /> {T(getLang(), 'Sửa nội dung')}
                </button>
              </div>
 
@@ -869,16 +870,16 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                      <video src={videoUrl} className="w-full h-full object-cover" muted />
                    </div>
                    <div className="flex-1 min-w-0">
-                     <p className="text-sm font-bold text-emerald-300">Video đã render xong!</p>
-                     <p className="text-[10px] text-slate-500">{selectedFormat.label} • {selectedFormat.w}×{selectedFormat.h} • {(videoSize / 1024 / 1024).toFixed(1)}MB</p>
+                     <p className="text-sm font-bold text-emerald-300">{T(getLang(), 'Video đã render xong!')}</p>
+                     <p className="text-[10px] text-slate-500">{T(getLang(), selectedFormat.label)} • {selectedFormat.w}×{selectedFormat.h} • {(videoSize / 1024 / 1024).toFixed(1)}MB</p>
                    </div>
                    <button onClick={handleDownload} className="px-5 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5 hover:bg-emerald-500/30 transition-all active:scale-95">
-                     <Download size={14} /> Tải MP4
+                     <Download size={14} /> {T(getLang(), 'Tải MP4')}
                    </button>
                  </div>
                ) : (
                  <div className="flex items-center justify-between flex-wrap gap-3">
-                   <p className="text-[11px] text-slate-500">Sẵn sàng render. Bấm nút để tạo file MP4 (mất 30-60 giây).</p>
+                   <p className="text-[11px] text-slate-500">{T(getLang(), 'Sẵn sàng render. Bấm nút để tạo file MP4 (mất 30-60 giây).')}</p>
                    <button
                      onClick={handleRender}
                      disabled={rendering}
@@ -899,13 +900,13 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
              <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mb-4">
                <Check size={32} className="text-emerald-400" />
              </div>
-              <h2 className="text-lg font-bold text-slate-800">Video đã xong!</h2>
+              <h2 className="text-lg font-bold text-slate-800">{T(getLang(), 'Video đã xong!')}</h2>
               <p className="text-[11px] text-slate-500 mt-1.5">
-                Bấm nút bên dưới để tải file MP4 về thư mục Downloads.
+                {T(getLang(), 'Bấm nút bên dưới để tải file MP4 về thư mục Downloads.')}
               </p>
               {!downloaded && (
                 <p className="text-[11px] text-amber-600 mt-2 flex items-center justify-center gap-1.5">
-                  <Info size={12} /> Video chỉ tồn tại trong phiên này — hãy tải về máy trước khi rời trang.
+                  <Info size={12} /> {T(getLang(), 'Video chỉ tồn tại trong phiên này — hãy tải về máy trước khi rời trang.')}
                 </p>
               )}
              <div className="mt-5 space-y-2.5">
@@ -913,13 +914,13 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                  onClick={handleDownload}
                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
                >
-                 <Download size={16} /> Tải video MP4
+                 <Download size={16} /> {T(getLang(), 'Tải video MP4')}
                </button>
                <button
                  onClick={startOver}
                  className="w-full py-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-semibold transition-all active:scale-95"
                >
-                 Tạo video khác
+                 {T(getLang(), 'Tạo video khác')}
                </button>
              </div>
            </div>
@@ -932,7 +933,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
            onClick={() => setShowAdvanced(!showAdvanced)}
            className="w-full flex items-center justify-center gap-1.5 py-2 text-[10px] text-slate-800 hover:text-slate-600 transition-colors"
          >
-           <Code size={11} /> {showAdvanced ? 'Ẩn code' : 'Chế độ code (nâng cao)'}
+           <Code size={11} /> {showAdvanced ? T(getLang(), 'Ẩn code') : T(getLang(), 'Chế độ code (nâng cao)')}
          </button>
          {showAdvanced && (
            <div className="px-4 pb-3 flex gap-2">
@@ -950,7 +951,7 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
                onClick={() => { if (advHtml.trim()) setHtml(advHtml); setStep(3); }}
                className="self-end px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white text-xs font-bold shadow-lg shadow-[4a7dff]/20 transition-all active:scale-95"
              >
-               Dùng code này
+               {T(getLang(), 'Dùng code này')}
              </button>
            </div>
          )}
@@ -963,8 +964,8 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
              {/* Modal Header */}
              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
                <div>
-                 <h3 className="text-sm font-bold text-slate-800">{previewTemplate.name}</h3>
-                 <p className="text-[10px] text-slate-500">{previewTemplate.desc}</p>
+                 <h3 className="text-sm font-bold text-slate-800">{T(getLang(), previewTemplate.name)}</h3>
+                 <p className="text-[10px] text-slate-500">{T(getLang(), previewTemplate.desc)}</p>
                </div>
                <button onClick={() => setPreviewTemplate(null)} className="w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-slate-800 transition-all">
                  ✕
@@ -974,22 +975,22 @@ export default function VideoCreatorTab({ API_BASE, authToken, showToast }) {
              <div className="p-5">
                <div className="rounded-xl overflow-hidden bg-slate-50 border border-slate-200" style={{ aspectRatio: '16/9' }}>
                  <iframe
-                   src={`data:text/html;base64,${utf8ToBase64(previewTemplate.build(previewTemplate.fields.reduce((a, f) => ({ ...a, [f.key]: f.default }), {}), duration))}`}
+                   src={`data:text/html;base64,${utf8ToBase64(previewTemplate.build(previewTemplate.fields.reduce((a, f) => ({ ...a, [f.key]: T(getLang(), f.default) }), {}), duration))}`}
                    className="w-full h-full border-0"
                    sandbox="allow-scripts"
-                   title={previewTemplate.name}
+                   title={T(getLang(), previewTemplate.name)}
                  />
                </div>
              </div>
              {/* Modal Footer */}
              <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200">
-               <p className="text-[10px] text-slate-500">Thời lượng: {duration}s • {selectedFormat.label} ({selectedFormat.w}×{selectedFormat.h})</p>
+               <p className="text-[10px] text-slate-500">{T(getLang(), 'Thời lượng: ')}{duration}s • {T(getLang(), selectedFormat.label)} ({selectedFormat.w}×{selectedFormat.h})</p>
                <div className="flex gap-2">
                  <button onClick={() => setPreviewTemplate(null)} className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-300 text-xs font-semibold transition-all">
-                   Đóng
+                   {T(getLang(), 'Đóng')}
                  </button>
                  <button onClick={() => pickTemplate(previewTemplate)} className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#4a7dff] to-[#3d6ae6] hover:from-[#3d6ae6] hover:to-[#4a7dff] text-white text-xs font-bold shadow-lg shadow-[4a7dff]/20 transition-all flex items-center gap-1.5">
-                   Chọn mẫu này <ArrowRight size={14} />
+                   {T(getLang(), 'Chọn mẫu này')} <ArrowRight size={14} />
                  </button>
                </div>
              </div>

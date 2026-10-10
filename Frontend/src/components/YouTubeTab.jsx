@@ -16,9 +16,9 @@ function fmtDuration(sec) {
 
 function fmtViews(n) {
   if (!n) return '';
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}tr lượt xem`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k lượt xem`;
-  return `${n} lượt xem`;
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}${t(getLang(), 'tr lượt xem')}`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}${t(getLang(), 'k lượt xem')}`;
+  return `${n} ${t(getLang(), 'lượt xem')}`;
 }
 
 // Render markdown tóm tắt (đơn giản: header, bullet, in đậm) thành JSX
@@ -152,7 +152,7 @@ function ChannelAvatar({ channelId, videoId, author, size = 36, ring = true }) {
     return (
       <img
         src={src}
-        alt={author || 'kênh'}
+        alt={author || t(getLang(), 'kênh')}
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => { avatarMemCache.delete(channelId); setSrc(null); }}
@@ -215,7 +215,7 @@ showToast, active }) {
   const enterPip = async () => {
     const v = videoRef.current;
     if (!v || !document.pictureInPictureEnabled) {
-      showToast?.('Trình duyệt không hỗ trợ Picture-in-Picture.', 'error');
+      showToast?.(t(getLang(), 'Trình duyệt không hỗ trợ Picture-in-Picture.'), 'error');
       return;
     }
     try {
@@ -227,7 +227,7 @@ showToast, active }) {
       await v.play().catch(() => {});
       await v.requestPictureInPicture();
     } catch (e) {
-      showToast?.('Không mở được PiP: ' + e.message, 'error');
+      showToast?.(t(getLang(), 'Không mở được PiP: ') + e.message, 'error');
     }
   };
   useEffect(() => {
@@ -281,9 +281,9 @@ showToast, active }) {
     try {
       const res = await fetch(`${API_BASE}/services/youtube/search?q=${encodeURIComponent(q)}&limit=16`, { headers: headers() });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Lỗi tìm kiếm');
+      if (!data.success) throw new Error(data.error || t(getLang(), 'Lỗi tìm kiếm'));
       setVideos(data.videos || []);
-      if ((data.videos || []).length === 0) setError('Không tìm thấy video nào.');
+      if ((data.videos || []).length === 0) setError(t(getLang(), 'Không tìm thấy video nào.'));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -320,24 +320,24 @@ showToast, active }) {
           // chưa warm). Tự thử lại thay vì khóa tab bằng banner — thường sẵn sàng sau vài giây.
           if (retries < 4) {
             retries += 1;
-            setEngineNote(`Engine YouTube đang khởi động — tự kiểm tra lại (${retries}/4)...`);
+            setEngineNote(`${t(getLang(), 'Engine YouTube đang khởi động — tự kiểm tra lại (')}${retries}/4)...`);
             setTimeout(() => { if (!cancelled) check(); }, 5000);
             return;
           }
         }
         setEngineReady(!!(data.success && data.ready));
-        setEngineNote(data.note || (data.success && !data.ready ? 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.' : ''));
+        setEngineNote(data.note || (data.success && !data.ready ? t(getLang(), 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.') : ''));
       } catch {
         if (!cancelled) {
           // Lỗi thoáng chốc (Render restart / mạng) — tự thử lại thay vì khóa banner vĩnh viễn
           if (retries < 4) {
             retries += 1;
-            setEngineNote(`Không kiểm tra được engine YouTube — tự thử lại (${retries}/4)...`);
+            setEngineNote(`${t(getLang(), 'Không kiểm tra được engine YouTube — tự thử lại (')}${retries}/4)...`);
             setTimeout(() => { if (!cancelled) check(); }, 4000);
             return;
           }
           setEngineReady(false);
-          setEngineNote('Không kiểm tra được engine YouTube. Có thể cần đăng nhập.');
+          setEngineNote(t(getLang(), 'Không kiểm tra được engine YouTube. Có thể cần đăng nhập.'));
         }
       }
     };
@@ -374,12 +374,12 @@ showToast, active }) {
       const raw = await res.text();
       let data;
       try { data = JSON.parse(raw); }
-      catch { throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử lại sau ít giây.`); }
-      if (!data.success) throw new Error(data.error || 'Lấy bình luận thất bại.');
+      catch { throw new Error(`${t(getLang(), 'Server phản hồi không hợp lệ (HTTP ')}${res.status}${t(getLang(), '). Thử lại sau ít giây.')}`); }
+      if (!data.success) throw new Error(data.error || t(getLang(), 'Lấy bình luận thất bại.'));
       setComments(data);
     } catch (e) {
-      if (e.name === 'AbortError') showToast?.('Tải bình luận quá lâu (worker đang bận). Thử lại sau.', 'error');
-      else showToast?.('Lỗi bình luận: ' + e.message, 'error');
+      if (e.name === 'AbortError') showToast?.(t(getLang(), 'Tải bình luận quá lâu (worker đang bận). Thử lại sau.'), 'error');
+      else showToast?.(t(getLang(), 'Lỗi bình luận: ') + e.message, 'error');
     } finally {
       clearTimeout(hardTo);
       clearTimeout(slowTo);
@@ -428,7 +428,7 @@ showToast, active }) {
   const sendComment = async () => {
     if (!selected || sendingComment) return;
     const text = commentText.trim();
-    if (!text) { showToast?.('Nhập nội dung bình luận trước.', 'error'); return; }
+    if (!text) { showToast?.(t(getLang(), 'Nhập nội dung bình luận trước.'), 'error'); return; }
     setSendingComment(true);
     try {
       const res = await fetch(`${API_BASE}/services/youtube/comments/local`, {
@@ -437,7 +437,7 @@ showToast, active }) {
         body: JSON.stringify({ url: selected.id, text }),
       });
       const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'Gửi bình luận thất bại.');
+      if (!data.success) throw new Error(data.error || t(getLang(), 'Gửi bình luận thất bại.'));
       setCommentText('');
       setComments((prev) => prev
         ? { ...prev, comments: [data.comment, ...(prev.comments || [])], count: (prev.count || 0) + 1, localCount: (prev.localCount || 0) + 1 }
@@ -450,14 +450,14 @@ showToast, active }) {
           body: JSON.stringify({ url: selected.id, text }),
         });
         const ytd = await yt.json().catch(() => ({}));
-        if (ytd && ytd.success) showToast?.('Đã gửi cả lên YouTube.', 'success');
-        else if (ytd && ytd.error === 'NO_YOUTUBE_SCOPE') showToast?.('Đã lưu trong app. Muốn hiện lên YouTube thật: đăng nhập Google lại + tick ô YouTube.', 'info');
-        else showToast?.('Đã gửi bình luận.', 'success');
+        if (ytd && ytd.success) showToast?.(t(getLang(), 'Đã gửi cả lên YouTube.'), 'success');
+        else if (ytd && ytd.error === 'NO_YOUTUBE_SCOPE') showToast?.(t(getLang(), 'Đã lưu trong app. Muốn hiện lên YouTube thật: đăng nhập Google lại + tick ô YouTube.'), 'info');
+        else showToast?.(t(getLang(), 'Đã gửi bình luận.'), 'success');
       } catch (e) {
-        showToast?.('Đã gửi bình luận.', 'success');
+        showToast?.(t(getLang(), 'Đã gửi bình luận.'), 'success');
       }
     } catch (e) {
-      showToast?.('Lỗi gửi bình luận: ' + e.message, 'error');
+      showToast?.(t(getLang(), 'Lỗi gửi bình luận: ') + e.message, 'error');
     } finally {
       setSendingComment(false);
     }
@@ -493,9 +493,9 @@ showToast, active }) {
       try {
         data = JSON.parse(raw);
       } catch {
-        throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử bấm phát lại sau ít giây.`);
+        throw new Error(`${t(getLang(), 'Server phản hồi không hợp lệ (HTTP ')}${res.status}${t(getLang(), '). Thử bấm phát lại sau ít giây.')}`);
       }
-      if (!data.success) throw new Error(data.error || 'Không phát được video');
+      if (!data.success) throw new Error(data.error || t(getLang(), 'Không phát được video'));
       // Nếu user đã bấm video khác trong lúc chờ → bỏ kết quả cũ, không ghi đè video mới
       if (seq !== playSeqRef.current) return;
       setSelected((prev) => ({ ...prev, stream_url: data.stream_url, stream_direct: data.stream_client === 'worker:residential', description: data.description, channel_id: data.channel_id || prev.channel_id || null }));
@@ -507,7 +507,7 @@ showToast, active }) {
       setIsHlsStream(hls);
     } catch (err) {
       if (seq !== playSeqRef.current) return;
-      setError('Lỗi phát video: ' + err.message);
+      setError(t(getLang(), 'Lỗi phát video: ') + err.message);
       setStreamLoading(false);
     }
   };
@@ -518,7 +518,7 @@ showToast, active }) {
     setSummary(null);
     setShowTranscript(false);
     setShowSrt(false);
-    setSummaryStep('Đang tải audio từ video...');
+    setSummaryStep(t(getLang(), 'Đang tải audio từ video...'));
     const ctl = new AbortController();
     // Video dài: tải audio + STT (Groq→Gemini) có thể mất 2-3 phút. Cap để nút
     // không treo vô hạn nếu backend/worker kẹt.
@@ -533,13 +533,13 @@ showToast, active }) {
       const raw = await res.text();
       let data;
       try { data = JSON.parse(raw); }
-      catch { throw new Error(`Server phản hồi không hợp lệ (HTTP ${res.status}). Thử bấm Tóm tắt lại sau ít giây.`); }
-      if (!data.success) throw new Error(data.error || 'Không tóm tắt được video');
+      catch { throw new Error(`${t(getLang(), 'Server phản hồi không hợp lệ (HTTP ')}${res.status}${t(getLang(), '). Thử bấm Tóm tắt lại sau ít giây.')}`); }
+      if (!data.success) throw new Error(data.error || t(getLang(), 'Không tóm tắt được video'));
       setSummary({ title: data.title || selected.title, transcript: data.transcript || '', summary: data.summary || '', srt: data.srt || '' });
-      if (!data.summary) setError('Video không có lời thoại để tóm tắt.');
+      if (!data.summary) setError(t(getLang(), 'Video không có lời thoại để tóm tắt.'));
     } catch (err) {
-      if (err.name === 'AbortError') setError('Tóm tắt quá lâu (video dài hoặc server bận). Thử lại hoặc chọn video ngắn hơn.');
-      else setError('Lỗi tóm tắt: ' + err.message);
+      if (err.name === 'AbortError') setError(t(getLang(), 'Tóm tắt quá lâu (video dài hoặc server bận). Thử lại hoặc chọn video ngắn hơn.'));
+      else setError(t(getLang(), 'Lỗi tóm tắt: ') + err.message);
     } finally {
       clearTimeout(hardTo);
       setSummarizing(false);
@@ -583,7 +583,7 @@ showToast, active }) {
     const url = `https://www.youtube.com/watch?v=${selected.id}`;
     try {
       await navigator.clipboard.writeText(url);
-      showToast?.('Đã copy link video!');
+      showToast?.(t(getLang(), 'Đã copy link video!'));
     } catch {
       showToast?.(url);
     }
@@ -595,7 +595,7 @@ showToast, active }) {
   const downloadVideo = async () => {
     if (!selected || !proxyUrl || downloading) return;
     setDownloading(true);
-    showToast?.('Đang tải video — video dài có thể mất vài phút...', 'info');
+    showToast?.(t(getLang(), 'Đang tải video — video dài có thể mất vài phút...'), 'info');
     const ctl = new AbortController();
     const hardTo = setTimeout(() => ctl.abort(), 600000);
     try {
@@ -607,9 +607,9 @@ showToast, active }) {
       a.download = `${(selected.title || 'youtube').replace(/[^\w\d]+/g, '_').slice(0, 60)}.${selected.ext || 'mp4'}`;
       a.click();
       setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch (e) { /* ignore */ } }, 60000);
-      showToast?.('Đã tải video về máy!', 'success');
+      showToast?.(t(getLang(), 'Đã tải video về máy!'), 'success');
     } catch (e) {
-      showToast?.(e.name === 'AbortError' ? 'Tải video quá lâu — thử video ngắn hơn.' : 'Lỗi tải video: ' + e.message, 'error');
+      showToast?.(e.name === 'AbortError' ? t(getLang(), 'Tải video quá lâu — thử video ngắn hơn.') : t(getLang(), 'Lỗi tải video: ') + e.message, 'error');
     } finally {
       clearTimeout(hardTo);
       setDownloading(false);
@@ -630,12 +630,12 @@ showToast, active }) {
         hls.loadSource(proxyUrl);
         hls.attachMedia(v);
         hls.on(Hls.Events.ERROR, (evt, data) => {
-          if (data.fatal) setError('Luồng HLS lỗi. Thử video khác.');
+          if (data.fatal) setError(t(getLang(), 'Luồng HLS lỗi. Thử video khác.'));
         });
       } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
         v.src = proxyUrl; // Safari native HLS
       } else {
-        setError('Trình duyệt không hỗ trợ luồng HLS.');
+        setError(t(getLang(), 'Trình duyệt không hỗ trợ luồng HLS.'));
       }
     } else if (proxyUrl) {
       // Nhánh MP4: gỡ sạch blob HLS cũ (nếu có) rồi gán src trực tiếp + phát ngay.
@@ -665,10 +665,10 @@ showToast, active }) {
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-bold text-white">YouTube Free</p>
-          <p className="text-[10px] text-emerald-400/80">Không quảng cáo · Không đăng nhập · Không theo dõi</p>
+          <p className="text-[10px] text-emerald-400/80">{t(getLang(), 'Không quảng cáo · Không đăng nhập · Không theo dõi')}</p>
         </div>
         <span className="px-2 py-0.5 rounded-full bg-red-600/15 border border-red-500/25 text-[9px] font-semibold text-red-300 shrink-0">
-          + Tóm tắt AI
+          + {t(getLang(), 'Tóm tắt AI')}
         </span>
       </div>
 
@@ -676,14 +676,14 @@ showToast, active }) {
         <div className="mx-4 mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2.5 shrink-0">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="font-semibold mb-0.5">YouTube chưa sẵn sàng trên server</p>
-            <p className="text-amber-300/80">{engineNote || 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.'}</p>
+            <p className="font-semibold mb-0.5">{t(getLang(), 'YouTube chưa sẵn sàng trên server')}</p>
+            <p className="text-amber-300/80">{engineNote || t(getLang(), 'Engine yt-dlp chưa tải xong. Thử tải lại trang sau ít phút.')}</p>
           </div>
           <button
             onClick={() => { setEngineReady(null); setCheckNonce((n) => n + 1); }}
             className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-[11px] font-semibold transition-all"
           >
-            Thử lại
+            {t(getLang(), 'Thử lại')}
           </button>
         </div>
       )}
@@ -709,7 +709,7 @@ showToast, active }) {
                   className="px-4 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-40 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0"
                 >
                   {loading ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
-                  {loading ? 'Đang tìm...' : 'Tìm'}
+                  {loading ? t(getLang(), 'Đang tìm...') : t(getLang(), 'Tìm')}
                 </button>
               </div>
 
@@ -743,10 +743,10 @@ showToast, active }) {
               <div className="max-w-[1600px] mx-auto mt-5">
                 <div className="flex items-center gap-2 mb-2.5">
                   <History size={14} className="text-slate-400" />
-                  <span className="text-sm font-bold text-white">Video đã xem</span>
+                  <span className="text-sm font-bold text-white">{t(getLang(), 'Video đã xem')}</span>
                   <span className="text-[10px] text-slate-500">({history.length})</span>
                   <button onClick={clearHistory} className="ml-auto text-[10px] text-slate-500 hover:text-rose-400 transition-colors">
-                    Xóa lịch sử
+                    {t(getLang(), 'Xóa lịch sử')}
                   </button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-2">
@@ -833,7 +833,7 @@ showToast, active }) {
               <div className="max-w-2xl mx-auto mt-10 text-center">
                 <MonitorPlay size={44} className="mx-auto text-slate-700" />
                 <p className="text-sm text-slate-500 mt-3 font-medium">{t(lang, 'ytFreeBanner')}</p>
-                <p className="text-[11px] text-slate-600 mt-1">Gõ từ khóa ở trên để bắt đầu. Dùng chính backend yt-dlp — không ads, không tracking.</p>
+                <p className="text-[11px] text-slate-600 mt-1">{t(getLang(), 'Gõ từ khóa ở trên để bắt đầu. Dùng chính backend yt-dlp — không ads, không tracking.')}</p>
               </div>
             )}
           </>
@@ -845,14 +845,14 @@ showToast, active }) {
               onClick={handleBack}
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-3 transition-colors"
             >
-              <ArrowLeft size={14} /> Quay lại kết quả
+              <ArrowLeft size={14} /> {t(getLang(), 'Quay lại kết quả')}
             </button>
 
             <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl">
               {streamLoading ? (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                   <Loader2 size={28} className="text-red-400 animate-spin" />
-                  <p className="text-xs text-slate-400">Đang lấy luồng video...</p>
+                  <p className="text-xs text-slate-400">{t(getLang(), 'Đang lấy luồng video...')}</p>
                 </div>
               ) : proxyUrl ? (
                 <>
@@ -866,7 +866,7 @@ showToast, active }) {
                     className="w-full h-full bg-black"
                     onCanPlay={() => { tryPlay(false); }}
                     onPlay={() => setPlayBlocked(false)}
-                    onError={() => { if (!isHlsStream) setError('Không phát được video qua proxy. Thử video khác.'); }}
+                    onError={() => { if (!isHlsStream) setError(t(getLang(), 'Không phát được video qua proxy. Thử video khác.')); }}
                   />
                   {playBlocked && (
                     <button
@@ -877,13 +877,13 @@ showToast, active }) {
                       <span className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center shadow-2xl transition-all">
                         <Play size={26} className="text-white ml-1" fill="currentColor" />
                       </span>
-                      <span className="text-xs text-slate-200 font-semibold">Bấm để phát video</span>
+                      <span className="text-xs text-slate-200 font-semibold">{t(getLang(), 'Bấm để phát video')}</span>
                     </button>
                   )}
                 </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <p className="text-xs text-slate-500">Đang chuẩn bị phát...</p>
+                  <p className="text-xs text-slate-500">{t(getLang(), 'Đang chuẩn bị phát...')}</p>
                 </div>
               )}
             </div>
@@ -915,7 +915,7 @@ showToast, active }) {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white text-xs font-bold shadow transition-all"
                 >
                   {summarizing ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  {summarizing ? 'Đang tóm tắt...' : 'Tóm tắt AI'}
+                  {summarizing ? t(getLang(), 'Đang tóm tắt...') : t(getLang(), 'Tóm tắt AI')}
                 </button>
                 {/* Like/dislike ghép 1 pill kiểu YouTube */}
                 <div className="flex items-center rounded-full bg-white/10 overflow-hidden">
@@ -923,7 +923,7 @@ showToast, active }) {
                     onClick={() => setLiked(!liked)}
                     className={`flex items-center gap-1.5 px-4 py-2 text-xs font-semibold transition-all border-r border-white/10 ${liked ? 'text-black bg-white' : 'text-white hover:bg-white/10'}`}
                   >
-                    <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} /> Thích
+                    <ThumbsUp size={13} fill={liked ? 'currentColor' : 'none'} /> {t(getLang(), 'Thích')}
                   </button>
                   <button className="px-3.5 py-2 text-white hover:bg-white/10 transition-all" title={t(lang, 'tipDislike')}>
                     <ThumbsDown size={13} />
@@ -933,7 +933,7 @@ showToast, active }) {
                   onClick={shareVideo}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
                 >
-                  <Share2 size={13} /> Chia sẻ
+                  <Share2 size={13} /> {t(getLang(), 'Chia sẻ')}
                 </button>
                 {proxyUrl && (
                   <button
@@ -941,7 +941,7 @@ showToast, active }) {
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all"
                     title={t(lang, 'tipPopout')}
                   >
-                    <PictureInPicture2 size={13} /> {pipActive ? 'Đang phát nền' : 'Phát nền'}
+                    <PictureInPicture2 size={13} /> {pipActive ? t(getLang(), 'Đang phát nền') : t(getLang(), 'Phát nền')}
                   </button>
                 )}
                 {proxyUrl && (
@@ -951,7 +951,7 @@ showToast, active }) {
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all disabled:opacity-50"
                     title={t(lang, 'tipDownloadVid')}
                   >
-                    {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} {downloading ? 'Đang tải...' : 'Tải xuống'}
+                    {downloading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} {downloading ? t(getLang(), 'Đang tải...') : t(getLang(), 'Tải xuống')}
                   </button>
                 )}
               </div>
@@ -968,7 +968,7 @@ showToast, active }) {
                 <p className={`text-xs text-slate-300 leading-relaxed whitespace-pre-wrap ${descOpen ? '' : 'line-clamp-2'}`}>
                   {selected.description}
                 </p>
-                <p className="text-[11px] text-slate-500 mt-1 font-semibold">{descOpen ? 'Ẩn bớt' : '...xem thêm'}</p>
+                <p className="text-[11px] text-slate-500 mt-1 font-semibold">{descOpen ? t(getLang(), 'Ẩn bớt') : t(getLang(), '...xem thêm')}</p>
               </div>
             )}
 
@@ -977,11 +977,11 @@ showToast, active }) {
               <button onClick={loadComments} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-white/[0.06] transition-colors text-left">
                 <MessageSquare size={14} className="text-slate-400 shrink-0" />
                 <span className="text-xs font-bold text-white flex-1">
-                  Bình luận{comments?.count ? ` — ${comments.count.toLocaleString('vi-VN')} bình luận` : ''}
+                  {t(getLang(), 'Bình luận')}{comments?.count ? ` — ${comments.count.toLocaleString('vi-VN')} ${t(getLang(), 'bình luận')}` : ''}
                 </span>
                 {commentsLoading ? (
                   <span className="text-[10px] text-slate-400 animate-pulse flex items-center gap-1 shrink-0">
-                    <Loader2 size={10} className="animate-spin" /> {commentsSlow ? 'Vẫn đang tải (worker bận, chờ thêm)...' : 'Đang tải (10-30 giây)...'}
+                    <Loader2 size={10} className="animate-spin" /> {commentsSlow ? t(getLang(), 'Vẫn đang tải (worker bận, chờ thêm)...') : t(getLang(), 'Đang tải (10-30 giây)...')}
                   </span>
                 ) : (
                   <ChevronDown size={14} className={`text-slate-400 transition-transform shrink-0 ${comments ? 'rotate-180' : ''}`} />
@@ -1009,9 +1009,9 @@ showToast, active }) {
                           disabled={sendingComment || !commentText.trim()}
                           className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-[11px] font-semibold transition-all"
                         >
-                          {sendingComment ? 'Đang gửi...' : 'Gửi bình luận'}
+                          {sendingComment ? t(getLang(), 'Đang gửi...') : t(getLang(), 'Gửi bình luận')}
                         </button>
-                        <span className="text-[10px] text-slate-500">Hiển thị trong app ngay, ghim lên đầu</span>
+                        <span className="text-[10px] text-slate-500">{t(getLang(), 'Hiển thị trong app ngay, ghim lên đầu')}</span>
                       </div>
                     </div>
                   </div>
@@ -1062,11 +1062,11 @@ showToast, active }) {
                         disabled={sendingComment || !commentText.trim()}
                         className="mt-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-[11px] font-semibold transition-all"
                       >
-                        {sendingComment ? 'Đang gửi...' : 'Gửi bình luận'}
+                        {sendingComment ? t(getLang(), 'Đang gửi...') : t(getLang(), 'Gửi bình luận')}
                       </button>
                     </div>
                   </div>
-                  <p className="text-[11px] text-slate-500">Video này chưa có bình luận hoặc không lấy được bình luận.</p>
+                  <p className="text-[11px] text-slate-500">{t(getLang(), 'Video này chưa có bình luận hoặc không lấy được bình luận.')}</p>
                 </div>
               )}
             </div>
@@ -1076,7 +1076,7 @@ showToast, active }) {
                 <div className="mt-4 rounded-2xl bg-[#181920] border border-red-500/20 overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600/15 to-rose-600/10 border-b border-white/5">
                     <Sparkles size={14} className="text-red-400" />
-                    <span className="text-[11px] font-bold text-white flex-1">Tóm tắt AI — {summary.title}</span>
+                    <span className="text-[11px] font-bold text-white flex-1">{t(getLang(), 'Tóm tắt AI')} — {summary.title}</span>
                     {summary.transcript && (
                       <button
                         onClick={() => setShowTranscript(!showTranscript)}
@@ -1094,7 +1094,7 @@ showToast, active }) {
                           className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white transition-colors"
                         >
                           <Subtitles size={11} />
-                          {showSrt ? 'Ẩn phụ đề' : 'Xem phụ đề'}
+                          {showSrt ? t(getLang(), 'Ẩn phụ đề') : t(getLang(), 'Xem phụ đề')}
                           {showSrt ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                         </button>
                         <button
@@ -1117,7 +1117,7 @@ showToast, active }) {
                     )}
                     {showSrt && summary.srt && (
                       <div className="mt-3 pt-3 border-t border-white/5">
-                        <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Phụ đề SRT (timestamp)</p>
+                        <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">{t(getLang(), 'Phụ đề SRT (timestamp)')}</p>
                         <pre className="text-[10px] text-slate-500 font-mono leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">{summary.srt}</pre>
                       </div>
                     )}
@@ -1127,7 +1127,7 @@ showToast, active }) {
             </div>
             {/* Cột Up tiếp theo kiểu YouTube */}
             <aside className="w-full lg:w-[360px] shrink-0">
-              <p className="text-sm font-bold text-white mb-2.5">Up tiếp theo</p>
+              <p className="text-sm font-bold text-white mb-2.5">{t(getLang(), 'Up tiếp theo')}</p>
               <div className="flex flex-col gap-2.5">
                 {videos.filter((v) => v.id !== selected?.id).map((v) => (
                   <button
