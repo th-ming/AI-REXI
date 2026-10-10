@@ -39,15 +39,15 @@ function GithubIcon({ size = 16, className = '' }) {
 
 // ─── Sidebar Menu Items ────────────────────────────────────
 const MENU_ITEMS = [
-  { id: 'users', icon: Users, label: 'Người Dùng', color: 'text-indigo-400' },
-  { id: 'conversations', icon: MessageSquare, label: 'Hội Thoại', color: 'text-emerald-400' },
+  { id: 'users', icon: Users, label: t(getLang(), 'Người Dùng'), color: 'text-indigo-400' },
+  { id: 'conversations', icon: MessageSquare, label: t(getLang(), 'Hội Thoại'), color: 'text-emerald-400' },
   { id: 'apikeys', icon: Key, label: 'API Keys', color: 'text-amber-400' },
-  { id: 'skills', icon: Layers, label: 'Kỹ Năng', color: 'text-purple-400' },
-  { id: 'chat', icon: Send, label: 'Chat với Users', color: 'text-rose-400' },
+  { id: 'skills', icon: Layers, label: t(getLang(), 'Kỹ Năng'), color: 'text-purple-400' },
+  { id: 'chat', icon: Send, label: t(getLang(), 'Chat với Users'), color: 'text-rose-400' },
   { id: 'iptv', icon: Tv, label: 'IPTV Monitor', color: 'text-sky-400' },
   { id: 'github', icon: GithubIcon, label: 'GitHub Trending', color: 'text-purple-400' },
-  { id: 'routing', icon: GitBranch, label: 'Định Tuyến', color: 'text-cyan-400' },
-  { id: 'settings', icon: Settings, label: 'Hệ Thống', color: 'text-slate-400' },
+  { id: 'routing', icon: GitBranch, label: t(getLang(), 'Định Tuyến'), color: 'text-cyan-400' },
+  { id: 'settings', icon: Settings, label: t(getLang(), 'Hệ Thống'), color: 'text-slate-400' },
 ];
 
 // ─── Badge Components ──────────────────────────────────────
@@ -59,7 +59,7 @@ function RoleBadge({ role }) {
 
 function StatusBadge({ status }) {
   return status === 'banned'
-    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30"><XCircle size={9} /> Bị khoá</span>
+    ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30"><XCircle size={9} /> {t(getLang(), 'Bị khoá')}</span>
     : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"><CheckCircle size={9} /> Active</span>;
 }
 
@@ -122,7 +122,7 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
     setUsers(prev => prev.map(u => u.ma_nguoi_dung === userId ? { ...u, phan_quyen: newRole } : u));
     try {
       await apiFetch(`/auth/users/${userId}/role`, token, { method: 'PUT', body: JSON.stringify({ phan_quyen: newRole }) });
-      showToast('Đã cập nhật quyền thành công');
+      showToast(t(getLang(), 'Đã cập nhật quyền thành công'));
       fetchUsers(true); // Tải ngầm không unmount bảng -> Vị trí cuộn chuột đứng yên 100%
       if (fetchStats) fetchStats();
     } catch (e) {
@@ -139,7 +139,7 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
     setUsers(prev => prev.map(u => u.ma_nguoi_dung === userId ? { ...u, trang_thai: newStatus } : u));
     try {
       await apiFetch(`/auth/users/${userId}/status`, token, { method: 'PUT', body: JSON.stringify({ trang_thai: newStatus }) });
-      showToast('Đã cập nhật trạng thái thành công');
+      showToast(t(getLang(), 'Đã cập nhật trạng thái thành công'));
       fetchUsers(true); // Tải ngầm không unmount bảng -> Vị trí cuộn chuột đứng yên 100%
       if (fetchStats) fetchStats();
     } catch (e) {
@@ -151,12 +151,12 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
   };
 
   const statCards = [
-    { icon: Users, label: 'Tổng User', value: stats?.tong_user, bg: 'bg-indigo-500/15', text: 'text-indigo-300', border: 'border-indigo-500/25', glow: 'shadow-indigo-500/5' },
+    { icon: Users, label: t(getLang(), 'Tổng User'), value: stats?.tong_user, bg: 'bg-indigo-500/15', text: 'text-indigo-300', border: 'border-indigo-500/25', glow: 'shadow-indigo-500/5' },
     { icon: Crown, label: 'Admin', value: stats?.tong_admin, bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/25', glow: 'shadow-amber-500/5' },
-    { icon: Lock, label: 'Bị Khoá', value: stats?.tong_bi_khoa, bg: 'bg-rose-500/15', text: 'text-rose-300', border: 'border-rose-500/25', glow: 'shadow-rose-500/5' },
-    { icon: MessageSquare, label: 'Hội Thoại', value: stats?.tong_hoi_thoai, bg: 'bg-cyan-500/15', text: 'text-cyan-300', border: 'border-cyan-500/25', glow: 'shadow-cyan-500/5' },
-    { icon: Activity, label: 'Tin Nhắn', value: stats?.tong_tin_nhan, bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/25', glow: 'shadow-emerald-500/5' },
-    { icon: Trash2, label: 'Thùng Rác', value: stats?.tong_xoa_mem, bg: 'bg-slate-500/15', text: 'text-slate-300', border: 'border-slate-500/25', glow: 'shadow-slate-500/5' },
+    { icon: Lock, label: t(getLang(), 'Bị Khoá'), value: stats?.tong_bi_khoa, bg: 'bg-rose-500/15', text: 'text-rose-300', border: 'border-rose-500/25', glow: 'shadow-rose-500/5' },
+    { icon: MessageSquare, label: t(getLang(), 'Hội Thoại'), value: stats?.tong_hoi_thoai, bg: 'bg-cyan-500/15', text: 'text-cyan-300', border: 'border-cyan-500/25', glow: 'shadow-cyan-500/5' },
+    { icon: Activity, label: t(getLang(), 'Tin Nhắn'), value: stats?.tong_tin_nhan, bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/25', glow: 'shadow-emerald-500/5' },
+    { icon: Trash2, label: t(getLang(), 'Thùng Rác'), value: stats?.tong_xoa_mem, bg: 'bg-slate-500/15', text: 'text-slate-300', border: 'border-slate-500/25', glow: 'shadow-slate-500/5' },
   ];
 
   return (
@@ -187,10 +187,10 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
           </div>
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
-              Quản Lý Người Dùng
+              {t(getLang(), 'Quản Lý Người Dùng')}
               <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono">{totalUsers}</span>
             </h2>
-            <p className="text-[11px] text-slate-400">Danh sách tài khoản và phân quyền truy cập hệ thống</p>
+            <p className="text-[11px] text-slate-400">{t(getLang(), 'Danh sách tài khoản và phân quyền truy cập hệ thống')}</p>
           </div>
         </div>
 
@@ -209,7 +209,7 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
             type="submit"
             className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white text-xs rounded-xl font-bold transition-all shadow-md active:scale-95 shrink-0"
           >
-            Tìm kiếm
+            {t(getLang(), 'Tìm kiếm')}
           </button>
         </form>
       </div>
@@ -218,18 +218,18 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
       {loading ? (
         <div className="text-center py-16 text-slate-400 text-sm bg-[#141622]/40 rounded-2xl border border-white/8">
           <RefreshCw size={22} className="animate-spin mx-auto mb-2 text-cyan-400" />
-          <span>Đang tải danh sách người dùng...</span>
+          <span>{t(getLang(), 'Đang tải danh sách người dùng...')}</span>
         </div>
       ) : (
         <div className="bg-[#141622]/90 backdrop-blur-xl rounded-2xl border border-white/8 overflow-hidden shadow-2xl">
           <table className="w-full text-sm">
             <thead className="bg-[#0e0f17]/90 border-b border-white/10">
               <tr>
-                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">Tài khoản</th>
-                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">Phân Quyền</th>
-                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">Trạng Thái</th>
-                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">Ngày Khởi Tạo</th>
-                <th className="px-5 py-3.5 text-center text-[10px] text-slate-400 uppercase font-bold tracking-wider">Thao Tác</th>
+                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">{t(getLang(), 'Tài khoản')}</th>
+                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">{t(getLang(), 'Phân Quyền')}</th>
+                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">{t(getLang(), 'Trạng Thái')}</th>
+                <th className="px-5 py-3.5 text-left text-[10px] text-slate-400 uppercase font-bold tracking-wider">{t(getLang(), 'Ngày Khởi Tạo')}</th>
+                <th className="px-5 py-3.5 text-center text-[10px] text-slate-400 uppercase font-bold tracking-wider">{t(getLang(), 'Thao Tác')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -246,8 +246,8 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
                         </div>
                         <div>
                           <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
-                            {user.ten_day_du || 'Chưa đặt tên'}
-                            {isSelf && <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold">Bạn</span>}
+                            {user.ten_day_du || t(getLang(), 'Chưa đặt tên')}
+                            {isSelf && <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold">{t(getLang(), 'Bạn')}</span>}
                           </div>
                           <div className="text-[11px] text-slate-400 font-mono mt-0.5">{user.email}</div>
                         </div>
@@ -268,7 +268,7 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
                                 : 'bg-amber-500/15 border border-amber-500/30 text-amber-300 hover:bg-amber-500/30 shadow-sm shadow-amber-500/10'
                             }`}
                           >
-                            {actionLoading[`role_${user.ma_nguoi_dung}`] ? <Loader2 size={11} className="animate-spin" /> : isAdmin ? 'Hạ quyền' : 'Nâng quyền'}
+                            {actionLoading[`role_${user.ma_nguoi_dung}`] ? <Loader2 size={11} className="animate-spin" /> : isAdmin ? t(getLang(), 'Hạ quyền') : t(getLang(), 'Nâng quyền')}
                           </button>
                           <button
                             onClick={() => changeStatus(user.ma_nguoi_dung, isBanned ? 'active' : 'banned')}
@@ -279,7 +279,7 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
                                 : 'bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/30'
                             }`}
                           >
-                            {actionLoading[`status_${user.ma_nguoi_dung}`] ? <Loader2 size={11} className="animate-spin" /> : isBanned ? 'Mở khoá' : 'Khoá'}
+                            {actionLoading[`status_${user.ma_nguoi_dung}`] ? <Loader2 size={11} className="animate-spin" /> : isBanned ? t(getLang(), 'Mở khoá') : t(getLang(), 'Khoá')}
                           </button>
                         </div>
                       )}
@@ -291,14 +291,14 @@ const UsersTab = memo(function UsersTab({ token, currentUser, showToast, stats, 
           </table>
           {totalPages > 1 && (
             <div className="px-5 py-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-400 bg-[#0e0f17]/50">
-              <span>Hiển thị trang {page}/{totalPages}</span>
+              <span>{t(getLang(), 'Hiển thị trang')} {page}/{totalPages}</span>
               <div className="flex items-center gap-1.5">
                 <button
                   disabled={page <= 1}
                   onClick={() => handlePageChange(page - 1)}
                   className="px-3 py-1 bg-white/5 hover:bg-white/10 disabled:opacity-40 rounded-lg text-xs"
                 >
-                  Trước
+                  {t(getLang(), 'Trước')}
                 </button>
                 <button
                   disabled={page >= totalPages}
@@ -356,10 +356,10 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
   };
 
   const deleteConv = async (convId) => {
-    if (!window.confirm('Bạn có chắc muốn xoá mềm cuộc hội thoại này?')) return;
+    if (!window.confirm(t(getLang(), 'Bạn có chắc muốn xoá mềm cuộc hội thoại này?'))) return;
     try {
       await apiFetch(`/chat/admin/conversations/${convId}`, token, { method: 'DELETE' });
-      showToast('Đã xoá mềm cuộc hội thoại');
+      showToast(t(getLang(), 'Đã xoá mềm cuộc hội thoại'));
       if (selectedConv === convId) {
         setSelectedConv(null);
         setMessages([]);
@@ -371,7 +371,7 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
   const restoreConv = async (convId) => {
     try {
       await apiFetch(`/chat/admin/conversations/${convId}/restore`, token, { method: 'POST' });
-      showToast('Đã khôi phục cuộc hội thoại');
+      showToast(t(getLang(), 'Đã khôi phục cuộc hội thoại'));
       if (selectedConv === convId) {
         setSelectedConv(null);
         setMessages([]);
@@ -381,10 +381,10 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
   };
 
   const permanentDelete = async (convId) => {
-    if (!window.confirm('⚠️ XÓA VĨNH VIỄN! Cuộc hội thoại sẽ không thể khôi phục. Tiếp tục?')) return;
+    if (!window.confirm(t(getLang(), '⚠️ XÓA VĨNH VIỄN! Cuộc hội thoại sẽ không thể khôi phục. Tiếp tục?'))) return;
     try {
       await apiFetch(`/chat/admin/conversations/${convId}/permanent`, token, { method: 'DELETE' });
-      showToast('Đã xoá vĩnh viễn');
+      showToast(t(getLang(), 'Đã xoá vĩnh viễn'));
       if (selectedConv === convId) {
         setSelectedConv(null);
         setMessages([]);
@@ -398,18 +398,18 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2"><MessageSquare size={20} className="text-emerald-400" /> Quản Lý Hội Thoại</h2>
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><MessageSquare size={20} className="text-emerald-400" /> {t(getLang(), 'Quản Lý Hội Thoại')}</h2>
         <div className="flex gap-1 bg-[#1e1f20] rounded-xl p-1">
           <button onClick={() => setConvTab('all')} className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${convTab === 'all' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'text-slate-400 hover:text-white'}`}>
-            Tất cả ({convs.length})
+            {t(getLang(), 'Tất cả')} ({convs.length})
           </button>
           <button onClick={() => setConvTab('trash')} className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all ${convTab === 'trash' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'text-slate-400 hover:text-white'}`}>
-            🗑️ Thùng rác ({trashConvs.length})
+            {t(getLang(), '🗑️ Thùng rác')} ({trashConvs.length})
           </button>
         </div>
       </div>
       {loading ? (
-        <div className="text-center py-16 text-slate-400 text-sm"><RefreshCw size={20} className="animate-spin mx-auto mb-2 text-emerald-400" /> Đang tải...</div>
+        <div className="text-center py-16 text-slate-400 text-sm"><RefreshCw size={20} className="animate-spin mx-auto mb-2 text-emerald-400" /> {t(getLang(), 'Đang tải...')}</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="bg-[#181920] rounded-2xl border border-white/8 overflow-hidden max-h-[60vh] overflow-y-auto">
@@ -418,7 +418,7 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
                 className={`px-4 py-3 border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors ${selectedConv === c.ma_hoi_thoai ? 'bg-emerald-500/10' : ''}`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-medium text-slate-200 truncate max-w-[250px]">{c.tieu_de || 'Trò chuyện mới'}</p>
+                    <p className="text-xs font-medium text-slate-200 truncate max-w-[250px]">{c.tieu_de || t(getLang(), 'Trò chuyện mới')}</p>
                     <p className="text-[10px] text-slate-500 mt-0.5">{c.email || 'guest'} · {c.ten_mo_hinh_ai || 'N/A'}</p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -434,14 +434,14 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
                 </div>
               </div>
             ))}
-            {displayConvs.length === 0 && <p className="text-center text-slate-500 text-xs py-8">{convTab === 'all' ? 'Không có cuộc hội thoại nào' : 'Thùng rác trống'}</p>}
+            {displayConvs.length === 0 && <p className="text-center text-slate-500 text-xs py-8">{convTab === 'all' ? t(getLang(), 'Không có cuộc hội thoại nào') : t(getLang(), 'Thùng rác trống')}</p>}
           </div>
           <div className="bg-[#181920] rounded-2xl border border-white/8 p-5 max-h-[60vh] overflow-y-auto space-y-4">
             {selectedConv ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                  <h3 className="text-xs font-bold text-emerald-400">Chi Tiết Tin Nhắn</h3>
-                  <span className="text-[10px] text-slate-500 font-mono">Tổng: {messages.length}</span>
+                  <h3 className="text-xs font-bold text-emerald-400">{t(getLang(), 'Chi Tiết Tin Nhắn')}</h3>
+                  <span className="text-[10px] text-slate-500 font-mono">{t(getLang(), 'Tổng: ')}{messages.length}</span>
                 </div>
                 <div className="space-y-3">
                   {messages.map(m => {
@@ -467,7 +467,7 @@ const ConversationsTab = memo(function ConversationsTab({ token, showToast }) {
             ) : (
               <div className="flex flex-col items-center justify-center h-48 text-slate-500 text-xs">
                 <MessageSquare size={24} className="mb-2 text-slate-600" />
-                Chọn một cuộc hội thoại bên trái để xem nội dung chi tiết
+                {t(getLang(), 'Chọn một cuộc hội thoại bên trái để xem nội dung chi tiết')}
               </div>
             )}
           </div>
@@ -557,8 +557,8 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
       if (res.success) {
         setWeeklySchedule({ day: editDay, time: editTime, label: res.label });
         setEditingSchedule(false);
-        showToast(res.message || 'Đã lưu lịch quét ✅');
-      } else showToast(res.message || 'Lỗi lưu', 'error');
+        showToast(res.message || t(getLang(), 'Đã lưu lịch quét ✅'));
+      } else showToast(res.message || t(getLang(), 'Lỗi lưu'), 'error');
     } catch (e) { showToast(e.message, 'error'); }
   };
 
@@ -569,7 +569,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
         setWeeklySchedule({ day: 1, time: '00:00', label: 'CN → T2 00:00' });
         setEditDay(1); setEditTime('00:00');
         setEditingSchedule(false);
-        showToast(res.message || 'Đã reset lịch quét ✅');
+        showToast(res.message || t(getLang(), 'Đã reset lịch quét ✅'));
       }
     } catch (e) { showToast(e.message, 'error'); }
   };
@@ -581,7 +581,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
     try {
       // FIX: /chat/keys thay vì /models/keys
       await apiFetch('/chat/keys', token, { method: 'POST', body: JSON.stringify({ provider: newProvider, api_key: newKey }) });
-      showToast('Đã lưu API Key ✅ — đang tự động quét model...');
+      showToast(t(getLang(), 'Đã lưu API Key ✅ — đang tự động quét model...'));
       setNewKey(''); fetchKeys();
       // 🔄 Tự động quét ngay provider vừa lưu key để model working mới cập nhật vào DB + trang chủ
       setScanningProvider(newProvider);
@@ -591,10 +591,10 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
           body: JSON.stringify({ provider: newProvider })
         });
         await fetchScanCache();
-        showToast('✅ Quét xong ' + newProvider + ' — đã cập nhật model hoạt động lên trang chủ!');
+        showToast(t(getLang(), '✅ Quét xong ') + newProvider + t(getLang(), ' — đã cập nhật model hoạt động lên trang chủ!'));
         window.dispatchEvent(new CustomEvent('rexi_models_published'));
       } catch (scanErr) {
-        showToast('Đã lưu key nhưng quét model lỗi: ' + scanErr.message, 'error');
+        showToast(t(getLang(), 'Đã lưu key nhưng quét model lỗi: ') + scanErr.message, 'error');
       } finally {
         setScanningProvider(null);
       }
@@ -604,23 +604,23 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
   // Quét TẤT CẢ providers — đồng bộ, chờ kết quả rồi mới hiển thị
   const scanAll = async () => {
     setScanningAll(true);
-    showToast('🔄 Đang quét tất cả providers...');
+    showToast(t(getLang(), '🔄 Đang quét tất cả providers...'));
     try {
       const data = await apiFetch('/models/admin/models/scan-all', token, { method: 'POST' });
       await fetchScanCache();
       const keptProviders = (data.summary || []).filter(s => s.keptOld);
       const keptNames = keptProviders.map(s => s.providerId);
-      const keptLabel = keptNames.slice(0, 3).join(', ') + (keptNames.length > 3 ? ` +${keptNames.length - 3} khác` : '');
+      const keptLabel = keptNames.slice(0, 3).join(', ') + (keptNames.length > 3 ? ` +${keptNames.length - 3} ${t(getLang(), 'khác')}` : '');
       if (data.message) {
         showToast(keptProviders.length > 0
-          ? `${data.message} ⚠️ ${keptLabel}: 0 working — giữ model cũ`
+          ? `${data.message} ⚠️ ${keptLabel}: 0 working — ${t(getLang(), 'giữ model cũ')}`
           : data.message);
       } else {
         showToast(keptProviders.length > 0
-          ? `⚠️ Quét xong — ${keptLabel} giữ model cũ (0 working)`
-          : '✅ Quét hoàn tất!');
+          ? `${t(getLang(), '⚠️ Quét xong — ')}${keptLabel} ${t(getLang(), 'giữ model cũ')} (0 working)`
+          : t(getLang(), '✅ Quét hoàn tất!'));
       }
-    } catch(e) { showToast('Lỗi quét: ' + e.message, 'error'); }
+    } catch(e) { showToast(t(getLang(), 'Lỗi quét: ') + e.message, 'error'); }
     finally { setScanningAll(false); }
   };
 
@@ -630,7 +630,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
     console.log('[AdminPanel] Triggering scan for provider:', providerId);
     const provName = PROVIDER_LABELS[providerId]?.name || providerId;
     setScanningProvider(providerId);
-    showToast(`🔄 Đang quét ${provName}...`);
+    showToast(`${t(getLang(), '🔄 Đang quét ')}${provName}...`);
     try {
       const data = await apiFetch('/models/admin/models/scan-provider', token, {
         method: 'POST',
@@ -639,20 +639,20 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
       console.log('[AdminPanel] Scan response:', data);
       if (data.success) {
         if (data.keptOld) {
-          showToast(`⚠️ ${provName}: 0/${data.total} model hoạt động — GIỮ NGUYÊN model cũ. Lý do: ${data.keptOldReason || 'lỗi tạm thời'}`, 'error');
+          showToast(`${t(getLang(), '⚠️ ')}${provName}: 0/${data.total} ${t(getLang(), 'model hoạt động — GIỮ NGUYÊN model cũ. Lý do: ')}${data.keptOldReason || t(getLang(), 'lỗi tạm thời')}`, 'error');
         } else {
-          showToast(`✅ ${provName}: ${data.working}/${data.total} model hoạt động`);
+          showToast(`✅ ${provName}: ${data.working}/${data.total} ${t(getLang(), 'model hoạt động')}`);
         }
         await fetchScanCache();
         window.dispatchEvent(new CustomEvent('rexi_models_published', { detail: { provider: providerId } }));
       } else if (data.skipped) {
-        showToast(`⚠️ ${provName}: Chưa có API Key`, 'error');
+        showToast(`${t(getLang(), '⚠️ ')}${provName}: ${t(getLang(), 'Chưa có API Key')}`, 'error');
       } else {
-        showToast(data.error || 'Lỗi quét', 'error');
+        showToast(data.error || t(getLang(), 'Lỗi quét'), 'error');
       }
     } catch(e) {
       console.error('[AdminPanel] Scan error:', e);
-      showToast('Lỗi quét: ' + e.message, 'error');
+      showToast(t(getLang(), 'Lỗi quét: ') + e.message, 'error');
     } finally {
       setScanningProvider(null);
     }
@@ -663,7 +663,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
   };
 
   const formatTime = (isoStr) => {
-    if (!isoStr) return 'Chưa quét';
+    if (!isoStr) return t(getLang(), 'Chưa quét');
     const d = new Date(isoStr);
     return d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
@@ -684,7 +684,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
           {lastFullScan && (
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Quét lần cuối: {formatTime(lastFullScan)}
+              {t(getLang(), 'Quét lần cuối: ')}{formatTime(lastFullScan)}
             </p>
           )}
         </div>
@@ -693,7 +693,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
           {/* Weekly Schedule — editable */}
           <div className="flex items-center gap-1.5 bg-[#13141a]/80 border border-violet-500/20 rounded-xl px-3 py-1.5">
             <CalendarClock size={12} className="text-violet-400" />
-            <span className="text-[11px] font-medium text-violet-300">Tự động quét</span>
+            <span className="text-[11px] font-medium text-violet-300">{t(getLang(), 'Tự động quét')}</span>
             {editingSchedule ? (
               <>
                 <select value={editDay} onChange={e => setEditDay(Number(e.target.value))}
@@ -710,9 +710,9 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                   ))}
                 </select>
                 <button onClick={saveWeeklySchedule}
-                  className="px-2 py-0.5 bg-violet-500/25 hover:bg-violet-500/40 text-violet-200 rounded-md text-[10px] font-bold transition-colors">Lưu</button>
+                  className="px-2 py-0.5 bg-violet-500/25 hover:bg-violet-500/40 text-violet-200 rounded-md text-[10px] font-bold transition-colors">{t(getLang(), 'Lưu')}</button>
                 <button onClick={() => { setEditingSchedule(false); setEditDay(weeklySchedule.day); setEditTime(weeklySchedule.time); }}
-                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-300 text-[10px] transition-colors">Hủy</button>
+                  className="px-1.5 py-0.5 text-slate-500 hover:text-slate-300 text-[10px] transition-colors">{t(getLang(), 'Hủy')}</button>
               </>
             ) : (
               <>
@@ -728,10 +728,10 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
 
           <button
             onClick={async () => {
-              if (window.confirm("Reset cache models? (Tự động hàng tuần CN→T2 00:00, nút này dùng khi cần ngay)")) {
+              if (window.confirm(t(getLang(), "Reset cache models? (Tự động hàng tuần CN→T2 00:00, nút này dùng khi cần ngay)"))) {
                 try {
                   const res = await apiFetch('/models/admin/models/clear-and-reset', token, { method: 'POST' });
-                  showToast(res.message || "Đã reset!");
+                  showToast(res.message || t(getLang(), "Đã reset!"));
                   fetchScanCache();
                   window.dispatchEvent(new CustomEvent('rexi_models_published'));
                 } catch(e) { showToast(e.message, 'error'); }
@@ -749,7 +749,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
             className={`px-3.5 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-cyan-500/10 transition-all ${scanningAll ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {scanningAll ? <RefreshCw size={12} className="animate-spin" /> : <Radar size={12} />}
-            {scanningAll ? 'Đang quét...' : 'Quét Tất Cả'}
+            {scanningAll ? t(getLang(), 'Đang quét...') : t(getLang(), 'Quét Tất Cả')}
           </button>
         </div>
       </div>
@@ -757,7 +757,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
       {/* Box Thêm / Lưu Key */}
       <div className="bg-[#141622]/80 backdrop-blur-xl rounded-2xl border border-white/8 p-4 shadow-xl">
         <h3 className="text-xs font-bold text-amber-400 mb-3 flex items-center gap-2">
-          <Plus size={14} className="text-amber-400" /> Thêm / Cập Nhật API Key Mới
+          <Plus size={14} className="text-amber-400" /> {t(getLang(), 'Thêm / Cập Nhật API Key Mới')}
         </h3>
         <div className="flex flex-wrap gap-2.5">
           <select
@@ -783,7 +783,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
             <option value="bai">B.AI</option>
             <option value="kiosapi">KiosAPI</option>
             <option value="unorouter">UnoRouter</option>
-            <option value="custom">Custom / Khác</option>
+            <option value="custom">Custom / {t(getLang(), 'Khác')}</option>
           </select>
 
           <input
@@ -799,7 +799,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
             onClick={saveKey}
             className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 shrink-0"
           >
-            Lưu Key
+            {t(getLang(), 'Lưu Key')}
           </button>
         </div>
       </div>
@@ -808,15 +808,15 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-bold text-slate-300 flex items-center gap-2">
-            <Activity size={14} className="text-emerald-400" /> Nhà Cung Cấp & Trạng Thái Model
-            <span className="text-slate-500 font-normal text-[11px]">(Bấm vào dòng để xem danh sách chi tiết)</span>
+            <Activity size={14} className="text-emerald-400" /> {t(getLang(), 'Nhà Cung Cấp & Trạng Thái Model')}
+            <span className="text-slate-500 font-normal text-[11px]">{t(getLang(), '(Bấm vào dòng để xem danh sách chi tiết)')}</span>
           </h3>
         </div>
 
         {loading ? (
           <div className="text-center py-12 text-slate-400 text-xs bg-[#141622]/40 rounded-2xl border border-white/8">
             <RefreshCw size={20} className="animate-spin mx-auto mb-2 text-cyan-400" />
-            <span>Đang tải danh sách nhà cung cấp...</span>
+            <span>{t(getLang(), 'Đang tải danh sách nhà cung cấp...')}</span>
           </div>
         ) : (
           <div className="space-y-2">
@@ -841,8 +841,8 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                       <div>
                         <span className={`text-xs font-bold ${label.color}`}>{label.name}</span>
                         <div className="text-[10px] text-slate-500 mt-0.5 font-mono flex items-center gap-2">
-                          <span>{key?.gia_tri_khoa ? key.gia_tri_khoa.substring(0, 6) + '...' + key.gia_tri_khoa.slice(-4) : 'Chưa có key'}</span>
-                          {lastScan && <span className="text-slate-600">· Quét: {formatTime(lastScan)}</span>}
+                          <span>{key?.gia_tri_khoa ? key.gia_tri_khoa.substring(0, 6) + '...' + key.gia_tri_khoa.slice(-4) : t(getLang(), 'Chưa có key')}</span>
+                          {lastScan && <span className="text-slate-600">· {t(getLang(), 'Quét: ')}{formatTime(lastScan)}</span>}
                         </div>
                       </div>
                     </div>
@@ -857,22 +857,22 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                           {cache.failed.length > 0 && (
                             <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-400 font-semibold border border-rose-500/20">
                               <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                              {cache.failed.length} Lỗi
+                              {cache.failed.length} {t(getLang(), 'Lỗi')}
                             </span>
                           )}
                           {(cache.needs_balance?.length || 0) > 0 && (
                             <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/20" title={t(lang, 'tipPaidAdmin')}>
-                              {cache.needs_balance.length} Trả phí
+                              {cache.needs_balance.length} {t(getLang(), 'Trả phí')}
                             </span>
                           )}
                           {(cache.skipped?.length || 0) > 0 && (
                             <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-500/15 text-slate-400 font-semibold border border-slate-500/20" title={t(lang, 'tipNonChat')}>
-                              {cache.skipped.length} Khác loại
+                              {cache.skipped.length} {t(getLang(), 'Khác loại')}
                             </span>
                           )}
                         </div>
                       )}
-                      {totalModels === 0 && <span className="text-[10px] text-slate-500">Chưa quét</span>}
+                      {totalModels === 0 && <span className="text-[10px] text-slate-500">{t(getLang(), 'Chưa quét')}</span>}
 
                       <button
                         type="button"
@@ -880,7 +880,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                         className={`px-3 py-1 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 rounded-xl text-[10px] font-bold flex items-center gap-1.5 transition-all active:scale-95 shadow-sm ${isScanning ? 'opacity-50' : ''}`}
                       >
                         {isScanning ? <RefreshCw size={10} className="animate-spin text-cyan-300" /> : <Search size={10} className="text-cyan-300" />}
-                        {isScanning ? 'Đang quét...' : 'Quét'}
+                        {isScanning ? t(getLang(), 'Đang quét...') : t(getLang(), 'Quét')}
                       </button>
 
                       <button
@@ -903,7 +903,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                       <div className="px-4 py-3 space-y-1.5 max-h-72 overflow-y-auto scrollbar-thin">
                         {totalModels === 0 ? (
                           <div className="text-center py-4 text-slate-500 text-xs">
-                            Chưa có dữ liệu quét. Bấm nút <b className="text-cyan-400">Quét</b> để kiểm tra.
+                            {t(getLang(), 'Chưa có dữ liệu quét. Bấm nút ')}<b className="text-cyan-400">{t(getLang(), 'Quét')}</b> {t(getLang(), 'để kiểm tra.')}
                           </div>
                         ) : (
                           <>
@@ -915,7 +915,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
                                   {m.do_tre_ms > 0 && <span className="text-[10px] text-emerald-400 font-mono">⚡ {m.do_tre_ms}ms</span>}
-                                  <span className="text-[10px] text-emerald-400 font-semibold">✅ Hoạt động</span>
+                                  <span className="text-[10px] text-emerald-400 font-semibold">{t(getLang(), '✅ Hoạt động')}</span>
                                 </div>
                               </div>
                             ))}
@@ -943,7 +943,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
                                   <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0"></span>
                                   <span className="font-mono text-slate-400 truncate">{m.ma_model}</span>
                                 </div>
-                                <span className="text-[10px] text-slate-400 shrink-0">⊘ {m.loi_chi_tiet || 'không dùng cho chat'}</span>
+                                <span className="text-[10px] text-slate-400 shrink-0">⊘ {m.loi_chi_tiet || t(getLang(), 'không dùng cho chat')}</span>
                               </div>
                             ))}
                           </>
@@ -957,7 +957,7 @@ const ApiKeysTab = memo(function ApiKeysTab({ token, showToast }) {
 
             {providerIdsWithKeys.length === 0 && (
               <div className="text-center py-8 text-slate-500 text-xs bg-[#141622]/80 backdrop-blur-xl rounded-2xl border border-white/8">
-                Chưa có API Key nào được cấu hình. Thêm key ở phía trên.
+                {t(getLang(), 'Chưa có API Key nào được cấu hình. Thêm key ở phía trên.')}
               </div>
             )}
           </div>
@@ -998,23 +998,23 @@ const SkillsTab = memo(function SkillsTab({ token, showToast }) {
         method: 'PUT',
         body: JSON.stringify({ trang_thai: newStatus })
       });
-      showToast(`${newStatus === 'kich_hoat' ? '✅ Đã bật' : '⛔ Đã tắt'}: ${skill.tieu_de || skill.ten_ky_nang}`);
+      showToast(`${newStatus === 'kich_hoat' ? t(getLang(), '✅ Đã bật') : t(getLang(), '⛔ Đã tắt')}: ${skill.tieu_de || skill.ten_ky_nang}`);
       await fetchSkills();
-    } catch (e) { showToast('Lỗi toggle skill: ' + e.message, 'error'); }
+    } catch (e) { showToast(t(getLang(), 'Lỗi toggle skill: ') + e.message, 'error'); }
     finally { setToggling(null); }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Layers size={20} className="text-purple-400" /> Kỹ Năng Agent
-          <span className="text-xs text-slate-400 font-normal">({skills.filter(s=>s.trang_thai==='kich_hoat').length}/{skills.length} đang bật)</span>
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><Layers size={20} className="text-purple-400" /> {t(getLang(), 'Kỹ Năng Agent')}
+          <span className="text-xs text-slate-400 font-normal">({skills.filter(s=>s.trang_thai==='kich_hoat').length}/{skills.length} {t(getLang(), 'đang bật')})</span>
         </h2>
         <button onClick={fetchSkills} className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
           <RefreshCw size={13} />
         </button>
       </div>
-      {loading ? <div className="text-center py-8 text-slate-400 text-xs"><RefreshCw size={16} className="animate-spin mx-auto mb-1" /> Đang tải...</div> : (
+      {loading ? <div className="text-center py-8 text-slate-400 text-xs"><RefreshCw size={16} className="animate-spin mx-auto mb-1" /> {t(getLang(), 'Đang tải...')}</div> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {skills.map(s => {
             const isActive = s.trang_thai === 'kich_hoat';
@@ -1074,8 +1074,8 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
       if (silent && knownConvsRef.current) {
         const added = list.filter(c => !knownConvsRef.current.has(c.ma_hoi_thoai)).length;
         const removed = [...knownConvsRef.current].filter(id => !ids.has(id)).length;
-        if (added > 0) showToast(`🔔 Có ${added} hội thoại mới!`);
-        if (removed > 0) showToast(`Đã có ${removed} hội thoại bị xóa.`, 'error');
+        if (added > 0) showToast(`${t(getLang(), '🔔 Có ')}${added} ${t(getLang(), 'hội thoại mới!')}`);
+        if (removed > 0) showToast(`${t(getLang(), 'Đã có ')}${removed} ${t(getLang(), 'hội thoại bị xóa.')}`, 'error');
       }
       knownConvsRef.current = ids;
     } catch (e) { if (!silent) showToast(e.message, 'error'); }
@@ -1106,16 +1106,16 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
       });
       setReply('');
       selectConv(selectedConv);
-      showToast('Đã gửi phản hồi');
+      showToast(t(getLang(), 'Đã gửi phản hồi'));
     } catch (e) { showToast(e.message, 'error'); }
   };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-white flex items-center gap-2"><Send size={20} className="text-rose-400" /> Chat với Users</h2>
+      <h2 className="text-lg font-bold text-white flex items-center gap-2"><Send size={20} className="text-rose-400" /> {t(getLang(), 'Chat với Users')}</h2>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="bg-[#181920] rounded-2xl border border-white/8 overflow-hidden max-h-[60vh] overflow-y-auto">
-          <div className="px-3 py-2 border-b border-white/5 text-[10px] text-slate-400 uppercase font-semibold">Danh sách hội thoại</div>
+          <div className="px-3 py-2 border-b border-white/5 text-[10px] text-slate-400 uppercase font-semibold">{t(getLang(), 'Danh sách hội thoại')}</div>
           <div className="px-3 py-2 border-b border-white/5">
             <input type="text" value={convSearch} onChange={e => setConvSearch(e.target.value)}
               placeholder={t(lang, 'phAdminFilter')} className="w-full px-2.5 py-1.5 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] text-white placeholder-slate-500 outline-none" />
@@ -1127,7 +1127,7 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
           }).map(c => (
             <div key={c.ma_hoi_thoai} onClick={() => selectConv(c.ma_hoi_thoai)}
               className={`px-3 py-2.5 border-b border-white/5 cursor-pointer hover:bg-white/3 transition-colors ${selectedConv === c.ma_hoi_thoai ? 'bg-rose-500/10' : ''}`}>
-              <p className="text-xs font-medium text-slate-200 truncate">{c.tieu_de || 'Trò chuyện mới'}</p>
+              <p className="text-xs font-medium text-slate-200 truncate">{c.tieu_de || t(getLang(), 'Trò chuyện mới')}</p>
               <p className="text-[10px] text-slate-500">{c.email || 'guest'}</p>
             </div>
           ))}
@@ -1138,7 +1138,7 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {messages.length > msgLimit && (
                   <div className="text-center">
-                    <button onClick={() => setMsgLimit(l => l + 30)} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] text-slate-300 transition-colors">Tải tin nhắn cũ hơn ({messages.length - msgLimit})</button>
+                    <button onClick={() => setMsgLimit(l => l + 30)} className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] text-slate-300 transition-colors">{t(getLang(), 'Tải tin nhắn cũ hơn')} ({messages.length - msgLimit})</button>
                   </div>
                 )}
                 {messages.slice(-msgLimit).map(m => (
@@ -1153,11 +1153,11 @@ const AdminChatTab = memo(function AdminChatTab({ token, showToast }) {
               <div className="p-3 border-t border-white/5 flex gap-2">
                 <input type="text" value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendReply()}
                   placeholder={t(lang, 'phFeedback')} className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-xl text-xs text-white placeholder-slate-500 outline-none" />
-                <button onClick={sendReply} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1"><Send size={12} /> Gửi</button>
+                <button onClick={sendReply} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1"><Send size={12} /> {t(getLang(), 'Gửi')}</button>
               </div>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-slate-500 text-xs">Chọn hội thoại để phản hồi</div>
+            <div className="flex items-center justify-center h-full text-slate-500 text-xs">{t(getLang(), 'Chọn hội thoại để phản hồi')}</div>
           )}
         </div>
       </div>
@@ -1186,9 +1186,9 @@ const SettingsTab = memo(function SettingsTab({ token, showToast }) {
     setDiffLoading(true);
     try {
       const data = await apiFetch('/chat/git/diff', token);
-      setGitDiff(data.diff || 'Không có thay đổi chưa commit.');
+      setGitDiff(data.diff || t(getLang(), 'Không có thay đổi chưa commit.'));
       setShowDiff(true);
-    } catch (e) { showToast('Lỗi git diff: ' + e.message, 'error'); }
+    } catch (e) { showToast(t(getLang(), 'Lỗi git diff: ') + e.message, 'error'); }
     finally { setDiffLoading(false); }
   };
 
@@ -1206,15 +1206,15 @@ const SettingsTab = memo(function SettingsTab({ token, showToast }) {
   const clearModelCache = async () => {
     try {
       const data = await apiFetch('/chat/admin/cache/clear-models', token, { method: 'POST' });
-      setCacheMsg(data.message || 'Đã xóa cache');
-      showToast('Đã xóa cache models');
+      setCacheMsg(data.message || t(getLang(), 'Đã xóa cache'));
+      showToast(t(getLang(), 'Đã xóa cache models'));
       setTimeout(() => setCacheMsg(''), 3000);
     } catch (e) { showToast(e.message, 'error'); }
   };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-white flex items-center gap-2"><Settings size={20} className="text-slate-400" /> Hệ Thống</h2>
+      <h2 className="text-lg font-bold text-white flex items-center gap-2"><Settings size={20} className="text-slate-400" /> {t(getLang(), 'Hệ Thống')}</h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-[#181920] rounded-2xl border border-white/8 p-4">
           <h3 className="text-xs font-bold text-cyan-400 mb-3 flex items-center gap-1.5"><GitBranch size={14} /> Git Status</h3>
@@ -1237,13 +1237,13 @@ const SettingsTab = memo(function SettingsTab({ token, showToast }) {
                 Xem Git Diff
               </button>
             </div>
-          ) : <p className="text-xs text-slate-500">Không có Git repo</p>}
+          ) : <p className="text-xs text-slate-500">{t(getLang(), 'Không có Git repo')}</p>}
         </div>
         <div className="bg-[#181920] rounded-2xl border border-white/8 p-4">
           <h3 className="text-xs font-bold text-amber-400 mb-3 flex items-center gap-1.5"><Database size={14} /> Cache Management</h3>
-          <p className="text-xs text-slate-400 mb-3">Xóa cache models đã lưu để fetch lại danh sách mới.</p>
+          <p className="text-xs text-slate-400 mb-3">{t(getLang(), 'Xóa cache models đã lưu để fetch lại danh sách mới.')}</p>
           <button onClick={clearModelCache} className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5">
-            <Trash2 size={13} /> Xóa Cache Models
+            <Trash2 size={13} /> {t(getLang(), 'Xóa Cache Models')}
           </button>
           {cacheMsg && <p className="mt-2 text-[11px] text-emerald-400">✅ {cacheMsg}</p>}
         </div>
@@ -1252,7 +1252,7 @@ const SettingsTab = memo(function SettingsTab({ token, showToast }) {
           <div className="flex gap-2">
             <input type="text" value={execCmd} onChange={e => setExecCmd(e.target.value)} onKeyDown={e => e.key === 'Enter' && runExec()}
               placeholder={t(lang, 'phAdminCmd')} className="flex-1 px-3 py-2 bg-[#0d0e11] border border-white/5 rounded-lg text-xs text-slate-200 placeholder-slate-500 outline-none font-mono" />
-            <button onClick={runExec} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold">Chạy</button>
+            <button onClick={runExec} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold">{t(getLang(), 'Chạy')}</button>
           </div>
           {execOutput && <pre className="mt-2 p-2 bg-black/40 rounded-lg text-[11px] text-slate-300 font-mono max-h-32 overflow-auto">{execOutput}</pre>}
         </div>
@@ -1332,7 +1332,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
     setScanning(true);
     try {
       const data = await apiFetch('/admin/scan-now', token, { method: 'POST' });
-      showToast(data.message || 'Đã kích hoạt scan');
+      showToast(data.message || t(getLang(), 'Đã kích hoạt scan'));
       setTimeout(() => { load(true); setScanning(false); }, 15000);
     } catch (e) { showToast(e.message, 'error'); setScanning(false); }
   };
@@ -1350,15 +1350,15 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
   };
 
   const saveChannel = async () => {
-    if (!form.channel_name.trim() || !form.url.trim()) return showToast('Cần nhập tên và URL', 'error');
+    if (!form.channel_name.trim() || !form.url.trim()) return showToast(t(getLang(), 'Cần nhập tên và URL'), 'error');
     setSaving(true);
     try {
       if (editing) {
         await apiFetch(`/admin/channels/${editing.id}`, token, { method: 'PUT', body: JSON.stringify(form) });
-        showToast('Đã cập nhật kênh');
+        showToast(t(getLang(), 'Đã cập nhật kênh'));
       } else {
         await apiFetch('/admin/channels', token, { method: 'POST', body: JSON.stringify(form) });
-        showToast('Đã thêm kênh mới');
+        showToast(t(getLang(), 'Đã thêm kênh mới'));
       }
       setShowForm(false);
       loadChannels();
@@ -1367,10 +1367,10 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
   };
 
   const deleteChannel = async (ch) => {
-    if (!window.confirm(`Xóa kênh "${ch.channel_name}"?`)) return;
+    if (!window.confirm(`${t(getLang(), 'Xóa kênh ')}"${ch.channel_name}"?`)) return;
     try {
       await apiFetch(`/admin/channels/${ch.id}`, token, { method: 'DELETE' });
-      showToast('Đã xóa kênh');
+      showToast(t(getLang(), 'Đã xóa kênh'));
       loadChannels();
     } catch (e) { showToast(e.message, 'error'); }
   };
@@ -1392,7 +1392,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       a.download = `iptv-channels.${ext}`;
       a.click();
       URL.revokeObjectURL(a.href);
-      showToast(`Đã tải ${fmt.toUpperCase()} thành công`);
+      showToast(`${t(getLang(), 'Đã tải ')}${fmt.toUpperCase()} ${t(getLang(), 'thành công')}`);
     } catch (e) { showToast(e.message, 'error'); }
     finally { setExporting(null); }
   };
@@ -1402,7 +1402,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       const data = await apiFetch('/admin/notifications?limit=30', token);
       setNotifications(data.notifications || []);
       setUnreadCount(data.unread || 0);
-    } catch (e) { showToast(e.message || 'Lỗi tải thông báo', 'error'); }
+    } catch (e) { showToast(e.message || t(getLang(), 'Lỗi tải thông báo'), 'error'); }
   }, [token]);
 
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
@@ -1412,7 +1412,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       await apiFetch('/admin/notifications/read-all', token, { method: 'PUT' });
       setNotifications(n => n.map(x => ({ ...x, is_read: 1 })));
       setUnreadCount(0);
-    } catch (e) { showToast(e.message || 'Lỗi đánh dấu đã đọc', 'error'); }
+    } catch (e) { showToast(e.message || t(getLang(), 'Lỗi đánh dấu đã đọc'), 'error'); }
   };
 
   const markRead = async (id) => {
@@ -1420,7 +1420,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       await apiFetch(`/admin/notifications/${id}/read`, token, { method: 'PUT' });
       setNotifications(n => n.map(x => x.id === id ? { ...x, is_read: 1 } : x));
       setUnreadCount(c => Math.max(0, c - 1));
-    } catch (e) { showToast(e.message || 'Lỗi đánh dấu đã đọc', 'error'); }
+    } catch (e) { showToast(e.message || t(getLang(), 'Lỗi đánh dấu đã đọc'), 'error'); }
   };
 
   const deleteNotif = async (id) => {
@@ -1429,7 +1429,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       setNotifications(n => n.filter(x => x.id !== id));
       const was = notifications.find(x => x.id === id);
       if (was && !was.is_read) setUnreadCount(c => Math.max(0, c - 1));
-    } catch (e) { showToast(e.message || 'Lỗi xóa thông báo', 'error'); }
+    } catch (e) { showToast(e.message || t(getLang(), 'Lỗi xóa thông báo'), 'error'); }
   };
 
   const total = status?.total_channels || stats?.summary?.total_all || 0;
@@ -1437,11 +1437,11 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
   const onlinePct = stats?.summary?.online_pct || (total ? ((online / total) * 100).toFixed(1) : '0');
 
   const cards = [
-    { label: 'Tổng kênh', value: total, color: 'text-white', icon: Tv },
-    { label: 'Đang hoạt động', value: online, color: 'text-emerald-400', icon: Wifi },
-    { label: 'Kênh lỗi', value: total - online, color: 'text-rose-400', icon: XCircle },
+    { label: t(getLang(), 'Tổng kênh'), value: total, color: 'text-white', icon: Tv },
+    { label: t(getLang(), 'Đang hoạt động'), value: online, color: 'text-emerald-400', icon: Wifi },
+    { label: t(getLang(), 'Kênh lỗi'), value: total - online, color: 'text-rose-400', icon: XCircle },
     { label: 'Online (%)', value: `${onlinePct}%`, color: 'text-cyan-400', icon: Activity },
-    { label: 'Quốc gia', value: stats?.summary?.countries_scanned ?? countries.length, color: 'text-amber-400', icon: Globe },
+    { label: t(getLang(), 'Quốc gia'), value: stats?.summary?.countries_scanned ?? countries.length, color: 'text-amber-400', icon: Globe },
   ];
 
   return (
@@ -1456,7 +1456,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
           )}
           <button onClick={openAdd}
             className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold">
-            <Plus size={13} /> Thêm kênh
+            <Plus size={13} /> {t(getLang(), 'Thêm kênh')}
           </button>
           <div className="relative group">
             <button className="flex items-center gap-1.5 px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-xs font-semibold">
@@ -1470,7 +1470,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
           </div>
           <button onClick={runScan} disabled={scanning}
             className="flex items-center gap-1.5 px-4 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded-xl text-xs font-semibold">
-            <PlayCircle size={13} /> {scanning ? 'Đang quét...' : 'Quét kênh'}
+            <PlayCircle size={13} /> {scanning ? t(getLang(), 'Đang quét...') : t(getLang(), 'Quét kênh')}
           </button>
           <button onClick={() => load(true)} className="p-2 rounded-xl hover:bg-white/10 text-slate-400"><RefreshCw size={14} /></button>
           <div className="relative">
@@ -1486,13 +1486,13 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
             {showNotifs && (
               <div className="absolute right-0 top-full mt-1 bg-[#1a1b23] border border-white/10 rounded-xl shadow-2xl w-80 z-20">
                 <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
-                  <span className="text-xs font-bold text-white">Thông báo</span>
+                  <span className="text-xs font-bold text-white">{t(getLang(), 'Thông báo')}</span>
                   {unreadCount > 0 && (
-                    <button onClick={markAllRead} className="text-[10px] text-sky-400 hover:text-sky-300">Đọc tất cả</button>
+                    <button onClick={markAllRead} className="text-[10px] text-sky-400 hover:text-sky-300">{t(getLang(), 'Đọc tất cả')}</button>
                   )}
                 </div>
                 <div className="max-h-72 overflow-y-auto">
-                  {notifications.length === 0 && <div className="p-5 text-center text-xs text-slate-500">Chưa có thông báo</div>}
+                  {notifications.length === 0 && <div className="p-5 text-center text-xs text-slate-500">{t(getLang(), 'Chưa có thông báo')}</div>}
                   {notifications.map(n => (
                     <div key={n.id} onClick={() => { if (!n.is_read) markRead(n.id); }}
                       className={`px-3 py-2.5 border-b border-white/5 cursor-pointer hover:bg-white/5 ${!n.is_read ? 'bg-sky-500/5' : ''}`}>
@@ -1531,7 +1531,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
         {/* Countries table */}
         <div className="bg-[#181920] rounded-2xl border border-white/8 overflow-hidden">
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-sky-400 flex items-center gap-1.5"><Globe size={14} /> Quốc gia theo số kênh</h3>
+            <h3 className="text-xs font-bold text-sky-400 flex items-center gap-1.5"><Globe size={14} /> {t(getLang(), 'Quốc gia theo số kênh')}</h3>
             <span className="text-[10px] text-slate-500">Top {Math.min(countries.length, 15)} / {countries.length}</span>
           </div>
           <div className="max-h-[420px] overflow-y-auto">
@@ -1545,23 +1545,23 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
                 </div>
               </div>
             ))}
-            {countries.length === 0 && <div className="p-6 text-center text-xs text-slate-500">Chưa có dữ liệu quét</div>}
+            {countries.length === 0 && <div className="p-6 text-center text-xs text-slate-500">{t(getLang(), 'Chưa có dữ liệu quét')}</div>}
           </div>
         </div>
 
         {/* Channels table */}
         <div className="xl:col-span-2 bg-[#181920] rounded-2xl border border-white/8 overflow-hidden">
           <div className="px-4 py-3 border-b border-white/5 flex flex-wrap items-center gap-2">
-            <h3 className="text-xs font-bold text-sky-400 flex items-center gap-1.5 mr-auto"><Tv size={14} /> Kênh {filters.status === 'online' ? '(hoạt động)' : filters.status === 'offline' ? '(lỗi)' : '(tất cả)'}</h3>
+            <h3 className="text-xs font-bold text-sky-400 flex items-center gap-1.5 mr-auto"><Tv size={14} /> {t(getLang(), 'Kênh')} {filters.status === 'online' ? t(getLang(), '(hoạt động)') : filters.status === 'offline' ? t(getLang(), '(lỗi)') : t(getLang(), '(tất cả)')}</h3>
             <select value={filters.status} onChange={e => setFilters(f => ({ ...f, status: e.target.value, page: 1 }))}
               className="px-2 py-1.5 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] text-slate-300 outline-none">
-              <option value="">Tất cả trạng thái</option>
-              <option value="online">Hoạt động</option>
-              <option value="offline">Lỗi</option>
+              <option value="">{t(getLang(), 'Tất cả trạng thái')}</option>
+              <option value="online">{t(getLang(), 'Hoạt động')}</option>
+              <option value="offline">{t(getLang(), 'Lỗi')}</option>
             </select>
             <select value={filters.country} onChange={e => setFilters(f => ({ ...f, country: e.target.value, page: 1 }))}
               className="px-2 py-1.5 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] text-slate-300 outline-none">
-              <option value="">Mọi quốc gia</option>
+              <option value="">{t(getLang(), 'Mọi quốc gia')}</option>
               {countries.map(c => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
             </select>
             <div className="flex items-center gap-1.5 bg-[#0d0e11] border border-white/10 rounded-lg px-2 py-1">
@@ -1574,12 +1574,12 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-[#181920]">
                 <tr className="text-left text-[10px] text-slate-500 uppercase border-b border-white/5">
-                  <th className="px-4 py-2">Trạng thái</th>
-                  <th className="px-2 py-2">Kênh</th>
-                  <th className="px-2 py-2">Quốc gia</th>
-                  <th className="px-2 py-2">Nhóm</th>
+                  <th className="px-4 py-2">{t(getLang(), 'Trạng thái')}</th>
+                  <th className="px-2 py-2">{t(getLang(), 'Kênh')}</th>
+                  <th className="px-2 py-2">{t(getLang(), 'Quốc gia')}</th>
+                  <th className="px-2 py-2">{t(getLang(), 'Nhóm')}</th>
                   <th className="px-4 py-2 text-right">Ping</th>
-                  <th className="px-2 py-2 text-right">Hành động</th>
+                  <th className="px-2 py-2 text-right">{t(getLang(), 'Hành động')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1600,13 +1600,13 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
                     </td>
                   </tr>
                 ))}
-                {channels.length === 0 && !loading && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Không có kênh nào</td></tr>}
+                {channels.length === 0 && !loading && <tr><td colSpan={6} className="p-6 text-center text-slate-500">{t(getLang(), 'Không có kênh nào')}</td></tr>}
               </tbody>
             </table>
-            {loading && <div className="p-4 text-center text-[11px] text-slate-500">Đang tải...</div>}
+            {loading && <div className="p-4 text-center text-[11px] text-slate-500">{t(getLang(), 'Đang tải...')}</div>}
           </div>
           <div className="px-4 py-2.5 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
-            <span>{chanTotal} kênh · trang {filters.page}</span>
+            <span>{chanTotal} {t(getLang(), 'kênh')} · {t(getLang(), 'trang')} {filters.page}</span>
             <div className="flex items-center gap-1.5">
               <select value={limit} onChange={e => setLimit(parseInt(e.target.value))} className="px-1.5 py-1 bg-[#0d0e11] border border-white/10 rounded-lg text-[11px] outline-none">
                 <option value={25}>25</option><option value={50}>50</option><option value={100}>100</option>
@@ -1622,27 +1622,27 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
       <div className="bg-[#181920] rounded-2xl border border-white/8 overflow-hidden">
         <div className="px-4 py-3 border-b border-white/5 flex items-center gap-1.5">
           <Clock size={14} className="text-sky-400" />
-          <h3 className="text-xs font-bold text-sky-400">Lịch sử quét</h3>
+          <h3 className="text-xs font-bold text-sky-400">{t(getLang(), 'Lịch sử quét')}</h3>
         </div>
         <div className="max-h-56 overflow-y-auto">
           {history.map(h => (
             <div key={h.id} className="flex items-center justify-between px-4 py-2 border-b border-white/5 text-xs">
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${h.status === 'done' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'}`}>
-                  {h.status === 'done' ? <CheckCircle size={9} /> : <AlertTriangle size={9} />} {{ done: 'Hoàn tất', running: 'Đang quét', interrupted: 'Bị gián đoạn', failed: 'Thất bại' }[h.status] || h.status}
+                  {h.status === 'done' ? <CheckCircle size={9} /> : <AlertTriangle size={9} />} {t(getLang(), { done: 'Hoàn tất', running: 'Đang quét', interrupted: 'Bị gián đoạn', failed: 'Thất bại' }[h.status]) || h.status}
                 </span>
                 <span className="text-slate-300">{new Date(h.started_at).toLocaleString('vi-VN')}</span>
               </div>
               <div className="flex items-center gap-3 text-slate-400">
-                <span>{h.total_channels} kênh</span>
+                <span>{h.total_channels} {t(getLang(), 'kênh')}</span>
                 <span className="text-emerald-400">{h.online_channels}✓</span>
                 <span className="text-rose-400">{h.offline_channels}✗</span>
-                {h.new_channels > 0 && <span className="text-sky-400">+{h.new_channels} mới</span>}
-                {h.lost_channels > 0 && <span className="text-orange-400">-{h.lost_channels} mất</span>}
+                {h.new_channels > 0 && <span className="text-sky-400">+{h.new_channels} {t(getLang(), 'mới')}</span>}
+                {h.lost_channels > 0 && <span className="text-orange-400">-{h.lost_channels} {t(getLang(), 'mất')}</span>}
               </div>
             </div>
           ))}
-          {history.length === 0 && <div className="p-6 text-center text-xs text-slate-500">Chưa có lịch sử quét</div>}
+          {history.length === 0 && <div className="p-6 text-center text-xs text-slate-500">{t(getLang(), 'Chưa có lịch sử quét')}</div>}
         </div>
       </div>
 
@@ -1652,13 +1652,13 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
           <div className="bg-[#1a1b23] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
             <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                {editing ? <><Pencil size={14} className="text-sky-400" /> Sửa kênh</> : <><Plus size={14} className="text-emerald-400" /> Thêm kênh mới</>}
+                {editing ? <><Pencil size={14} className="text-sky-400" /> {t(getLang(), 'Sửa kênh')}</> : <><Plus size={14} className="text-emerald-400" /> {t(getLang(), 'Thêm kênh mới')}</>}
               </h3>
               <button onClick={() => setShowForm(false)} className="p-1 rounded-lg hover:bg-white/10 text-slate-400"><X size={16} /></button>
             </div>
             <div className="px-5 py-4 space-y-3">
               <div>
-                <label className="block text-[11px] font-semibold text-slate-400 mb-1">Tên kênh *</label>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">{t(getLang(), 'Tên kênh *')}</label>
                 <input value={form.channel_name} onChange={e => setForm(f => ({ ...f, channel_name: e.target.value }))}
                   className="w-full px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-sm text-white outline-none focus:border-sky-500"
                   placeholder={t(lang, 'phAdminVtv')} />
@@ -1677,7 +1677,7 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
                     placeholder="https://..." />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Quốc gia (mã 2 chữ)</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">{t(getLang(), 'Quốc gia (mã 2 chữ)')}</label>
                   <input value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value.toUpperCase() }))}
                     className="w-full px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-sm text-white outline-none focus:border-sky-500"
                     placeholder="VN" maxLength={2} />
@@ -1685,28 +1685,28 @@ const IptvTab = memo(function IptvTab({ token, showToast }) {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Nhóm</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">{t(getLang(), 'Nhóm')}</label>
                   <input value={form.group_name} onChange={e => setForm(f => ({ ...f, group_name: e.target.value }))}
                     className="w-full px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-sm text-white outline-none focus:border-sky-500"
                     placeholder="News, Sports..." />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">Trạng thái</label>
+                  <label className="block text-[11px] font-semibold text-slate-400 mb-1">{t(getLang(), 'Trạng thái')}</label>
                   <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
                     className="w-full px-3 py-2 bg-[#0d0e11] border border-white/10 rounded-lg text-sm text-white outline-none focus:border-sky-500">
-                    <option value="unknown">Chưa rõ</option>
-                    <option value="online">Hoạt động</option>
-                    <option value="offline">Lỗi</option>
+                    <option value="unknown">{t(getLang(), 'Chưa rõ')}</option>
+                    <option value="online">{t(getLang(), 'Hoạt động')}</option>
+                    <option value="offline">{t(getLang(), 'Lỗi')}</option>
                   </select>
                 </div>
               </div>
             </div>
             <div className="px-5 py-4 border-t border-white/5 flex items-center justify-end gap-2">
-              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white rounded-lg">Hủy</button>
+              <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white rounded-lg">{t(getLang(), 'Hủy')}</button>
               <button onClick={saveChannel} disabled={saving || !form.channel_name.trim() || !form.url.trim()}
                 className="flex items-center gap-1.5 px-5 py-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
                 {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                {editing ? 'Cập nhật' : 'Thêm mới'}
+                {editing ? t(getLang(), 'Cập nhật') : t(getLang(), 'Thêm mới')}
               </button>
             </div>
           </div>
@@ -1740,7 +1740,7 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
   if (loading && !data) {
     return <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-cyan-400" /></div>;
   }
-  if (!data) return <div className="text-slate-400 p-8">Không có dữ liệu định tuyến.</div>;
+  if (!data) return <div className="text-slate-400 p-8">{t(getLang(), 'Không có dữ liệu định tuyến.')}</div>;
 
   const { totals, providers, byCategory, recentEvents, uptimeMs } = data;
   const uptimeMin = Math.round((uptimeMs || 0) / 60000);
@@ -1748,17 +1748,17 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
   return (
     <div className="p-5 space-y-5">
       <div>
-        <h2 className="text-lg font-bold text-white flex items-center gap-2"><GitBranch className="w-5 h-5 text-cyan-400" /> Định Tuyến AI — Telemetry</h2>
-        <p className="text-xs text-slate-400 mt-1">Thống kê hệ thống tự chọn model / fallback / provider đang dùng. Uptime: {uptimeMin} phút</p>
+        <h2 className="text-lg font-bold text-white flex items-center gap-2"><GitBranch className="w-5 h-5 text-cyan-400" /> {t(getLang(), 'Định Tuyến AI — Telemetry')}</h2>
+        <p className="text-xs text-slate-400 mt-1">{t(getLang(), 'Thống kê hệ thống tự chọn model / fallback / provider đang dùng. Uptime: ')}{uptimeMin} {t(getLang(), 'phút')}</p>
       </div>
 
       {/* Tổng quan */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Tổng lượt route', value: totals?.routed ?? 0, color: 'text-cyan-300' },
+          { label: t(getLang(), 'Tổng lượt route'), value: totals?.routed ?? 0, color: 'text-cyan-300' },
           { label: 'Fallback', value: totals?.fallbacks ?? 0, color: 'text-amber-300' },
-          { label: 'Lỗi', value: totals?.errors ?? 0, color: 'text-rose-300' },
-          { label: 'Provider hoạt động', value: (providers || []).length, color: 'text-emerald-300' },
+          { label: t(getLang(), 'Lỗi'), value: totals?.errors ?? 0, color: 'text-rose-300' },
+          { label: t(getLang(), 'Provider hoạt động'), value: (providers || []).length, color: 'text-emerald-300' },
         ].map((c, i) => (
           <div key={i} className="bg-white/5 border border-white/10 rounded-xl p-4">
             <div className="text-[10px] uppercase tracking-wider text-slate-500">{c.label}</div>
@@ -1779,29 +1779,29 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
               </div>
               <span className="w-10 text-right text-slate-300">{p.count}</span>
               <span className="w-16 text-right text-slate-500">{p.avgMs}ms</span>
-              <span className={`w-14 text-right ${p.errorRate > 20 ? 'text-rose-400' : 'text-emerald-400'}`}>lỗi {p.errorRate}%</span>
+              <span className={`w-14 text-right ${p.errorRate > 20 ? 'text-rose-400' : 'text-emerald-400'}`}>{t(getLang(), 'lỗi')} {p.errorRate}%</span>
             </div>
           ))}
-          {(providers || []).length === 0 && <div className="text-slate-500 text-xs">Chưa có lượt route nào — gõ "Auto" trong chat để bắt đầu.</div>}
+          {(providers || []).length === 0 && <div className="text-slate-500 text-xs">{t(getLang(), 'Chưa có lượt route nào — gõ "Auto" trong chat để bắt đầu.')}</div>}
         </div>
       </div>
 
       {/* Theo loại câu hỏi */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-        <h3 className="text-sm font-bold text-white mb-3">Theo Loại Câu Hỏi</h3>
+        <h3 className="text-sm font-bold text-white mb-3">{t(getLang(), 'Theo Loại Câu Hỏi')}</h3>
         <div className="flex flex-wrap gap-2">
           {Object.entries(byCategory || {}).map(([cat, cnt]) => (
             <span key={cat} className="px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-semibold">
               {cat} × {cnt}
             </span>
           ))}
-          {Object.keys(byCategory || {}).length === 0 && <span className="text-slate-500 text-xs">Chưa có dữ liệu.</span>}
+          {Object.keys(byCategory || {}).length === 0 && <span className="text-slate-500 text-xs">{t(getLang(), 'Chưa có dữ liệu.')}</span>}
         </div>
       </div>
 
       {/* Sự kiện gần đây */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-        <h3 className="text-sm font-bold text-white mb-3">Sự Kiện Gần Đây</h3>
+        <h3 className="text-sm font-bold text-white mb-3">{t(getLang(), 'Sự Kiện Gần Đây')}</h3>
         <div className="space-y-1 max-h-64 overflow-y-auto">
           {(recentEvents || []).map((ev, i) => (
             <div key={i} className="flex items-center gap-2 text-[11px] text-slate-400 border-b border-white/5 pb-1">
@@ -1811,15 +1811,15 @@ const RoutingTab = memo(function RoutingTab({ token, showToast }) {
                 : <span className="text-cyan-400 font-semibold">route</span>}
               <span className="uppercase text-slate-300">{ev.provider}</span>
               {ev.model && <span className="text-slate-500 truncate">{ev.model}</span>}
-              {ev.from && <span className="text-slate-600">← từ {ev.from}</span>}
+              {ev.from && <span className="text-slate-600">← {t(getLang(), 'từ')} {ev.from}</span>}
             </div>
           ))}
-          {(recentEvents || []).length === 0 && <div className="text-slate-500 text-xs">Chưa có sự kiện.</div>}
+          {(recentEvents || []).length === 0 && <div className="text-slate-500 text-xs">{t(getLang(), 'Chưa có sự kiện.')}</div>}
         </div>
       </div>
 
       <button onClick={load} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20">
-        <RefreshCw className="w-3 h-3" /> Làm mới
+        <RefreshCw className="w-3 h-3" /> {t(getLang(), 'Làm mới')}
       </button>
     </div>
   );
@@ -1932,7 +1932,7 @@ export default function AdminPanel(props) {
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/10 transition-all"
           >
             <Home size={14} className="text-cyan-400" />
-            <span>Về trang chủ</span>
+            <span>{t(getLang(), 'Về trang chủ')}</span>
           </button>
         </div>
       </aside>
@@ -1941,7 +1941,7 @@ export default function AdminPanel(props) {
       <div className="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-[#0b0c10] via-[#0e0f17] to-[#0a0b10]">
         <header className="h-14 px-6 border-b border-white/8 flex items-center justify-between bg-[#0d0e14]/70 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-2.5">
-            <span className="text-xs font-bold text-slate-400">Bảng điều khiển</span>
+            <span className="text-xs font-bold text-slate-400">{t(getLang(), 'Bảng điều khiển')}</span>
             <span className="text-xs text-slate-600">/</span>
             <span className="text-xs font-bold text-cyan-400">{MENU_ITEMS.find(m => m.id === activeTab)?.label}</span>
           </div>
