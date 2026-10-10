@@ -2060,7 +2060,7 @@ function isValidYouTubeUrl(url) {
     return /^\/[A-Za-z0-9_-]{11}/.test(u.pathname);
   }
   if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
-    return /^\/(watch|shorts|live|embed)\\b/.test(u.pathname);
+    return /^\/(watch|shorts|live|embed)\b/.test(u.pathname);
   }
   return false;
 }
