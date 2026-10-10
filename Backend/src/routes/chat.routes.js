@@ -1363,10 +1363,14 @@ async function buildAutoContext(req, id, noi_dung) {
   if (shouldSearch) {
     try {
       const { searchWebTool } = require('../services/agentService');
-      const ck = 'ws:' + q.trim().toLowerCase().slice(0, 140);
+      // Query gọn (câu hỏi đầu tiên) cho engine — câu dài tự nhiên làm Bing/DDG trả kém/tin cũ
+      const sq = (q.split(/[?!\n]/)[0] || q).trim().slice(0, 120) || q.trim().slice(0, 120);
+      const ck = 'ws:' + sq.toLowerCase();
       let s = webCacheGet(ck);
-      if (!s) { s = await searchWebTool(q); webCacheSet(ck, s); }
-      if (s && s.results && s.results.length) {
+      if (!s) { s = await searchWebTool(sq); webCacheSet(ck, s); }
+      const n = (s && s.results && s.results.length) || 0;
+      console.log('[AutoWeb] q="' + sq.slice(0, 80) + '" n=' + n + ' src=' + (s && s.source ? s.source : 'none') + ' first=' + (n ? String(s.results[0].title).slice(0, 80) : '-'));
+      if (n) {
         out.webSearchText = '\n\n🌐 THÔNG TIN MỚI TỪ WEB — BẮT BUỘC dùng khối này để trả lời câu hỏi (trích số liệu cụ thể, KHÔNG trả lời chung chung, KHÔNG chỉ đưa link):\n' +
           s.results.slice(0, 5).map(r => `- ${r.title}: ${r.snippet}` + (r.url ? ` (Nguồn: ${r.url})` : '')).join('\n');
       }
